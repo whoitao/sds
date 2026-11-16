@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { nearbyShopQuerySchema, ROLES, ORDER_STATUS_LABELS } from '@sds/shared';
+import { ROLES, ORDER_STATUS_LABELS } from '@sds/shared';
+import { publicShopRoutes } from './routes/public-shops';
 import { registerHealthRoutes } from './routes/health';
 import { adminAuthRoutes } from './routes/admin-auth';
 import { adminAccountRoutes } from './routes/admin-accounts';
@@ -9,9 +10,13 @@ import { adminPreferenceRoutes } from './routes/admin-preferences';
 import { shopRoutes } from './routes/shops';
 import { productRoutes } from './routes/products';
 import { catalogRoutes } from './routes/catalog';
+import { inventoryRoutes } from './routes/inventory';
+import { purchaseRoutes } from './routes/purchases';
 import { mobileRoutes } from './routes/mobile';
 import { cartRoutes } from './routes/mobile-cart';
 import { adminCartRoutes } from './routes/admin-carts';
+import { mobileOrderRoutes } from './routes/mobile-orders';
+import { adminOrderRoutes } from './routes/admin-orders';
 import { authRoutes } from './routes/auth';
 import { addressRoutes } from './routes/addresses';
 import { regionRoutes } from './routes/regions';
@@ -47,26 +52,8 @@ app.get('/', (c) =>
 
 app.get('/api/hello', (c) => c.text('Hello from Hono API'));
 
-app.get('/api/shops/nearby', (c) => {
-  const parsed = nearbyShopQuerySchema.safeParse({
-    lat: c.req.query('lat'),
-    lng: c.req.query('lng'),
-    radius: c.req.query('radius'),
-    keyword: c.req.query('keyword')
-  });
-
-  if (!parsed.success) {
-    return c.json({ code: 'INVALID_QUERY', details: parsed.error.issues }, 400);
-  }
-
-  // 本轮不连接数据库，返回示例数据
-  return c.json({
-    items: [
-      { id: 'demo-shop-1', name: '示例生鲜店（不接数据库）', distanceMeters: 860 }
-    ],
-    query: parsed.data
-  });
-});
+app.route('/api/shops', publicShopRoutes);
+app.route('/api/mobile/shops', publicShopRoutes);
 
 app.route('/api/admin/auth', adminAuthRoutes);
 app.route('/api/admin', adminAccountRoutes);
@@ -76,11 +63,16 @@ app.route('/api/admin/shops', shopRoutes);
 app.route('/api/admin/uploads', uploadRoutes);
 app.route('/api/admin', productRoutes);
 app.route('/api/admin', catalogRoutes);
+app.route('/api/admin', inventoryRoutes);
+app.route('/api/admin', purchaseRoutes);
 app.route('/api/admin/carts', adminCartRoutes);
+app.route('/api/admin/orders', adminOrderRoutes);
 // 顾客端：移动端首页使用，独立于 admin 路径与权限
 app.route('/api/mobile', mobileRoutes);
 // 顾客购物车：需登录（Bearer 会话），与后台共享同一份 carts / cart_items
 app.route('/api/mobile/cart', cartRoutes);
+// 顾客订单：下单即扣库存，与后台订单管理共享同一份 orders / order_items
+app.route('/api/mobile/orders', mobileOrderRoutes);
 // 顾客认证：PRD 6.2，公开接口 + Bearer 会话
 app.route('/api/auth', authRoutes);
 app.route('/api/addresses', addressRoutes);

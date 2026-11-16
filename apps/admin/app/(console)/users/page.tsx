@@ -13,8 +13,10 @@ import {
 } from '@ant-design/icons';
 import { ROLE_LABELS, type Role } from '@sds/shared';
 import { adminColors as colors } from '../../../lib/theme';
+import { getAdminTableProps } from '../../../lib/table';
 import { AdminPermissionPanel } from '../../../components/AdminPermissionPanel';
 import { useAdminSettings } from '../../../components/AdminSettingsProvider';
+import { TabProgress } from '../../../components/TabProgress';
 
 interface UserRow {
   id: string;
@@ -398,6 +400,7 @@ export default function UsersPage() {
       >
         <div
           style={{
+            position: 'relative',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -428,6 +431,7 @@ export default function UsersPage() {
               {tab === 'users' ? '新建用户' : '新建管理员'}
             </Button>
           )}
+          <TabProgress activeKey={tab} />
         </div>
 
         {tab === 'rbac' ? (
@@ -494,7 +498,7 @@ export default function UsersPage() {
           <Table<UserRow>
             rowKey="id"
             loading={loading}
-            columns={userColumns}
+            {...getAdminTableProps(userColumns)}
             dataSource={userRows}
             scroll={{ x: 'max-content' }}
             pagination={{
@@ -511,7 +515,7 @@ export default function UsersPage() {
           <Table<AdminRow>
             rowKey="id"
             loading={loading}
-            columns={adminColumns}
+            {...getAdminTableProps(adminColumns)}
             dataSource={adminRows}
             scroll={{ x: 'max-content' }}
             pagination={{
@@ -627,7 +631,7 @@ export default function UsersPage() {
             rowKey="id"
             size="small"
             loading={addressLoading}
-            columns={addressColumns}
+            {...getAdminTableProps(addressColumns)}
             dataSource={addressItems}
             pagination={false}
             scroll={{ x: 'max-content' }}

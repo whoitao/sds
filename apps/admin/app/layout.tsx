@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
 import { AntdRegistry } from '@ant-design/nextjs-registry';
 import { adminBrandCss, isResolvedTheme, THEME_COOKIE } from '../lib/theme';
+import { DEFAULT_DISPLAY_DENSITY, DISPLAY_COOKIE, isDisplayDensity } from '../lib/display';
 import { Providers } from './providers';
 import './globals.css';
 
@@ -16,9 +17,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // 账号偏好由控制台布局参与计算，客户端 Provider 挂载后会再校正一次。
   const cookieTheme = (await cookies()).get(THEME_COOKIE)?.value;
   const htmlTheme = isResolvedTheme(cookieTheme) ? cookieTheme : 'light';
+  // 展示效果同理：按 cookie 在服务端写入 data-display，首帧即为上次选择的密度
+  const cookieDisplay = (await cookies()).get(DISPLAY_COOKIE)?.value;
+  const htmlDisplay = isDisplayDensity(cookieDisplay) ? cookieDisplay : DEFAULT_DISPLAY_DENSITY;
 
   return (
-    <html lang="zh-CN" data-theme={htmlTheme} suppressHydrationWarning>
+    <html
+      lang="zh-CN"
+      data-theme={htmlTheme}
+      data-display={htmlDisplay}
+      suppressHydrationWarning
+    >
       <body style={{ margin: 0, background: 'var(--admin-page)', color: 'var(--admin-text)' }}>
         {/* 品牌 CSS 变量由 lib/theme.ts 的常量生成并内联，避免在 CSS 里重复写色值 */}
         <style dangerouslySetInnerHTML={{ __html: adminBrandCss() }} />

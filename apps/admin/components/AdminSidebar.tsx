@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -10,6 +10,7 @@ import {
   CheckOutlined,
   DashboardOutlined,
   DatabaseOutlined,
+  FontSizeOutlined,
   InboxOutlined,
   InfoCircleOutlined,
   LogoutOutlined,
@@ -27,6 +28,7 @@ import {
 } from '@ant-design/icons';
 import { PAGE_SIZE_OPTIONS, useAdminSettings, type ThemePreference } from './AdminSettingsProvider';
 import { adminColors as palette } from '../lib/theme';
+import type { DisplayDensity } from '../lib/display';
 
 const THEME_OPTIONS: { value: ThemePreference; label: string; icon: React.ReactNode }[] = [
   { value: 'light', label: '浅色', icon: <SunOutlined /> },
@@ -34,7 +36,13 @@ const THEME_OPTIONS: { value: ThemePreference; label: string; icon: React.ReactN
   { value: 'system', label: '跟随系统', icon: <SettingOutlined /> }
 ];
 
-type Flyout = 'none' | 'root' | 'theme' | 'pageSize';
+const DISPLAY_OPTIONS: { value: DisplayDensity; label: string }[] = [
+  { value: 'compact', label: '紧凑' },
+  { value: 'standard', label: '标准' },
+  { value: 'relaxed', label: '宽松' }
+];
+
+type Flyout = 'none' | 'root' | 'theme' | 'pageSize' | 'display';
 
 const MAIN_ITEMS = [
   { href: '/dashboard', label: '控制面板', icon: <DashboardOutlined /> },
@@ -51,40 +59,121 @@ const MAIN_ITEMS = [
 
 const SECONDARY_ITEMS = [{ href: '/about', label: '关于', icon: <InfoCircleOutlined /> }];
 
+const flyoutCardStyle: React.CSSProperties = {
+  padding: 4,
+  background: palette.surface,
+  border: `1px solid ${palette.border}`,
+  borderRadius: 10,
+  boxShadow: '0 6px 16px rgba(15, 20, 30, 0.08), 0 9px 28px 8px rgba(15, 20, 30, 0.05)'
+};
+
+/**
+ * 子菜单浮层：默认紧贴上级右缘（不留缝，鼠标可以直接滑入），
+ * 当浮层靠近窗口底部时整体上移，保证卡片完整可见；
+ * 打开时以及窗口尺寸、滚动变化后都会重新测量。
+ */
+function FlyoutPanel({
+  top = 0,
+  marginLeft = 0,
+  minWidth = 140,
+  children
+}: {
+  top?: number;
+  marginLeft?: number;
+  minWidth?: number;
+  children: React.ReactNode;
+}) {
+  const cardRef = useRef<HTMLDivElement>(null);
+  const offsetRef = useRef(0);
+  const [offset, setOffset] = useState(0);
+
+  useLayoutEffect(() => {
+    let frame = 0;
+
+    const measure = () => {
+      frame = 0;
+      const card = cardRef.current;
+      if (!card) return;
+      const rect = card.getBoundingClientRect();
+      // 扣除已应用的位移，得到未上移时卡片的原始位置
+      const baseTop = rect.top - offsetRef.current;
+      const baseBottom = rect.bottom - offsetRef.current;
+      const edge = 8;
+      let next = 0;
+      if (baseBottom > window.innerHeight - edge) {
+        next = window.innerHeight - edge - baseBottom;
+      }
+      // 上移后仍不越过窗口顶部
+      if (baseTop + next < edge) next = edge - baseTop;
+      offsetRef.current = next;
+      setOffset(next);
+    };
+
+    const schedule = () => {
+      // 等父级浮层的位移先落定，再测量自身位置
+      if (frame) cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(measure);
+    };
+
+    schedule();
+    window.addEventListener('resize', schedule);
+    window.addEventListener('scroll', schedule, true);
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      window.removeEventListener('resize', schedule);
+      window.removeEventListener('scroll', schedule, true);
+    };
+  }, []);
+
+  return (
+    <div style={{ position: 'absolute', left: '100%', top, marginLeft, zIndex: 20 }}>
+      <div
+        ref={cardRef}
+        style={{ ...flyoutCardStyle, minWidth, transform: `translateY(${offset}px)` }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
 export function AdminSidebar({ displayName }: { displayName: string }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { theme, pageSize, setTheme, setPageSize } = useAdminSettings();
+  const { theme, pageSize, displayDensity, setTheme, setPageSize, setDisplayDensity } =
+    useAdminSettings();
   const [collapsed, setCollapsed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [flyout, setFlyout] = useState<Flyout>('none');
   const accountRef = useRef<HTMLDivElement>(null);
+  const flyoutTimer = useRef<number | null>(null);
 
+  // 菜单项的字号、行高与间距由「展示效果」的 CSS 变量统一控制，标准档等于原视觉
   const itemStyle = (active: boolean) => ({
     display: 'flex',
     alignItems: 'center',
-    gap: 12,
-    height: 38,
+    gap: 'var(--admin-nav-item-gap)',
+    height: 'var(--admin-nav-item-height)',
     margin: '2px 12px',
-    padding: collapsed ? 0 : '0 14px',
+    padding: collapsed ? 0 : '0 var(--admin-nav-item-padding)',
     justifyContent: collapsed ? 'center' : 'flex-start',
     borderRadius: 8,
     background: active ? palette.accentLight : 'transparent',
     color: active ? palette.accentStrong : palette.text,
     fontWeight: active ? 600 : 400,
-    fontSize: 14,
+    fontSize: 'var(--admin-display-font-size)',
     textDecoration: 'none',
     whiteSpace: 'nowrap' as const,
     overflow: 'hidden'
   });
 
-  const popupItemStyle = {
+  const popupItemStyle: React.CSSProperties = {
     display: 'flex',
     alignItems: 'center',
-    gap: 12,
+    gap: 8,
     width: '100%',
-    height: 38,
-    padding: '0 14px',
+    height: 36,
+    padding: '0 10px',
     borderRadius: 8,
     border: 'none',
     background: 'transparent',
@@ -93,8 +182,15 @@ export function AdminSidebar({ displayName }: { displayName: string }) {
     textDecoration: 'none',
     cursor: 'pointer',
     fontFamily: 'inherit',
-    whiteSpace: 'nowrap' as const
+    whiteSpace: 'nowrap'
   };
+
+  const itemIconStyle = (color: string): React.CSSProperties => ({
+    fontSize: 14,
+    lineHeight: 1,
+    flex: 'none',
+    color
+  });
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -111,31 +207,47 @@ export function AdminSidebar({ displayName }: { displayName: string }) {
   }, [menuOpen]);
 
   function closeMenu() {
+    cancelFlyoutClose();
     setMenuOpen(false);
     setFlyout('none');
   }
 
-  const optionRowStyle = (active: boolean) => ({
+  /** 离开账号菜单后延迟收起浮层，避免斜向移入子菜单时跨过缝隙导致闪烁 */
+  function scheduleFlyoutClose() {
+    cancelFlyoutClose();
+    flyoutTimer.current = window.setTimeout(() => {
+      flyoutTimer.current = null;
+      setFlyout('none');
+    }, 160);
+  }
+
+  function cancelFlyoutClose() {
+    if (flyoutTimer.current !== null) {
+      window.clearTimeout(flyoutTimer.current);
+      flyoutTimer.current = null;
+    }
+  }
+
+  /**
+   * 悬停展开统一交给菜单卡片上冒泡的 mouseover 判定：
+   * 指针落在带 data-flyout 的条目（含其内部图标、文字）上就切到对应浮层。
+   * 比逐条绑 mouseenter 稳，条目重渲染时也不会漏掉进入事件。
+   */
+  function handleMenuMouseOver(event: React.MouseEvent<HTMLDivElement>) {
+    const row = (event.target as HTMLElement).closest<HTMLElement>('[data-flyout]');
+    const value = row?.dataset.flyout;
+    if (value === 'root' || value === 'theme' || value === 'pageSize' || value === 'display') {
+      setFlyout(value);
+    }
+  }
+
+  const optionRowStyle = (active: boolean): React.CSSProperties => ({
     ...popupItemStyle,
-    background: active ? palette.accentLight : 'transparent',
-    color: active ? palette.accentStrong : palette.text,
-    fontWeight: active ? 600 : 400
+    // 非选中项不写内联背景色，交给 .admin-account-menu-item:hover
+    ...(active
+      ? { background: palette.accentLight, color: palette.accentStrong, fontWeight: 500 }
+      : {})
   });
-
-  const flyoutCardStyle: React.CSSProperties = {
-    padding: 6,
-    background: palette.surface,
-    border: `1px solid ${palette.border}`,
-    borderRadius: 12,
-    boxShadow: '0 6px 20px rgba(15, 20, 30, 0.16)'
-  };
-
-  // 浮层紧贴父级右缘（不留缝），鼠标可以直接滑入，也不会出现跨缝导致的外层 mouseleave
-  const flyoutWrapStyle: React.CSSProperties = {
-    position: 'absolute',
-    left: '100%',
-    zIndex: 20
-  };
 
   async function handleLogout() {
     closeMenu();
@@ -147,13 +259,15 @@ export function AdminSidebar({ displayName }: { displayName: string }) {
   return (
     <aside
       style={{
-        width: collapsed ? 72 : 264,
+        width: collapsed ? 72 : 256,
         flex: 'none',
         display: 'flex',
         flexDirection: 'column',
         position: 'sticky',
         top: 0,
         height: '100vh',
+        // 侧边栏整体抬到页面内容之上，子菜单浮层伸出侧边栏时不会被表格等遮挡
+        zIndex: 30,
         background: palette.surface,
         borderRight: `1px solid ${palette.border}`,
         transition: 'width 0.2s ease'
@@ -165,7 +279,7 @@ export function AdminSidebar({ displayName }: { displayName: string }) {
           alignItems: 'center',
           gap: 8,
           padding: collapsed ? '0 12px' : '0 20px',
-          height: 48,
+          height: 'var(--admin-brand-bar-height)',
           borderBottom: `1px solid ${palette.border}`,
           justifyContent: collapsed ? 'center' : 'space-between'
         }}
@@ -191,7 +305,14 @@ export function AdminSidebar({ displayName }: { displayName: string }) {
             >
               S
             </span>
-            <span style={{ fontSize: 18, fontWeight: 700, color: palette.text, whiteSpace: 'nowrap' }}>
+            <span
+              style={{
+                fontSize: 'var(--admin-brand-font-size)',
+                fontWeight: 700,
+                color: palette.text,
+                whiteSpace: 'nowrap'
+              }}
+            >
               捎点啥
             </span>
           </span>
@@ -228,197 +349,301 @@ export function AdminSidebar({ displayName }: { displayName: string }) {
         ))}
       </nav>
 
-      <div ref={accountRef} style={{ position: 'relative' }}>
+      <div
+        ref={accountRef}
+        style={{
+          position: 'relative',
+          padding: 12,
+          borderTop: `1px solid ${palette.border}`,
+          background: palette.surface
+        }}
+        onMouseEnter={cancelFlyoutClose}
+        onMouseLeave={scheduleFlyoutClose}
+      >
         {menuOpen ? (
           <div
+            className="admin-account-menu"
+            onMouseOver={handleMenuMouseOver}
             style={{
               position: 'absolute',
               left: 12,
               right: collapsed ? 'auto' : 12,
               width: collapsed ? 200 : undefined,
               bottom: 'calc(100% + 8px)',
-              padding: 6,
-              background: palette.surface,
-              border: `1px solid ${palette.border}`,
-              borderRadius: 12,
-              boxShadow: '0 6px 20px rgba(31, 35, 41, 0.10)',
               zIndex: 10
             }}
-            onMouseLeave={() => setFlyout('none')}
           >
-            {/* 外观：二级浮层里放主题、分页 */}
+            {/* 透明连接带：盖住卡片与账号行之间的 8px 空隙，
+                鼠标在两者之间移动时不会离开账号区域，浮层不会被收起 */}
+            <div aria-hidden style={{ position: 'absolute', top: '100%', left: 0, right: 0, height: 8 }} />
+
+            {/* 外观：二级浮层里放主题、分页、展示效果 */}
             <button
               type="button"
+              className="admin-account-menu-item"
               aria-haspopup="menu"
-              aria-expanded={flyout === 'root'}
-              onMouseEnter={() => setFlyout('root')}
+              aria-expanded={flyout !== 'none'}
+              data-flyout="root"
+              onFocus={() => setFlyout('root')}
               onClick={() => setFlyout('root')}
               style={optionRowStyle(flyout === 'root')}
             >
-              <span style={{ fontSize: 16, lineHeight: 1, flex: 'none' }}>
+              <span style={itemIconStyle(flyout === 'root' ? palette.accentStrong : palette.textSecondary)}>
                 <BgColorsOutlined />
               </span>
               <span style={{ flex: 1, textAlign: 'left' }}>外观</span>
-              <RightOutlined style={{ fontSize: 11, color: palette.textTertiary }} />
+              <RightOutlined style={{ fontSize: 10, color: palette.textTertiary }} />
             </button>
+
+            <div style={{ height: 1, margin: '4px 6px', background: palette.border }} />
 
             {SECONDARY_ITEMS.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
                 onClick={closeMenu}
+                className="admin-account-menu-item"
                 style={popupItemStyle}
               >
-                <span style={{ fontSize: 16, lineHeight: 1, flex: 'none' }}>{item.icon}</span>
+                <span style={itemIconStyle(palette.textSecondary)}>{item.icon}</span>
                 <span>{item.label}</span>
               </Link>
             ))}
+
+            <div style={{ height: 1, margin: '4px 6px', background: palette.border }} />
+
             <button
               type="button"
               onClick={handleLogout}
+              className="admin-account-menu-item admin-account-menu-danger"
               style={{ ...popupItemStyle, color: palette.danger }}
             >
-              <span style={{ fontSize: 16, lineHeight: 1, flex: 'none' }}>
+              <span style={itemIconStyle(palette.danger)}>
                 <LogoutOutlined />
               </span>
               <span>退出登录</span>
             </button>
 
             {flyout !== 'none' ? (
-              <div style={{ ...flyoutWrapStyle, top: 0 }}>
-              <div style={{ ...flyoutCardStyle, minWidth: 148 }}>
+              <FlyoutPanel minWidth={148}>
                 <div style={{ position: 'relative' }}>
                   <button
                     type="button"
+                    className="admin-account-menu-item"
                     aria-haspopup="menu"
                     aria-expanded={flyout === 'theme'}
-                    onMouseEnter={() => setFlyout('theme')}
+                    data-flyout="theme"
+                    onFocus={() => setFlyout('theme')}
                     onClick={() => setFlyout('theme')}
                     style={optionRowStyle(flyout === 'theme')}
                   >
-                    <span style={{ fontSize: 16, lineHeight: 1, flex: 'none' }}>
+                    <span style={itemIconStyle(flyout === 'theme' ? palette.accentStrong : palette.textSecondary)}>
                       <SunOutlined />
                     </span>
                     <span style={{ flex: 1, textAlign: 'left' }}>主题</span>
-                    <RightOutlined style={{ fontSize: 11, color: palette.textTertiary }} />
+                    <RightOutlined style={{ fontSize: 10, color: palette.textTertiary }} />
                   </button>
 
                   {flyout === 'theme' ? (
-                    <div style={{ ...flyoutWrapStyle, top: -6, marginLeft: 6 }}>
-                      <div style={{ ...flyoutCardStyle, minWidth: 140 }}>
-                        {THEME_OPTIONS.map((option) => (
-                          <button
-                            key={option.value}
-                            type="button"
-                            onClick={() => {
-                              setTheme(option.value);
-                              closeMenu();
-                            }}
-                            style={optionRowStyle(theme === option.value)}
-                          >
-                            <span style={{ fontSize: 16, lineHeight: 1, flex: 'none' }}>{option.icon}</span>
-                            <span style={{ flex: 1, textAlign: 'left' }}>{option.label}</span>
-                            {theme === option.value ? <CheckOutlined style={{ fontSize: 12 }} /> : null}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+                    <FlyoutPanel top={-6} marginLeft={6}>
+                      {THEME_OPTIONS.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          className="admin-account-menu-item"
+                          onClick={() => {
+                            setTheme(option.value);
+                            closeMenu();
+                          }}
+                          style={optionRowStyle(theme === option.value)}
+                        >
+                          <span style={itemIconStyle(theme === option.value ? palette.accentStrong : palette.textSecondary)}>
+                            {option.icon}
+                          </span>
+                          <span style={{ flex: 1, textAlign: 'left' }}>{option.label}</span>
+                          {theme === option.value ? <CheckOutlined style={{ fontSize: 12 }} /> : null}
+                        </button>
+                      ))}
+                    </FlyoutPanel>
                   ) : null}
                 </div>
 
-                <div style={{ position: 'relative' }} onMouseEnter={() => setFlyout('pageSize')}>
+                <div style={{ position: 'relative' }}>
                   <button
                     type="button"
+                    className="admin-account-menu-item"
                     aria-haspopup="menu"
                     aria-expanded={flyout === 'pageSize'}
+                    data-flyout="pageSize"
+                    onFocus={() => setFlyout('pageSize')}
                     onClick={() => setFlyout('pageSize')}
                     style={optionRowStyle(flyout === 'pageSize')}
                   >
-                    <span style={{ fontSize: 16, lineHeight: 1, flex: 'none' }}>
+                    <span style={itemIconStyle(flyout === 'pageSize' ? palette.accentStrong : palette.textSecondary)}>
                       <UnorderedListOutlined />
                     </span>
                     <span style={{ flex: 1, textAlign: 'left' }}>分页</span>
-                    <RightOutlined style={{ fontSize: 11, color: palette.textTertiary }} />
+                    <RightOutlined style={{ fontSize: 10, color: palette.textTertiary }} />
                   </button>
 
                   {flyout === 'pageSize' ? (
-                    <div style={{ ...flyoutWrapStyle, top: 32, marginLeft: 6 }}>
-                      <div style={{ ...flyoutCardStyle, minWidth: 140 }}>
-                        {PAGE_SIZE_OPTIONS.map((size) => (
-                          <button
-                            key={size}
-                            type="button"
-                            onClick={() => {
-                              setPageSize(size);
-                              closeMenu();
-                            }}
-                            style={optionRowStyle(pageSize === size)}
-                          >
-                            <span style={{ flex: 1, textAlign: 'left' }}>{`每页 ${size} 条`}</span>
-                            {pageSize === size ? <CheckOutlined style={{ fontSize: 12 }} /> : null}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+                    <FlyoutPanel top={32} marginLeft={6}>
+                      {PAGE_SIZE_OPTIONS.map((size) => (
+                        <button
+                          key={size}
+                          type="button"
+                          className="admin-account-menu-item"
+                          onClick={() => {
+                            setPageSize(size);
+                            closeMenu();
+                          }}
+                          style={optionRowStyle(pageSize === size)}
+                        >
+                          <span style={{ flex: 1, textAlign: 'left' }}>{`每页 ${size} 条`}</span>
+                          {pageSize === size ? <CheckOutlined style={{ fontSize: 12 }} /> : null}
+                        </button>
+                      ))}
+                    </FlyoutPanel>
                   ) : null}
                 </div>
-              </div>
-              </div>
+
+                <div style={{ position: 'relative' }}>
+                  <button
+                    type="button"
+                    className="admin-account-menu-item"
+                    aria-haspopup="menu"
+                    aria-expanded={flyout === 'display'}
+                    data-flyout="display"
+                    onFocus={() => setFlyout('display')}
+                    onClick={() => setFlyout('display')}
+                    style={optionRowStyle(flyout === 'display')}
+                  >
+                    <span style={itemIconStyle(flyout === 'display' ? palette.accentStrong : palette.textSecondary)}>
+                      <FontSizeOutlined />
+                    </span>
+                    <span style={{ flex: 1, textAlign: 'left' }}>展示效果</span>
+                    <RightOutlined style={{ fontSize: 10, color: palette.textTertiary }} />
+                  </button>
+
+                  {flyout === 'display' ? (
+                    <FlyoutPanel top={-6} marginLeft={6}>
+                      {DISPLAY_OPTIONS.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          className="admin-account-menu-item"
+                          onClick={() => {
+                            setDisplayDensity(option.value);
+                            closeMenu();
+                          }}
+                          style={optionRowStyle(displayDensity === option.value)}
+                        >
+                          <span style={{ flex: 1, textAlign: 'left' }}>{option.label}</span>
+                          {displayDensity === option.value ? (
+                            <CheckOutlined style={{ fontSize: 12 }} />
+                          ) : null}
+                        </button>
+                      ))}
+                    </FlyoutPanel>
+                  ) : null}
+                </div>
+              </FlyoutPanel>
             ) : null}
           </div>
         ) : null}
 
-        <button
-          type="button"
-          aria-expanded={menuOpen}
-          aria-label="账号菜单"
-          onClick={() => setMenuOpen((value) => !value)}
+        <div
+          className="admin-account-trigger"
           style={{
             display: 'flex',
             alignItems: 'center',
-            justifyContent: collapsed ? 'center' : 'flex-start',
-            gap: 10,
-            width: '100%',
-            padding: collapsed ? '10px 0' : '10px 14px',
-            border: 'none',
-            borderTop: `1px solid ${palette.border}`,
-            background: menuOpen ? palette.accentLight : 'transparent',
-            cursor: 'pointer',
-            textAlign: 'left',
-            fontFamily: 'inherit'
+            borderRadius: 8,
+            ...(menuOpen ? { background: palette.subtle } : {})
           }}
         >
-          <span
+          <button
+            type="button"
+            aria-expanded={menuOpen}
+            aria-label="账号菜单"
+            onClick={() => setMenuOpen((value) => !value)}
             style={{
-              width: 32,
-              height: 32,
-              borderRadius: '50%',
-              background: palette.primary,
-              color: '#fff',
-              display: 'inline-flex',
+              flex: 1,
+              minWidth: 0,
+              display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 14,
-              fontWeight: 600,
-              flex: 'none'
+              justifyContent: collapsed ? 'center' : 'flex-start',
+              gap: 10,
+              padding: collapsed ? '10px 0' : '10px 12px',
+              border: 'none',
+              background: 'transparent',
+              cursor: 'pointer',
+              textAlign: 'left',
+              fontFamily: 'inherit'
             }}
           >
-            {displayName.slice(0, 1).toUpperCase()}
-          </span>
-          {!collapsed ? (
             <span
               style={{
-                fontSize: 14,
-                color: palette.text,
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis'
+                width: 28,
+                height: 28,
+                borderRadius: '50%',
+                background: palette.primary,
+                color: '#fff',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 12,
+                fontWeight: 600,
+                flex: 'none'
               }}
             >
-              {displayName}
+              {displayName.slice(0, 1).toUpperCase()}
             </span>
+            {!collapsed ? (
+              <span
+                style={{
+                  fontSize: 'var(--admin-display-font-size)',
+                  color: palette.text,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis'
+                }}
+              >
+                {displayName}
+              </span>
+            ) : null}
+          </button>
+          {/* 齿轮：直接展开账号菜单里的「外观」子菜单（主题 / 分页 / 展示效果） */}
+          {!collapsed ? (
+            <button
+              type="button"
+              aria-label="外观设置"
+              title="外观设置"
+              onClick={() => {
+                setMenuOpen(true);
+                setFlyout('root');
+              }}
+              className="admin-account-settings"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 28,
+                height: 28,
+                marginRight: 4,
+                padding: 0,
+                border: 'none',
+                borderRadius: 8,
+                background: 'transparent',
+                fontSize: 13,
+                lineHeight: 1,
+                cursor: 'pointer',
+                flex: 'none'
+              }}
+            >
+              <SettingOutlined />
+            </button>
           ) : null}
-        </button>
+        </div>
       </div>
     </aside>
   );

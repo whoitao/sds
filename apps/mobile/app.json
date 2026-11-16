@@ -6,6 +6,9 @@
     "orientation": "portrait",
     "newArchEnabled": true,
     "platforms": ["ios", "android"],
+    "plugins": [
+      ["expo-location", { "locationWhenInUsePermission": "用于查找离您最近的门店；不授权也可以按店名、街道或小区找店。" }]
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.sds.mobile"

@@ -16,6 +16,7 @@ import {
 } from '@ant-design/icons';
 import { adminColors as colors } from '../../../lib/theme';
 import { ImageCompressError, compressCoverImage } from '../../../lib/compress-image';
+import { getAdminTableProps } from '../../../lib/table';
 import { useAdminSettings } from '../../../components/AdminSettingsProvider';
 
 interface ShopRow {
@@ -726,7 +727,7 @@ export default function ShopsPage() {
         <Table<ShopRow>
           rowKey="id"
           loading={loading}
-          columns={columns}
+          {...getAdminTableProps(columns)}
           dataSource={rows}
           scroll={{ x: 'max-content' }}
           pagination={{

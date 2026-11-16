@@ -20,6 +20,15 @@ export interface ShopInfo {
   coverUrl: string | null;
   businessHours: Record<string, { open: string; close: string }> | null;
   announcement: string | null;
+  longitude: number;
+  latitude: number;
+  status: 'open' | 'closed';
+  distanceMeters?: number | null;
+}
+
+export interface ShopLocation {
+  longitude: number;
+  latitude: number;
 }
 
 export interface CategoryChild {
@@ -42,6 +51,21 @@ export interface HomePayload {
   categories: CategoryNode[];
 }
 
+export type QuantityMode = 'integer' | 'decimal_2';
+
+export interface ProductSkuItem {
+  skuId: string;
+  specName: string;
+  barcode: string | null;
+  unit: string;
+  quantityMode: QuantityMode;
+  stockType: 'tracked' | 'untracked';
+  isDefault: boolean;
+  price: string;
+  stockQuantity: number;
+  soldOut: boolean;
+}
+
 export interface ProductItem {
   id: string;
   catalogProductId: string | null;
@@ -49,7 +73,12 @@ export interface ProductItem {
   imageUrl: string | null;
   unit: string;
   price: string;
+  priceFrom: string;
+  priceTo: string;
   categoryId: string | null;
+  defaultSkuId: string | null;
+  soldOut: boolean;
+  skus: ProductSkuItem[];
 }
 
 export interface ProductListPayload {
@@ -86,11 +115,17 @@ export interface SendCodePayload {
 export interface CartItem {
   id: string;
   productId: string;
+  skuId: string;
+  specName: string | null;
   name: string;
   imageUrl: string | null;
   unit: string;
   unitPrice: string;
   quantity: number;
+  quantityText: string;
+  quantityMode: QuantityMode;
+  stockQuantity: number;
+  soldOut: boolean;
   subtotal: string;
 }
 
@@ -127,8 +162,18 @@ async function request<T>(path: string, init?: RequestInit & { token?: string })
   return payload as T;
 }
 
-export function fetchShops() {
-  return request<{ items: ShopInfo[] }>('/api/mobile/shops');
+export function fetchShops(keyword = '') {
+  return request<{ items: ShopInfo[] }>(`/api/mobile/shops?keyword=${encodeURIComponent(keyword)}`);
+}
+
+export function fetchNearbyShops(location: ShopLocation, radius = 3000, keyword = '') {
+  const query = new URLSearchParams({
+    lat: String(location.latitude),
+    lng: String(location.longitude),
+    radius: String(radius),
+    keyword
+  });
+  return request<{ items: ShopInfo[] }>(`/api/mobile/shops/nearby?${query}`);
 }
 
 export function fetchHome(shopId: string) {
@@ -180,12 +225,12 @@ export function fetchCart(token: string) {
   return request<CartPayload>('/api/mobile/cart', { token });
 }
 
-export function addCartItem(token: string, productId: string, quantity = 1) {
+export function addCartItem(token: string, skuId: string, quantity: number | string = 1) {
   return request<CartPayload>('/api/mobile/cart/items', {
     method: 'POST',
     token,
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ productId, quantity })
+    body: JSON.stringify({ skuId, quantity })
   });
 }
 
@@ -284,4 +329,104 @@ export function deleteAddress(token: string, id: string) {
     method: 'DELETE',
     token
   });
+}
+
+export interface OrderItemPayload {
+  id: string;
+  productId: string;
+  skuId: string;
+  name: string;
+  specName: string | null;
+  imageUrl: string | null;
+  unit: string;
+  quantityMode: QuantityMode;
+  unitPrice: string;
+  quantity: number;
+  subtotal: string;
+}
+
+export interface OrderPayload {
+  id: string;
+  orderNo: string;
+  shopId: string;
+  shopName: string;
+  status: string;
+  statusLabel: string;
+  fulfillmentType: 'delivery' | 'pickup';
+  itemCount: number;
+  totalAmount: string;
+  remark: string | null;
+  contactName: string | null;
+  contactPhone: string | null;
+  addressText: string | null;
+  cancelledReason: string | null;
+  paymentMethod: 'wechat' | 'cash' | 'balance' | null;
+  paymentMethodLabel: string | null;
+  paidAt: string | null;
+  refundedAt: string | null;
+  refundAmount: string | null;
+  refundReason: string | null;
+  refundRejectedReason: string | null;
+  canPay: boolean;
+  canCancel: boolean;
+  /** 线上已收款：点「不要了」会转成退款申请，等店长确认 */
+  cancelNeedsRefund: boolean;
+  createdAt: string;
+  completedAt: string | null;
+  items: OrderItemPayload[];
+}
+
+export interface CheckoutGroup {
+  shopId: string;
+  shopName: string;
+  remark: string;
+  items: CartItem[];
+}
+
+export interface CreateOrdersInput {
+  fulfillmentType: 'delivery' | 'pickup';
+  paymentMethod: 'wechat' | 'cash';
+  addressId?: string;
+  remark?: string;
+  groups: { shopId: string; itemIds: string[]; remark?: string }[];
+}
+
+/** 下单：一店一单，服务端校验库存并在同一事务内扣减；微信支付先落待支付 */
+export function createOrders(token: string, input: CreateOrdersInput) {
+  return request<{ orders: OrderPayload[] }>('/api/mobile/orders', {
+    method: 'POST',
+    token,
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input)
+  });
+}
+
+/** 支付待付款订单：多店多单可以一次付完（当前为沙箱通道，不做真实扣款） */
+export function payOrders(token: string, orderIds: string[]) {
+  return request<{ orders: OrderPayload[] }>('/api/mobile/orders/pay', {
+    method: 'POST',
+    token,
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ orderIds })
+  });
+}
+
+export interface CancelOrderResult {
+  order: OrderPayload | null;
+  refundPending: boolean;
+  message: string;
+}
+
+/** 顾客取消：未收款直接取消并回补库存，已收款转退款申请 */
+export function cancelOrder(token: string, orderId: string, reason?: string) {
+  return request<CancelOrderResult>(`/api/mobile/orders/${orderId}/cancel`, {
+    method: 'POST',
+    token,
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ reason })
+  });
+}
+
+export function fetchOrders(token: string) {
+  return request<{ items: OrderPayload[] }>('/api/mobile/orders', { token });
 }

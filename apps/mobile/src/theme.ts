@@ -24,11 +24,22 @@ export const colors = {
 };
 
 export const fontSize = {
+  mini: 14,
   body: 16,
   name: 18,
   title: 20,
   hero: 24,
-  money: 26
+  ok: 26,
+  money: 28
+};
+
+/** 卡片统一投影：设计稿 header / 卡片 / 分类格共用一套轻投影 */
+export const cardShadow = {
+  shadowColor: colors.ink,
+  shadowOpacity: 0.06,
+  shadowRadius: 9,
+  shadowOffset: { width: 0, height: 3 },
+  elevation: 2
 };
 
 export const radius = {

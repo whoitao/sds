@@ -1,8 +1,17 @@
 import { relations } from 'drizzle-orm';
-import { pgTable, uuid, varchar, integer, timestamp, index, uniqueIndex } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  uuid,
+  varchar,
+  numeric,
+  timestamp,
+  index,
+  uniqueIndex
+} from 'drizzle-orm/pg-core';
 import { shops } from './shops';
 import { customers } from './customers';
 import { products } from './products';
+import { productSkus } from './skus';
 
 /**
  * 购物车，对应迁移 0012。
@@ -41,12 +50,18 @@ export const cartItems = pgTable(
     productId: uuid('product_id')
       .notNull()
       .references(() => products.id, { onDelete: 'cascade' }),
-    quantity: integer('quantity').notNull().default(1),
+    productSkuId: uuid('product_sku_id')
+      .notNull()
+      .references(() => productSkus.id, { onDelete: 'cascade' }),
+    quantity: numeric('quantity', { precision: 12, scale: 2 })
+      .notNull()
+      .default('1'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
   },
   (t) => ({
-    cartProductUnique: uniqueIndex('cart_items_cart_product_unique').on(t.cartId, t.productId),
+    cartSkuUnique: uniqueIndex('cart_items_cart_sku_unique').on(t.cartId, t.productSkuId),
+    productSkuIdx: index('cart_items_product_sku_idx').on(t.productSkuId),
     productIdx: index('cart_items_product_idx').on(t.productId)
   })
 );
@@ -59,5 +74,9 @@ export const cartsRelations = relations(carts, ({ one, many }) => ({
 
 export const cartItemsRelations = relations(cartItems, ({ one }) => ({
   cart: one(carts, { fields: [cartItems.cartId], references: [carts.id] }),
-  product: one(products, { fields: [cartItems.productId], references: [products.id] })
+  product: one(products, { fields: [cartItems.productId], references: [products.id] }),
+  sku: one(productSkus, {
+    fields: [cartItems.productSkuId],
+    references: [productSkus.id]
+  })
 }));

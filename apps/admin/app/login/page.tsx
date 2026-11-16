@@ -63,7 +63,7 @@ export default function LoginPage() {
         </Title>
         <Paragraph style={{ fontSize: 16, color: adminColors.textSecondary }}>请使用平台管理员账号登录</Paragraph>
 
-        {error ? <Alert type="error" message={error} showIcon style={{ marginBottom: 16 }} /> : null}
+        {error ? <Alert type="error" title={error} showIcon style={{ marginBottom: 16 }} /> : null}
 
         <Form<LoginValues> layout="vertical" onFinish={onFinish} requiredMark={false} size="large">
           <Form.Item

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- 品牌方块「S」：与侧边栏/移动端登录页 Logo 一致；色值同 lib/theme.ts 的 adminBrand.primary -->
+  <rect width="32" height="32" rx="7" fill="#4C9A6A"/>
+  <rect x="0.5" y="0.5" width="31" height="31" rx="6.5" fill="none" stroke="#FFFFFF" stroke-opacity="0.22"/>
+  <text x="16" y="23" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" fill="#FFFFFF" text-anchor="middle">S</text>
+</svg>

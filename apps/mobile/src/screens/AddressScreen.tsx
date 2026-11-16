@@ -32,7 +32,9 @@ import {
 } from '../api';
 import { useRegions } from '../regions';
 import RegionPicker from '../components/RegionPicker';
-import { colors, fontSize, radius, spacing, tap } from '../theme';
+import ScreenHeader from '../components/ScreenHeader';
+import { PrimaryButton } from '../components/Button';
+import { cardShadow, colors, fontSize, radius, spacing, tap } from '../theme';
 
 type Editing = { mode: 'create' } | { mode: 'edit'; address: AddressItem } | null;
 
@@ -213,22 +215,18 @@ export default function AddressScreen({
     return (
       <SafeAreaView style={styles.safeArea}>
         <StatusBar barStyle="dark-content" />
+        <ScreenHeader
+          left="back"
+          onLeftPress={() => setEditing(null)}
+          title={editing.mode === 'create' ? '新增地址' : '编辑地址'}
+          onHelpPress={() =>
+            Alert.alert('需要帮忙？', '可以到店里找店员，或者让家人帮忙填写。')
+          }
+        />
         <KeyboardAvoidingView
           style={styles.flex}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          <View style={styles.header}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="返回地址列表"
-              style={styles.backButton}
-              onPress={() => setEditing(null)}
-            >
-              <Ionicons name="chevron-back" size={26} color={colors.ink} />
-            </Pressable>
-            <Text style={styles.pageTitle}>{editing.mode === 'create' ? '新增地址' : '编辑地址'}</Text>
-          </View>
-
           <ScrollView contentContainerStyle={styles.formContent} keyboardShouldPersistTaps="handled">
             <Text style={styles.label}>联系人</Text>
             <TextInput
@@ -306,19 +304,9 @@ export default function AddressScreen({
 
             {formError ? <Text style={styles.formError}>{formError}</Text> : null}
 
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="保存地址"
-              style={[styles.primaryButton, busy && styles.buttonDisabled]}
-              disabled={busy}
-              onPress={() => void save()}
-            >
-              {busy ? (
-                <ActivityIndicator color={colors.white} />
-              ) : (
-                <Text style={styles.primaryButtonText}>保存</Text>
-              )}
-            </Pressable>
+            <View style={styles.saveButton}>
+              <PrimaryButton label="保存" loading={busy} onPress={() => void save()} />
+            </View>
           </ScrollView>
         </KeyboardAvoidingView>
 
@@ -338,20 +326,20 @@ export default function AddressScreen({
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" />
-      <View style={styles.header}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="返回我的"
-          style={styles.backButton}
-          onPress={onBack}
-        >
-          <Ionicons name="chevron-back" size={26} color={colors.ink} />
-        </Pressable>
-        <Text style={styles.pageTitle}>收货地址</Text>
-        <Text style={styles.headerHint}>{items.length ? `共 ${items.length} 条` : ''}</Text>
-      </View>
+      <ScreenHeader
+        left="back"
+        onLeftPress={onBack}
+        title="收货地址"
+        onHelpPress={() =>
+          Alert.alert('需要帮忙？', '地址只用填一次，以后下单直接选，不用再打字。')
+        }
+      />
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.flex}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
         {loading ? (
           <View style={styles.centerBox}>
             <ActivityIndicator color={colors.green} size="large" />
@@ -433,15 +421,7 @@ export default function AddressScreen({
       </ScrollView>
 
       <View style={styles.footer}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="新增地址"
-          style={styles.primaryButton}
-          onPress={openCreate}
-        >
-          <Ionicons name="add" size={22} color={colors.white} />
-          <Text style={styles.primaryButtonText}>新增地址</Text>
-        </Pressable>
+        <PrimaryButton label="新增地址" icon="add" onPress={openCreate} />
       </View>
     </SafeAreaView>
   );
@@ -455,34 +435,9 @@ const styles = StyleSheet.create({
   flex: {
     flex: 1
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.sm
-  },
-  backButton: {
-    width: tap.min,
-    height: tap.min,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  pageTitle: {
-    flex: 1,
-    fontSize: fontSize.hero,
-    fontWeight: '700',
-    color: colors.ink
-  },
-  headerHint: {
-    fontSize: fontSize.body,
-    color: colors.ink2,
-    paddingRight: spacing.sm
-  },
   content: {
     padding: spacing.md,
-    gap: spacing.md,
-    paddingBottom: 120
+    gap: spacing.md
   },
   centerBox: {
     alignItems: 'center',
@@ -502,11 +457,12 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: colors.card,
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.line,
     padding: spacing.md,
-    gap: spacing.xs
+    gap: spacing.xs,
+    ...cardShadow
   },
   cardTop: {
     flexDirection: 'row',
@@ -574,31 +530,13 @@ const styles = StyleSheet.create({
     color: colors.danger
   },
   footer: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
     padding: spacing.md,
     backgroundColor: colors.card,
     borderTopWidth: 1,
     borderTopColor: colors.line
   },
-  primaryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.xs,
-    minHeight: 56,
-    borderRadius: radius.md,
-    backgroundColor: colors.green
-  },
-  buttonDisabled: {
-    opacity: 0.6
-  },
-  primaryButtonText: {
-    fontSize: fontSize.name,
-    fontWeight: '700',
-    color: colors.white
+  saveButton: {
+    marginTop: spacing.md
   },
   secondaryButton: {
     minHeight: tap.min,

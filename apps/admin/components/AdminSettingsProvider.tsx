@@ -2,6 +2,12 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { writeThemeCookie } from '../lib/theme';
+import {
+  DEFAULT_DISPLAY_DENSITY,
+  isDisplayDensity,
+  writeDisplayCookie,
+  type DisplayDensity
+} from '../lib/display';
 
 export type ThemePreference = 'system' | 'light' | 'dark';
 
@@ -11,6 +17,7 @@ export const DEFAULT_PAGE_SIZE = 20;
 interface SettingsSnapshot {
   theme: ThemePreference;
   pageSize: number;
+  displayDensity: DisplayDensity;
 }
 
 interface AdminSettingsValue {
@@ -18,8 +25,11 @@ interface AdminSettingsValue {
   /** 实际生效的主题：theme=system 时跟随 prefers-color-scheme */
   resolvedTheme: 'light' | 'dark';
   pageSize: number;
+  /** 展示效果：紧凑 / 标准 / 宽松 */
+  displayDensity: DisplayDensity;
   setTheme: (theme: ThemePreference) => void;
   setPageSize: (pageSize: number) => void;
+  setDisplayDensity: (density: DisplayDensity) => void;
 }
 
 const AdminSettingsContext = createContext<AdminSettingsValue | null>(null);
@@ -29,20 +39,22 @@ function systemTheme(): 'light' | 'dark' {
 }
 
 /**
- * 主题与分页的全局设置：偏好持久化在管理员账号上，
+ * 主题、分页与展示效果的全局设置：偏好持久化在管理员账号上，
  * 首屏的偏好与「最终明暗」由控制台布局在服务端解析后注入，首帧即是最终观感。
  */
 export function AdminSettingsProvider({
   children,
   initialTheme,
   initialPageSize,
-  initialResolvedTheme
+  initialResolvedTheme,
+  initialDisplayDensity
 }: {
   children: React.ReactNode;
   initialTheme: ThemePreference;
   initialPageSize: number;
   /** 服务端解析出的最终明暗；缺省时按偏好推导（system 视为浅色，客户端挂载后再跟随系统） */
   initialResolvedTheme?: 'light' | 'dark';
+  initialDisplayDensity?: DisplayDensity;
 }) {
   const [theme, setThemeState] = useState<ThemePreference>(initialTheme);
   const [pageSize, setPageSizeState] = useState(() =>
@@ -50,6 +62,9 @@ export function AdminSettingsProvider({
   );
   const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>(
     () => initialResolvedTheme ?? (initialTheme === 'system' ? 'light' : initialTheme)
+  );
+  const [displayDensity, setDisplayDensityState] = useState<DisplayDensity>(() =>
+    isDisplayDensity(initialDisplayDensity) ? initialDisplayDensity : DEFAULT_DISPLAY_DENSITY
   );
 
   // 主题生效：写入 html[data-theme] 与主题 cookie；system 时监听系统变化
@@ -69,6 +84,12 @@ export function AdminSettingsProvider({
     media.addEventListener('change', apply);
     return () => media.removeEventListener('change', apply);
   }, [theme]);
+
+  // 展示效果生效：写入 html[data-display] 与 cookie，CSS 变量与 antd token 随之切换
+  useEffect(() => {
+    document.documentElement.dataset.display = displayDensity;
+    writeDisplayCookie(displayDensity);
+  }, [displayDensity]);
 
   const persist = useCallback(async (patch: Partial<SettingsSnapshot>) => {
     try {
@@ -99,9 +120,17 @@ export function AdminSettingsProvider({
     [persist]
   );
 
+  const setDisplayDensity = useCallback(
+    (next: DisplayDensity) => {
+      setDisplayDensityState(next);
+      void persist({ displayDensity: next });
+    },
+    [persist]
+  );
+
   const value = useMemo(
-    () => ({ theme, resolvedTheme, pageSize, setTheme, setPageSize }),
-    [theme, resolvedTheme, pageSize, setTheme, setPageSize]
+    () => ({ theme, resolvedTheme, pageSize, displayDensity, setTheme, setPageSize, setDisplayDensity }),
+    [theme, resolvedTheme, pageSize, displayDensity, setTheme, setPageSize, setDisplayDensity]
   );
 
   return <AdminSettingsContext.Provider value={value}>{children}</AdminSettingsContext.Provider>;

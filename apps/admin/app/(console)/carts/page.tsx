@@ -7,6 +7,7 @@ import { Button, Drawer, Empty, Input, Select, Space, Table, Tag } from 'antd';
 import type { TableColumnsType } from 'antd';
 import { EyeOutlined, SearchOutlined } from '@ant-design/icons';
 import { adminColors as colors } from '../../../lib/theme';
+import { getAdminTableProps } from '../../../lib/table';
 import { useAdminSettings } from '../../../components/AdminSettingsProvider';
 
 interface ShopOption {
@@ -290,7 +291,7 @@ export default function CartsPage() {
       <Table<CartRow>
         rowKey="id"
         loading={loading}
-        columns={columns}
+        {...getAdminTableProps(columns)}
         dataSource={rows}
         scroll={{ x: 'max-content' }}
         pagination={{
@@ -343,7 +344,7 @@ export default function CartsPage() {
             <Table<CartDetailItem>
               rowKey="id"
               size="small"
-              columns={[
+              {...getAdminTableProps<CartDetailItem>([
                 { title: '商品', dataIndex: 'name', ellipsis: true },
                 {
                   title: '单价',
@@ -360,7 +361,7 @@ export default function CartsPage() {
                   align: 'right',
                   render: (value: string) => `¥${value}`
                 }
-              ]}
+              ])}
               dataSource={detail.items}
               pagination={false}
               locale={{ emptyText: <Empty description="购物车已无条目" /> }}

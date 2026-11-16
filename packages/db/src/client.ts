@@ -1,9 +1,7 @@
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import type { adminUsers } from './schema/admin-users';
-import type { shops } from './schema/shops';
+import type * as schema from './schema';
 
-type Schema = { adminUsers: typeof adminUsers; shops: typeof shops };
-type Database = NodePgDatabase<Schema>;
+type Database = NodePgDatabase<typeof schema>;
 
 let pool: { end: () => Promise<void> } | null = null;
 let database: Database | null = null;

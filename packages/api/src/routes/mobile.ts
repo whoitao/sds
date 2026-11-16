@@ -23,6 +23,31 @@ interface CategoryRow {
   icon_url: string | null;
 }
 
+interface MobileProductRow {
+  id: string;
+  catalogProductId: string | null;
+  name: string;
+  imageUrl: string | null;
+  unit: string;
+  price: string | null;
+  categoryId: string | null;
+  [key: string]: unknown;
+}
+
+interface MobileSkuRow {
+  skuId: string;
+  productId: string;
+  specName: string;
+  barcode: string | null;
+  unit: string;
+  quantityMode: 'integer' | 'decimal_2';
+  stockType: 'tracked' | 'untracked';
+  isDefault: boolean;
+  price: string | null;
+  stockQuantity: string;
+  soldOut: boolean;
+}
+
 /** 门店可见分类：总部启用 + 未被本店隐藏；父级隐藏时子级一并视为不可见 */
 async function listVisibleCategories(shopId: string) {
   const db = await getDb();
@@ -60,6 +85,14 @@ async function listVisibleCategoryCounts(shopId: string) {
        and p.is_available
        and not p.is_blocked
        and coalesce(cp.category_id, p.category_id) is not null
+       and exists (
+         select 1
+           from product_skus ps
+           left join catalog_skus cs on cs.id = ps.catalog_sku_id
+          where ps.product_id = p.id
+            and ps.is_available
+            and (ps.catalog_sku_id is null or cs.status = 'active')
+       )
      group by 1
   `);
   const map = new Map<string, number>();
@@ -72,26 +105,15 @@ async function listVisibleCategoryCounts(shopId: string) {
 async function findOpenShop(shopId: string) {
   const db = await getDb();
   const result = await db.execute(sql`
-    select id, name, address, phone, cover_url as "coverUrl",
-           business_hours as "businessHours", announcement
+    select id, name, address, phone, status, cover_url as "coverUrl",
+           business_hours as "businessHours", announcement,
+           longitude::double precision as longitude, latitude::double precision as latitude
       from shops
      where id = ${shopId}::uuid and status = 'open'
      limit 1
   `);
   return (result.rows[0] as unknown as Record<string, unknown> | undefined) ?? null;
 }
-
-mobileRoutes.get('/shops', async (c) => {
-  const db = await getDb();
-  const result = await db.execute(sql`
-    select id, name, address, phone, cover_url as "coverUrl",
-           business_hours as "businessHours", announcement
-      from shops
-     where status = 'open'
-     order by name
-  `);
-  return c.json({ items: result.rows });
-});
 
 mobileRoutes.get('/shops/:shopId/home', async (c) => {
   const shopId = c.req.param('shopId');
@@ -194,6 +216,14 @@ mobileRoutes.get('/shops/:shopId/products', async (c) => {
          and p.is_available
          and not p.is_blocked
          and coalesce(cp.category_id, p.category_id) in (${idList})
+         and exists (
+           select 1
+             from product_skus ps
+             left join catalog_skus cs on cs.id = ps.catalog_sku_id
+            where ps.product_id = p.id
+              and ps.is_available
+              and (ps.catalog_sku_id is null or cs.status = 'active')
+         )
        order by p.sort_order, p.created_at
        limit ${pageSize} offset ${offset}
     `),
@@ -205,11 +235,79 @@ mobileRoutes.get('/shops/:shopId/products', async (c) => {
          and p.is_available
          and not p.is_blocked
          and coalesce(cp.category_id, p.category_id) in (${idList})
+         and exists (
+           select 1
+             from product_skus ps
+             left join catalog_skus cs on cs.id = ps.catalog_sku_id
+            where ps.product_id = p.id
+              and ps.is_available
+              and (ps.catalog_sku_id is null or cs.status = 'active')
+         )
     `)
   ]);
 
+  const products = items.rows as unknown as MobileProductRow[];
+  let skuRows: MobileSkuRow[] = [];
+  if (products.length > 0) {
+    const productIds = sql.join(
+      products.map((product) => sql`${product.id}::uuid`),
+      sql`, `
+    );
+    const skuResult = await db.execute(sql`
+      select ps.id as "skuId",
+             ps.product_id as "productId",
+             ps.spec_name as "specName",
+             ps.barcode,
+             ps.unit,
+             ps.quantity_mode as "quantityMode",
+             ps.stock_type as "stockType",
+             ps.is_default as "isDefault",
+             coalesce(ps.price, cs.default_price, p.price) as price,
+             coalesce(st.quantity, 0) as "stockQuantity",
+             (ps.stock_type = 'tracked' and coalesce(st.quantity, 0) <= 0) as "soldOut"
+        from product_skus ps
+        join products p on p.id = ps.product_id and p.shop_id = ps.shop_id
+        left join catalog_skus cs on cs.id = ps.catalog_sku_id
+        left join product_sku_stocks st on st.product_sku_id = ps.id
+       where ps.shop_id = ${shopId}::uuid
+         and ps.product_id in (${productIds})
+         and ps.is_available
+         and p.is_available
+         and not p.is_blocked
+         and (ps.catalog_sku_id is null or cs.status = 'active')
+       order by ps.sort_order, ps.created_at
+    `);
+    skuRows = skuResult.rows as unknown as MobileSkuRow[];
+  }
+
+  const skusByProduct = new Map<string, MobileSkuRow[]>();
+  for (const sku of skuRows) {
+    const list = skusByProduct.get(sku.productId) ?? [];
+    list.push(sku);
+    skusByProduct.set(sku.productId, list);
+  }
+
+  const enriched = products.map((product) => {
+    const skus = skusByProduct.get(product.id) ?? [];
+    const defaultSku = skus.find((sku) => sku.isDefault) ?? skus[0] ?? null;
+    const prices = skus
+      .map((sku) => Number(sku.price))
+      .filter((price) => Number.isFinite(price));
+    const priceFrom = prices.length > 0 ? Math.min(...prices).toFixed(2) : product.price;
+    const priceTo = prices.length > 0 ? Math.max(...prices).toFixed(2) : product.price;
+    return {
+      ...product,
+      price: defaultSku?.price ?? product.price,
+      defaultSkuId: defaultSku?.skuId ?? null,
+      priceFrom,
+      priceTo,
+      soldOut: skus.length === 0 || skus.every((sku) => sku.soldOut),
+      skus
+    };
+  });
+
   return c.json({
-    items: items.rows,
+    items: enriched,
     total: Number((totalRows.rows[0] as unknown as { total: number } | undefined)?.total ?? 0),
     page,
     pageSize

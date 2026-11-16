@@ -12,6 +12,7 @@ export interface AdminProfile {
   preferences?: {
     theme?: 'system' | 'light' | 'dark';
     pageSize?: number;
+    displayDensity?: 'compact' | 'standard' | 'relaxed';
   };
 }
 

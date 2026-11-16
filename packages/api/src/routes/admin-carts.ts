@@ -79,12 +79,14 @@ adminCartRoutes.get('/', async (c) => {
            coalesce(cu.phone, u.phone) as customer_phone,
            c.remark, c.updated_at,
            count(ci.id)::int as item_count,
-           coalesce(sum(ci.quantity * coalesce(p.price, cp.default_price)), 0) as total_amount
+           coalesce(sum(ci.quantity * coalesce(ps.price, cs.default_price, p.price)), 0) as total_amount
       from carts c
       join shops s on s.id = c.shop_id
       join customers cu on cu.id = c.customer_id
       join users u on u.id = cu.user_id
       join cart_items ci on ci.cart_id = c.id
+      left join product_skus ps on ps.id = ci.product_sku_id
+      left join catalog_skus cs on cs.id = ps.catalog_sku_id
       left join products p on p.id = ci.product_id
       left join catalog_products cp on cp.id = p.catalog_product_id
      where ${where}
@@ -133,9 +135,10 @@ type DetailRow = {
   item_id: string | null;
   product_id: string | null;
   product_name: string | null;
+  spec_name: string | null;
   unit: string | null;
   unit_price: string | null;
-  quantity: number | null;
+  quantity: string | null;
 };
 
 adminCartRoutes.get('/:id', async (c) => {
@@ -150,14 +153,17 @@ adminCartRoutes.get('/:id', async (c) => {
            c.remark, c.updated_at,
            ci.id as item_id, ci.product_id,
            coalesce(cp.name, p.name) as product_name,
-           coalesce(cp.unit, p.unit) as unit,
-           coalesce(p.price, cp.default_price) as unit_price,
+           ps.spec_name,
+           coalesce(ps.unit, cp.unit, p.unit) as unit,
+           coalesce(ps.price, cs.default_price, p.price) as unit_price,
            ci.quantity
       from carts c
       join shops s on s.id = c.shop_id
       join customers cu on cu.id = c.customer_id
       join users u on u.id = cu.user_id
       left join cart_items ci on ci.cart_id = c.id
+      left join product_skus ps on ps.id = ci.product_sku_id
+      left join catalog_skus cs on cs.id = ps.catalog_sku_id
       left join products p on p.id = ci.product_id
       left join catalog_products cp on cp.id = p.catalog_product_id
      where c.id = ${c.req.param('id')}::uuid
@@ -178,10 +184,12 @@ adminCartRoutes.get('/:id', async (c) => {
       return {
         id: row.item_id,
         productId: row.product_id,
+        specName: row.spec_name,
         name: row.product_name ?? '商品已删除',
         unit: row.unit ?? '份',
         unitPrice,
         quantity,
+        quantityText: Number(row.quantity ?? 0).toFixed(2),
         subtotal: money(Number(unitPrice) * quantity)
       };
     });

@@ -31,3 +31,132 @@ body {
   background: var(--admin-page);
   color: var(--admin-text);
 }
+
+/* 展示效果（密度）：紧凑档作为 :root 基准（14px、控件高 28、无字间距）；
+   标准（默认档）与宽松逐级加大，导航项高度、图标间距按新字号同步收敛。
+   对应的 antd token 在 app/providers.tsx 同步切换，覆盖表格、表单等组件；
+   档位 key 未变，旧偏好可直接沿用。 */
+:root {
+  --admin-display-font-size: 14px;
+  --admin-nav-item-height: 36px;
+  --admin-nav-item-gap: 10px;
+  --admin-nav-item-padding: 12px;
+  --admin-brand-font-size: 17px;
+  --admin-brand-bar-height: 46px;
+}
+
+[data-display='standard'] {
+  --admin-display-font-size: 15px;
+  --admin-nav-item-height: 40px;
+  --admin-nav-item-gap: 12px;
+  --admin-nav-item-padding: 14px;
+  --admin-brand-font-size: 18px;
+  --admin-brand-bar-height: 50px;
+
+  letter-spacing: 0.02em;
+}
+
+[data-display='relaxed'] {
+  --admin-display-font-size: 16px;
+  --admin-nav-item-height: 44px;
+  --admin-nav-item-gap: 14px;
+  --admin-nav-item-padding: 16px;
+  --admin-brand-font-size: 19px;
+  --admin-brand-bar-height: 54px;
+
+  letter-spacing: 0.04em;
+}
+
+/* 账号菜单：参照 sharp admin 的 Dropdown 规格（容器 4px 内边距、10px 圆角、
+   轻阴影；条目 36px 高、8px 圆角、hover 用中性浅底；危险项只染红文字）。
+   选中态仍用内联的品牌浅绿，内联优先级高于这里的 hover。 */
+.admin-account-menu {
+  padding: 4px;
+
+  background: var(--admin-surface);
+  border: 1px solid var(--admin-border);
+  border-radius: 10px;
+  box-shadow:
+    0 6px 16px rgba(15, 20, 30, 0.08),
+    0 9px 28px 8px rgba(15, 20, 30, 0.05);
+}
+
+.admin-account-menu-item {
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.admin-account-menu-item:hover {
+  background: var(--admin-subtle);
+}
+
+.admin-account-menu-danger:hover {
+  background: rgba(217, 72, 15, 0.08);
+}
+
+[data-theme='dark'] .admin-account-menu-danger:hover {
+  background: rgba(217, 72, 15, 0.18);
+}
+
+/* 左下账号区：整行悬停高亮，规格与 sharp admin 的账号触发器一致 */
+.admin-account-trigger {
+  transition: background 0.15s ease;
+}
+
+.admin-account-trigger:hover {
+  background: var(--admin-subtle);
+}
+
+/* 账号区齿轮：悬停时提亮并加浅色底 */
+.admin-account-settings {
+  color: var(--admin-text-tertiary);
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.admin-account-settings:hover {
+  color: var(--admin-text);
+  background: var(--admin-subtle);
+}
+
+/* 标签切换进度条：与 sharp admin 顶栏 route-progress 一致，
+   主色细条在标签栏底部循环滑过，挂载在 position: relative 的标签栏容器上 */
+.tab-progress {
+  overflow: hidden;
+
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+
+  height: 2px;
+
+  pointer-events: none;
+}
+
+.tab-progress > span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+
+  border-radius: 1px;
+  width: 32%;
+
+  background: var(--admin-primary);
+
+  animation: tab-progress-slide 1s ease-in-out infinite;
+}
+
+@keyframes tab-progress-slide {
+  0% {
+    left: -32%;
+  }
+
+  100% {
+    left: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab-progress > span {
+    animation-duration: 2.4s;
+  }
+}

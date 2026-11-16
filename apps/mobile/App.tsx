@@ -4,19 +4,38 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import AuthScreen from './src/screens/AuthScreen';
 import AddressScreen from './src/screens/AddressScreen';
 import CartScreen from './src/screens/CartScreen';
+import CheckoutScreen from './src/screens/CheckoutScreen';
 import HomeScreen from './src/screens/HomeScreen';
+import OrdersScreen from './src/screens/OrdersScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
-import { fetchMe, logout, type AuthSession, type CustomerProfile } from './src/api';
+import ShopsScreen from './src/screens/ShopsScreen';
+import {
+  fetchMe,
+  logout,
+  type AuthSession,
+  type CheckoutGroup,
+  type CustomerProfile
+} from './src/api';
 import { colors, fontSize, spacing } from './src/theme';
 
 /** 登录态只存不透明会话 token，顾客资料每次启动用 /api/auth/me 拉取 */
 const TOKEN_KEY = 'sds.customer.token';
 
+const shopKey = (customerId: string) => `sds.customer.shop.${customerId}`;
+
+type Tab = 'home' | 'cart' | 'profile' | 'addresses' | 'checkout' | 'orders' | 'shops';
+
 export default function App() {
   const [booting, setBooting] = useState(true);
   const [token, setToken] = useState<string | null>(null);
   const [customer, setCustomer] = useState<CustomerProfile | null>(null);
-  const [tab, setTab] = useState<'home' | 'cart' | 'profile' | 'addresses'>('home');
+  const [tab, setTab] = useState<Tab>('home');
+  const [selectedShopId, setSelectedShopId] = useState<string | null>(null);
+  const [selectedShopName, setSelectedShopName] = useState('');
+  const [shopsBackTo, setShopsBackTo] = useState<'home' | 'cart'>('home');
+  const [shopNotice, setShopNotice] = useState('');
+  const [checkoutGroups, setCheckoutGroups] = useState<CheckoutGroup[] | null>(null);
+  const [addressesBackTo, setAddressesBackTo] = useState<'profile' | 'checkout'>('profile');
 
   useEffect(() => {
     let alive = true;
@@ -26,7 +45,9 @@ export default function App() {
         const stored = await AsyncStorage.getItem(TOKEN_KEY);
         if (!stored) return;
         const me = await fetchMe(stored);
+        const savedShopId = await AsyncStorage.getItem(shopKey(me.customer.id));
         if (!alive) return;
+        setSelectedShopId(savedShopId);
         setToken(stored);
         setCustomer(me.customer);
       } catch {
@@ -45,6 +66,9 @@ export default function App() {
 
   async function handleSuccess(session: AuthSession) {
     await AsyncStorage.setItem(TOKEN_KEY, session.accessToken);
+    setSelectedShopId(await AsyncStorage.getItem(shopKey(session.customer.id)));
+    setSelectedShopName('');
+    setShopNotice('');
     setToken(session.accessToken);
     setCustomer(session.customer);
     setTab('home');
@@ -54,6 +78,10 @@ export default function App() {
     const current = token;
     setToken(null);
     setCustomer(null);
+    setSelectedShopId(null);
+    setSelectedShopName('');
+    setShopNotice('');
+    setCheckoutGroups(null);
     setTab('home');
     await AsyncStorage.removeItem(TOKEN_KEY);
     if (current) void logout(current).catch(() => undefined);
@@ -73,7 +101,34 @@ export default function App() {
   }
 
   if (tab === 'addresses') {
-    return <AddressScreen token={token} onBack={() => setTab('profile')} />;
+    return <AddressScreen token={token} onBack={() => setTab(addressesBackTo)} />;
+  }
+
+  if (tab === 'checkout' && checkoutGroups) {
+    return (
+      <CheckoutScreen
+        token={token}
+        groups={checkoutGroups}
+        onBack={() => setTab('cart')}
+        onOrders={() => setTab('orders')}
+        onGoHome={() => setTab('home')}
+        onManageAddresses={() => {
+          setAddressesBackTo('checkout');
+          setTab('addresses');
+        }}
+      />
+    );
+  }
+
+  if (tab === 'orders') {
+    return (
+      <OrdersScreen
+        token={token}
+        onGoHome={() => setTab('home')}
+        onOpenCart={() => setTab('cart')}
+        onOpenProfile={() => setTab('profile')}
+      />
+    );
   }
 
   if (tab === 'profile') {
@@ -83,7 +138,11 @@ export default function App() {
         onLogout={() => void handleLogout()}
         onGoHome={() => setTab('home')}
         onOpenCart={() => setTab('cart')}
-        onOpenAddresses={() => setTab('addresses')}
+        onOpenAddresses={() => {
+          setAddressesBackTo('profile');
+          setTab('addresses');
+        }}
+        onOpenOrders={() => setTab('orders')}
       />
     );
   }
@@ -92,8 +151,31 @@ export default function App() {
     return (
       <CartScreen
         token={token}
+        shopName={selectedShopName}
         onGoHome={() => setTab('home')}
         onOpenProfile={() => setTab('profile')}
+        onOpenOrders={() => setTab('orders')}
+        onOpenShops={() => { setShopsBackTo('cart'); setTab('shops'); }}
+        onCheckout={(groups) => {
+          setCheckoutGroups(groups);
+          setTab('checkout');
+        }}
+      />
+    );
+  }
+
+  if (tab === 'shops' || !selectedShopId) {
+    return (
+      <ShopsScreen
+        currentShopId={selectedShopId}
+        onBack={() => setTab(selectedShopId ? shopsBackTo : 'profile')}
+        onSelect={async (shop) => {
+          await AsyncStorage.setItem(shopKey(customer.id), shop.id);
+          setShopNotice(selectedShopId && selectedShopId !== shop.id ? '已换店，原店购物车里的菜仍为您保留。' : '');
+          setSelectedShopId(shop.id);
+          setSelectedShopName(shop.name);
+          setTab('home');
+        }}
       />
     );
   }
@@ -102,8 +184,13 @@ export default function App() {
     <HomeScreen
       customer={customer}
       token={token}
+      shopId={selectedShopId}
+      shopNotice={shopNotice}
+      onShopNameChange={setSelectedShopName}
       onOpenProfile={() => setTab('profile')}
       onOpenCart={() => setTab('cart')}
+      onOpenOrders={() => setTab('orders')}
+      onOpenShops={() => { setShopsBackTo('home'); setTab('shops'); }}
     />
   );
 }

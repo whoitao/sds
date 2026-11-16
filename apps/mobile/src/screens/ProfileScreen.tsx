@@ -12,7 +12,9 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { CustomerProfile } from '../api';
-import { colors, fontSize, radius, spacing, tap } from '../theme';
+import { cardShadow, colors, fontSize, radius, spacing, tap } from '../theme';
+import ScreenHeader from '../components/ScreenHeader';
+import TabBar from '../components/TabBar';
 
 type IoniconName = ComponentProps<typeof Ionicons>['name'];
 
@@ -67,13 +69,15 @@ export default function ProfileScreen({
   onLogout,
   onGoHome,
   onOpenCart,
-  onOpenAddresses
+  onOpenAddresses,
+  onOpenOrders
 }: {
   customer: CustomerProfile;
   onLogout: () => void;
   onGoHome: () => void;
   onOpenCart: () => void;
   onOpenAddresses: () => void;
+  onOpenOrders: () => void;
 }) {
   const name = displayName(customer);
 
@@ -92,13 +96,18 @@ export default function ProfileScreen({
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" />
 
+      <ScreenHeader
+        left="bell"
+        onLeftPress={() => Alert.alert('暂无新消息', '订单进度和优惠会显示在这里。')}
+        title="我的"
+        onHelpPress={() => comingSoon('联系客服')}
+      />
+
       <ScrollView
         style={styles.body}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.pageTitle}>我的</Text>
-
         <View style={styles.profileCard}>
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>{name.slice(0, 1)}</Text>
@@ -165,43 +174,13 @@ export default function ProfileScreen({
         </Pressable>
       </ScrollView>
 
-      <View style={styles.tabbar}>
-        <Pressable
-          style={styles.tab}
-          accessibilityRole="button"
-          accessibilityLabel="首页"
-          onPress={onGoHome}
-        >
-          <Ionicons name="home-outline" size={22} color={colors.ink2} />
-          <Text style={styles.tabText}>首页</Text>
-        </Pressable>
-        <Pressable
-          style={styles.tab}
-          accessibilityRole="button"
-          accessibilityLabel="购物车"
-          onPress={onOpenCart}
-        >
-          <Ionicons name="cart-outline" size={22} color={colors.ink2} />
-          <Text style={styles.tabText}>购物车</Text>
-        </Pressable>
-        <Pressable
-          style={styles.tab}
-          accessibilityRole="button"
-          accessibilityLabel="订单"
-          onPress={() => Alert.alert('订单本轮未接入', '下单后可以在这里查看取菜进度。')}
-        >
-          <Ionicons name="receipt-outline" size={22} color={colors.ink2} />
-          <Text style={styles.tabText}>订单</Text>
-        </Pressable>
-        <Pressable
-          style={styles.tab}
-          accessibilityRole="button"
-          accessibilityLabel="我的，当前页"
-        >
-          <Ionicons name="person" size={22} color={colors.greenDeep} />
-          <Text style={[styles.tabText, styles.tabTextActive]}>我的</Text>
-        </Pressable>
-      </View>
+      <TabBar
+        active="profile"
+        onHome={onGoHome}
+        onCart={onOpenCart}
+        onOrders={onOpenOrders}
+        onProfile={() => undefined}
+      />
     </SafeAreaView>
   );
 }
@@ -217,15 +196,9 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: spacing.md,
-    paddingTop: spacing.md,
+    paddingTop: spacing.xs,
     paddingBottom: spacing.lg,
     gap: spacing.md
-  },
-  pageTitle: {
-    fontSize: fontSize.hero,
-    fontWeight: '700',
-    color: colors.ink,
-    paddingHorizontal: spacing.xs
   },
   profileCard: {
     flexDirection: 'row',
@@ -235,7 +208,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: colors.line
+    borderColor: colors.line,
+    ...cardShadow
   },
   avatar: {
     width: 56,
@@ -282,7 +256,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.line,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm
+    paddingVertical: spacing.sm,
+    ...cardShadow
   },
   sectionTitle: {
     fontSize: fontSize.body,
@@ -350,35 +325,12 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: '#E7C9C6',
-    backgroundColor: colors.card
+    backgroundColor: colors.card,
+    ...cardShadow
   },
   logoutText: {
     fontSize: fontSize.title,
     fontWeight: '700',
     color: colors.danger
-  },
-  tabbar: {
-    flexDirection: 'row',
-    backgroundColor: colors.card,
-    borderTopWidth: 1,
-    borderTopColor: colors.line,
-    paddingTop: 6,
-    paddingBottom: 8
-  },
-  tab: {
-    flex: 1,
-    minHeight: tap.min,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 2
-  },
-  tabText: {
-    fontSize: fontSize.body,
-    fontWeight: '600',
-    color: colors.ink2
-  },
-  tabTextActive: {
-    color: colors.greenDeep,
-    fontWeight: '700'
   }
 });

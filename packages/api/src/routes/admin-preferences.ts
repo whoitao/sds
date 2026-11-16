@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { adminUsers, getDb } from '@sds/db';
 import { requireAdmin, type AdminEnv } from '../middleware/admin-auth';
-import { normalizePreferences, PAGE_SIZES } from '../lib/preferences';
+import { DISPLAY_DENSITIES, normalizePreferences, PAGE_SIZES } from '../lib/preferences';
 
 /** 后台界面偏好：主题与每页条数，按管理员账号持久化在 admin_users.preferences */
 export const adminPreferenceRoutes = new Hono<AdminEnv>();
@@ -17,7 +17,10 @@ const updateSchema = z
       .number()
       .int()
       .refine((value) => (PAGE_SIZES as readonly number[]).includes(value), '每页条数仅支持 10 / 20 / 50 / 100')
-      .optional()
+      .optional(),
+    displayDensity: z.enum(DISPLAY_DENSITIES, {
+      message: '展示效果仅支持 compact / standard / relaxed'
+    }).optional()
   })
   .refine((value) => Object.keys(value).length > 0, '至少需要一个设置项');
 

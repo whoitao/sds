@@ -5,6 +5,8 @@ import { pgTable, uuid, varchar, text, timestamp, smallint, integer, jsonb, uniq
 export interface AdminPreferences {
   theme?: 'system' | 'light' | 'dark';
   pageSize?: number;
+  /** 展示效果：紧凑 / 标准 / 宽松 */
+  displayDensity?: 'compact' | 'standard' | 'relaxed';
 }
 
 /**

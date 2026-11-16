@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { loginWithCode, sendCode, type AuthSession } from '../api';
-import { colors, fontSize, radius, spacing, tap } from '../theme';
+import { colors, cardShadow, fontSize, radius, spacing, tap } from '../theme';
 
 type Mode = 'login' | 'register';
 
@@ -305,7 +305,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.line,
     padding: spacing.lg,
-    gap: spacing.sm
+    gap: spacing.sm,
+    ...cardShadow
   },
   label: {
     fontSize: fontSize.body,

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>捎点啥 sds · 老人下单流程原型 v0.5</title>
+<title>捎点啥 sds · 老人下单流程原型 v0.9</title>
 <style>
 :root {
   /* 浅色调 · 亲民：米白纸感底 + 降饱和浅绿，避免高饱和大色块 */
@@ -141,7 +141,7 @@ body {
   display: flex; align-items: center; gap: 7px; font-size: var(--fs-mid); font-weight: 700;
 }
 .shoppill .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* 三种态，只有带「⌄」的那两种可点：逛店时能换店，进结算后锁死（改了店，地址和篮子都作废） */
+/* 逛店时可换店且保留各店购物车；结算中锁定门店。 */
 .shoppill.is-here { background: var(--green-soft); border-color: var(--green); }
 .shoppill.is-locked { background: var(--card-soft); border-color: var(--line); color: var(--ink-2); }
 .bell {
@@ -178,7 +178,7 @@ body {
 .opt.is-on .radio { border-color: var(--green); background: radial-gradient(circle, var(--green) 0 8px, transparent 8px); }
 /* ── S0 首页：一屏看完「哪家店 → 哪一类 → 哪一样」 ──
    竖向预算（.body 内容区 576px，各级高度按令牌取值手算，不留裸 px 字号）：
-   问候 27 + 店铺图 92 + 一级横滑 66 + 左右分栏 272 + 提示 50 = 507，加 4 段间距 40 = 547。 */
+   问候 27 + 店铺图 92 + 一级横滑 56 + 左右分栏 272 + 提示 50 = 497，加 4 段间距 40 = 537。 */
 .hello { flex: none; display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
 .hello .g { font-size: var(--fs-hero); font-weight: 700; letter-spacing: -.2px; }
 .hello .d { flex: none; font-size: var(--fs-body); color: var(--ink-2); }
@@ -192,17 +192,15 @@ body {
 .shopimg .ov { display: flex; align-items: baseline; gap: 8px; padding: 9px 13px; }
 .shopimg .t { font-size: var(--fs-mid); font-weight: 700; }
 .shopimg .d { font-size: var(--fs-body); color: var(--ink-2); margin-left: auto; flex: none; }
-/* 一级分类横滑：74×66 一格。左边「想吃哪类」是钉住不跟着滑的说明，
-   它塞在滑道同一行里，所以竖着一分钱没花——首页是全局最挤的一屏，加不起一行标题。 */
-.l1row { flex: none; display: flex; align-items: center; gap: 8px; }
-.l1cap { flex: none; font-size: var(--fs-body); font-weight: 700; color: var(--green-deep); line-height: 1.35; }
-.l1 { flex: 1; min-width: 0; display: flex; gap: 8px; overflow-x: hidden; }
+/* 一级分类横滑：左图右文，最小 88×56。整行交给滑道，不再钉「想吃哪类」说明，
+   首页是全局最挤的一屏，加不起一行标题；被裁的下一格就是「还能滑」的线索。 */
+.l1 { flex: none; display: flex; gap: 8px; overflow-x: hidden; }
 .l1i {
-  flex: none; width: 74px; height: 66px; border-radius: 14px; background: var(--card);
+  flex: none; min-width: 88px; height: 56px; padding: 0 12px; border-radius: 14px; background: var(--card);
   border: 1px solid var(--line); box-shadow: var(--shadow); color: var(--ink-2);
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 6px;
 }
-.l1i .t { font-size: var(--fs-name); font-weight: 700; line-height: 1.2; }
+.l1i .t { font-size: var(--fs-name); font-weight: 700; line-height: 1.2; white-space: nowrap; }
 .l1i.is-on { background: var(--green-soft); border-color: var(--green); color: var(--green-deep); box-shadow: 0 0 0 2px #F4FBF6 inset, var(--shadow); }
 /* 左二级列 + 右商品列：两级同时在场，不做「点进去再退回来」 */
 .split { flex: none; display: flex; gap: 10px; height: 272px; }
@@ -310,6 +308,21 @@ table.sp tr.is-open td b { color: #6B4508; }
 table.sp .yes { color: var(--green-deep); font-weight: 700; }
 ul.rules { margin: 0; padding-left: 1.15em; font-size: 13.5px; color: var(--ink-2); line-height: 1.9; }
 ul.rules li::marker { color: var(--green); }
+.finder-body { overflow-y: auto; padding-bottom: 16px; flex-shrink: 1; min-height: 0; }
+.finder-body > * { flex-shrink: 0; }
+.finder-row { display: flex; align-items: center; gap: 8px; font-size: var(--fs-body); }
+.finder-row button { min-height: 48px; padding: 0 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--green-soft); color: var(--green-deep); font: 700 var(--fs-body) var(--sans); cursor: pointer; }
+.finder-row button.is-on { border-color: var(--green); }
+.finder-row input { min-width: 0; flex: 1; height: 48px; padding: 0 10px; border: 1px solid var(--line); border-radius: 12px; font: var(--fs-body) var(--sans); }
+.finder-map { display: none; position: relative; height: 260px; border-radius: 16px; overflow: hidden; background: repeating-linear-gradient(0deg,transparent 0 57px,#fff 57px 70px),repeating-linear-gradient(90deg,#e2ecdf 0 84px,#fff 84px 102px); }
+[data-view="map"] .finder-map { display: block; }
+[data-view="map"] .finder-other { display: none; }
+.finder-pin { position: absolute; padding: 12px; border: 2px solid var(--green); border-radius: 24px; background: white; color: var(--green-deep); font: 700 var(--fs-body) var(--sans); }
+.finder-pin.first { left: 22px; top: 50px; background: var(--green-deep); color: white; }
+.finder-pin.second { right: 12px; top: 135px; }
+.finder-point { position: absolute; left: 18px; top: 208px; color: var(--blue); font-size: var(--fs-body); }
+.finder-road { position: absolute; left: 160px; top: 106px; font-size: var(--fs-body); color: var(--ink-2); }
+.finder-map small { position: absolute; bottom: 8px; right: 8px; font-size: var(--fs-mini); color: var(--ink-2); }
 .footer { margin-top: 46px; padding-top: 18px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--ink-3); line-height: 1.9; }
 .footer code { font-family: var(--mono); font-size: 12px; }
 @media (max-width: 1100px) { .branch { grid-template-columns: 1fr; } }
@@ -345,7 +358,7 @@ ul.rules li::marker { color: var(--green); }
 </defs></svg>
 <div class="doc">
   <header class="hero">
-    <div class="eyebrow">SDS · 捎点啥 · ELDER ORDER FLOW · v0.5 原型</div>
+    <div class="eyebrow">SDS · 捎点啥 · ELDER ORDER FLOW · v0.9 原型</div>
     <h1>老人自己下单：从「打开就是这家店的菜」到「下单好了，等着就行」</h1>
     <p>主下单人是老人本人，不是子女。这条流程的成功标准不是「能走完」，而是<b>「没人帮也能走完，且不会点错」</b>。下面 8 块真机尺寸画板（390 × 844）＝ 主干 S0–S5 六屏 + 兜底页 S6 + 购物车一级页 T1。除了首页那一屏允许来回挑，其余每屏只让老人做一个决定。</p>
     <div class="chips">
@@ -373,21 +386,21 @@ ul.rules li::marker { color: var(--green); }
     <div class="flow">
       <div class="fstep"><div class="fbox is-key"><div class="n">S0 打开就是</div><div class="t">首页挑菜</div><div class="d">哪家店写在头顶，类别横滑、细分在左、菜在右边，一屏挑完</div></div></div>
       <div class="farrow">→</div>
-      <div class="fstep"><div class="fbox"><div class="n">S1 换店</div><div class="t">附近的店</div><div class="d">列表而不是地图，写「步行 5 分钟」不写 320m</div></div></div>
+      <div class="fstep"><div class="fbox"><div class="n">S1 换店</div><div class="t">附近的店</div><div class="d">默认列表，可切地图；展示直线距离，不编造步行时间</div></div></div>
       <div class="farrow">→</div>
       <div class="fstep"><div class="fbox"><div class="n">S2 清点</div><div class="t">我买了啥</div><div class="d">一行一样，能减能删，合计一直显示</div></div></div>
       <div class="farrow">→</div>
       <div class="fstep"><div class="fbox"><div class="n">S3 拿法</div><div class="t">怎么拿</div><div class="d">送货到家 / 我去拿，二选一</div></div></div>
       <div class="farrow">→</div>
-      <div class="fstep"><div class="fbox"><div class="n">S4 付钱</div><div class="t">付钱</div><div class="d">微信 / 让儿女付 / 到店付现金</div></div></div>
+      <div class="fstep"><div class="fbox"><div class="n">S4 付钱</div><div class="t">付钱</div><div class="d">现在微信付 / 收到菜再付钱</div></div></div>
       <div class="farrow">→</div>
       <div class="fstep"><div class="fbox is-end"><div class="n">S5 好了</div><div class="t">下单成功</div><div class="d">大字取餐码 + 三步进度 + 打给店里</div></div></div>
     </div>
 
     <div class="branch">
-      <div class="bbox"><b>支线 A · 定位失败 / 不肯授权</b>头顶那格药丸就是出口：点它落到 S1，S1 底部常驻「找不到想去的店？点这里选小区」，落到街道/社区列表，仍能找到店。绝不出现空白地图。首页本身不再复述店名地址，所以定位失败不会让 S0 变成一片空白。</div>
+      <div class="bbox"><b>支线 A · 定位失败 / 不肯授权</b>首页门店药丸与购物车「换店」都进入 S1。首次没有所选门店时直接进入 S1；定位拒绝、超时或服务关闭时仍显示全部门店，支持按店名、街道、小区搜索。附近无店可扩大到 10/20 公里或查看全部门店；地图失败保留列表出口，不把任何门店冒充为「最近」。</div>
       <div class="bbox"><b>支线 B · 每一屏右上角都有「? 帮助」</b>不是长按、不是隐藏菜单，是一个固定可见、离手指最近的大按钮。点进去是 S6 兜底页：打给店里 / 打给儿女 / 找社区志愿者。</div>
-      <div class="bbox is-plain"><b>支线 C · 我按错了，想取消</b>S5 结果页与订单详情都保留「不要了，取消订单」，且在付款前取消不产生任何扣款；已付款则走店长确认。</div>
+      <div class="bbox is-plain"><b>支线 C · 我按错了，想取消</b>S5 结果页与订单详情都保留「不要了，取消订单」。<b>已实现口径：</b>待支付与货到付款的单，点了立刻取消，菜还给店里、钱一分不扣；<b>已经线上收款的单，点了转成退款申请（订单状态「退款中」）</b>，店长在后台「同意退款 / 驳回」，同意后才退钱并回补库存，驳回要写一句给老人看的理由。配送中与已完成的单不给这个按钮，只能打电话找店里。</div>
     </div>
   </section>
 
@@ -410,16 +423,13 @@ ul.rules li::marker { color: var(--green); }
               <div class="ph">🥬 🍖 🥚 🌾</div>
               <div class="ov"><span class="t">阳光生鲜 · 文三路</span><span class="d">步行 5 分钟</span></div>
             </div>
-            <div class="l1row">
-              <div class="l1cap">想吃<br>哪类</div>
-              <div class="l1">
-                <div class="l1i"><svg class="ico lg"><use href="#i-leaf"/></svg><span class="t">蔬菜</span></div>
-                <div class="l1i is-on"><svg class="ico lg"><use href="#i-meat"/></svg><span class="t">肉</span></div>
-                <div class="l1i"><svg class="ico lg"><use href="#i-milk"/></svg><span class="t">鸡蛋牛奶</span></div>
-                <div class="l1i"><svg class="ico lg"><use href="#i-bowl"/></svg><span class="t">米面油</span></div>
-                <div class="l1i"><svg class="ico lg"><use href="#i-spice"/></svg><span class="t">调料</span></div>
-                <div class="l1i"><svg class="ico lg"><use href="#i-cube"/></svg><span class="t">豆腐水果</span></div>
-              </div>
+            <div class="l1">
+              <div class="l1i"><svg class="ico lg"><use href="#i-leaf"/></svg><span class="t">蔬菜</span></div>
+              <div class="l1i is-on"><svg class="ico lg"><use href="#i-meat"/></svg><span class="t">肉</span></div>
+              <div class="l1i"><svg class="ico lg"><use href="#i-milk"/></svg><span class="t">鸡蛋牛奶</span></div>
+              <div class="l1i"><svg class="ico lg"><use href="#i-bowl"/></svg><span class="t">米面油</span></div>
+              <div class="l1i"><svg class="ico lg"><use href="#i-spice"/></svg><span class="t">调料</span></div>
+              <div class="l1i"><svg class="ico lg"><use href="#i-cube"/></svg><span class="t">豆腐水果</span></div>
             </div>
             <div class="split">
               <div class="l2">
@@ -470,37 +480,32 @@ ul.rules li::marker { color: var(--green); }
       </div>
 
       <div class="board">
-        <div class="board-cap"><span class="k">S1</span><span class="name">附近的店</span><span class="sec-note" style="margin:0 0 0 6px">用列表不用地图 · 距离说成步行几分钟</span></div>
-        <div class="phone"><div class="screen">
+        <div class="board-cap"><span class="k">S1</span><span class="name">附近的店</span><span class="sec-note" style="margin:0 0 0 6px">列表优先 · 可切地图 · 换店保留购物车</span></div>
+        <div class="phone"><div class="screen" id="shop-finder-board" data-view="list">
           <div class="sbar"><span>9:41</span><span>●●● 100%</span></div>
-          <div class="nav">
-            <div class="back">←</div>
-            <div class="shoppill is-here"><svg class="ico sm"><use href="#i-store"/></svg><span class="nm">阳光生鲜</span></div>
-            <div class="help">? 帮助</div>
-          </div>
-          <div class="body">
-            <div class="card opt is-on" style="flex-direction:column;align-items:stretch;gap:12px">
-              <div style="display:flex;align-items:center;gap:12px">
-                <div class="ic"><svg class="ico lg"><use href="#i-leaf"/></svg></div>
-                <div><div class="t">阳光生鲜（文三路）</div><div class="d">步行 5 分钟 · 营业到晚上 6 点</div></div>
-              </div>
-              <div class="bigbtn is-half">进去看菜</div>
+          <div class="nav"><div class="back">←</div><div class="nav-title">附近的店</div><div class="help">? 帮助</div></div>
+          <div class="body finder-body">
+            <div class="tip"><svg class="ico sm"><use href="#i-pin"/></svg><div>已获取位置，按直线距离找店</div></div>
+            <div class="finder-row"><input aria-label="搜索店名、街道或小区" placeholder="店名 / 街道 / 小区"><button>搜索</button></div>
+            <div class="finder-row"><button class="is-on">看我附近</button><button>全部门店</button><button>重新定位</button></div>
+            <div class="finder-row"><button class="is-on">3 公里内</button><button>10 公里内</button><button>20 公里内</button></div>
+            <div class="finder-row"><b>附近门店 · 2 家</b><button style="margin-left:auto" onclick="const board=document.getElementById('shop-finder-board');board.dataset.view=board.dataset.view==='map'?'list':'map';this.textContent=board.dataset.view==='map'?'列表找店':'地图找店'">地图找店</button></div>
+            <div class="finder-map" aria-label="门店地图示意">
+              <span class="finder-road">文三路</span><span class="finder-point">我的位置</span>
+              <span class="finder-pin first">阳光生鲜（文三路）</span><span class="finder-pin second">邻里粮油店（古荡）</span>
+              <small>示意地图 · App 使用高德地图</small>
             </div>
-            <div class="card opt" style="flex-direction:column;align-items:stretch;gap:12px">
-              <div style="display:flex;align-items:center;gap:12px">
-                <div class="ic"><svg class="ico lg"><use href="#i-bowl"/></svg></div>
-                <div><div class="t">邻里粮油店（古荡）</div><div class="d">步行 12 分钟 · 营业到下午 5 点</div></div>
-              </div>
+            <div class="card opt is-on" style="flex-direction:column;align-items:stretch;gap:10px">
+              <div class="t">阳光生鲜（文三路）</div>
+              <div class="d">接单中 · 当前门店 · 直线距离 320 米<br>文三路 100 号 · 今日 08:00–20:00</div>
+              <div class="finder-row"><button>打电话</button><div class="bigbtn is-half" style="flex:1">进去看菜</div></div>
+            </div>
+            <div class="card opt finder-other" style="flex-direction:column;align-items:stretch;gap:10px">
+              <div class="t">邻里粮油店（古荡）</div><div class="d">接单中 · 直线距离 1.2 公里<br>古荡路 28 号 · 今日 08:00–18:00</div>
               <div class="bigbtn is-ghost is-half">进去看菜</div>
             </div>
-            <div class="card opt" style="flex-direction:column;align-items:stretch;gap:12px">
-              <div style="display:flex;align-items:center;gap:12px">
-                <div class="ic"><svg class="ico lg"><use href="#i-meat"/></svg></div>
-                <div><div class="t">鲜肉铺（黄龙）</div><div class="d">步行 15 分钟<br>上午 6 点到中午 12 点</div></div>
-              </div>
-              <div class="bigbtn is-ghost is-half">进去看菜</div>
-            </div>
-            <div class="tip" style="margin-top:auto;margin-bottom:14px"><span class="ic"><svg class="ico sm"><use href="#i-pin"/></svg></span><div>店名后面的时间就是<b>今天开门到几点</b>。找不到想去的店？<b>点这里选小区</b>。</div></div>
+            <div class="tip"><div>未授权 / 定位失败：显示全部门店，可按店名、街道、小区搜索。附近无店可扩大范围；地图失败可回列表。</div></div>
+            <div class="tip"><div>换店后原店购物车仍保留。距离为直线估算，<b>不代表步行路线或配送范围</b>。</div></div>
           </div>
           <div class="homer"></div>
         </div></div>
@@ -578,7 +583,7 @@ ul.rules li::marker { color: var(--green); }
         </div></div>
       </div>
       <div class="board">
-        <div class="board-cap"><span class="k">S4</span><span class="name">付钱</span><span class="sec-note" style="margin:0 0 0 6px">金额最大 · 三种付法都不要求会打字</span></div>
+        <div class="board-cap"><span class="k">S4</span><span class="name">付钱</span><span class="sec-note" style="margin:0 0 0 6px">金额最大 · 两种付法都不要求会打字 · App 里与 S3 同屏，付款选项就在合计下面</span></div>
         <div class="phone"><div class="screen">
           <div class="sbar"><span>9:41</span><span>●●● 100%</span></div>
           <div class="nav">
@@ -590,29 +595,29 @@ ul.rules li::marker { color: var(--green); }
             <div class="card total">
               <span class="k">一共 3 样，要付</span><span class="v"><small>¥</small>53.00</span>
             </div>
-            <div class="card opt is-on">
+            <div class="card opt">
               <div class="ic" style="background:#E8F3EC"><svg class="ico lg"><use href="#i-chat"/></svg></div>
-              <div><div class="t">微信支付</div><div class="d">按指纹就行，不用打字</div></div>
+              <div><div class="t">现在微信付</div><div class="d">付完店里马上备菜<br>不用备现金</div></div>
               <div class="radio"></div>
             </div>
-            <div class="card opt">
-              <div class="ic"><svg class="ico lg"><use href="#i-family"/></svg></div>
-              <div><div class="t">让儿女帮我付</div><div class="d">发个消息给儿子<br>他付完您接着等</div></div>
-              <div class="radio"></div>
-            </div>
-            <div class="card opt">
+            <div class="card opt is-on">
               <div class="ic"><svg class="ico lg"><use href="#i-cash"/></svg></div>
-              <div><div class="t">到店付现金</div><div class="d">只有「我去店里拿」时能选</div></div>
+              <div><div class="t">收到菜再付钱</div><div class="d">送到家或到店取时再付<br>现金、当面扫码都行</div></div>
+              <div class="radio"></div>
+            </div>
+            <div class="card opt" style="opacity:.55">
+              <div class="ic"><svg class="ico lg"><use href="#i-family"/></svg></div>
+              <div><div class="t">让儿女帮我付</div><div class="d">这一版还没做<br>先打电话让儿女帮忙</div></div>
               <div class="radio"></div>
             </div>
             <div class="bigbtn" style="margin-top:auto">确认下单</div>
-            <div style="font-size:var(--fs-body);color:var(--ink-2);text-align:center;padding-bottom:14px">点一下就好，付错了可以取消</div>
+            <div style="font-size:var(--fs-body);color:var(--ink-2);text-align:center;padding-bottom:14px">选微信付会再弹一次「确认付钱 ¥53.00」；付错了可以取消</div>
           </div>
           <div class="homer"></div>
         </div></div>
       </div>
       <div class="board">
-        <div class="board-cap"><span class="k">S5</span><span class="name">下单好了</span><span class="sec-note" style="margin:0 0 0 6px">告诉她接下来会发生什么</span></div>
+        <div class="board-cap"><span class="k">S5</span><span class="name">下单好了</span><span class="sec-note" style="margin:0 0 0 6px">告诉她接下来会发生什么 · 选了微信付还没付钱时，这一屏换成「还差一步：付钱」（大字金额 + 现在付钱 + 不要了取消）</span></div>
         <div class="phone"><div class="screen">
           <div class="sbar"><span>9:42</span><span>●●● 100%</span></div>
           <div class="nav">
@@ -745,7 +750,7 @@ ul.rules li::marker { color: var(--green); }
             <tr><td>加减控件 <code>.step button</code></td><td><code>--tap-step</code></td><td>不缩放</td><td>48（原 52）</td><td>一单要点 3–6 次</td></tr>
             <tr><td>返回 / 帮助 / 铃铛 / 底栏单项 / 二级栏一项 <code>.nav .back .bell .help .tabbar .tab .l2i</code></td><td><code>--tap-nav</code></td><td>不缩放</td><td class="no">44（原 48）</td><td>WCAG 2.1 AA 目标下限，收回来的最后一格</td></tr>
             <tr><td>门店药丸 <code>.shoppill</code></td><td><code>--tap-nav</code>（高度）</td><td>不缩放</td><td>44，宽最长 150</td><td>每屏都要点得到，不能比返回还小</td></tr>
-            <tr><td>一级分类格 <code>.l1i</code></td><td>自定 74 × 66</td><td>不缩放</td><td>74 × 66</td><td>比 44 大一圈，因为横滑要靠它当「还能滑」的线索</td></tr>
+            <tr><td>一级分类格 <code>.l1i</code></td><td>自适应最小 88 × 56</td><td>不缩放</td><td>最小 88 × 56</td><td>左图右文；高度仍高于 48 的触控地板，横滑靠被裁的半格当「还能滑」的线索</td></tr>
             <tr><td>商品行整卡 <code>.grow</code></td><td>整卡即加购热区</td><td>不缩放</td><td>约 156 × 65</td><td>加号只是提示，落点其实是整条</td></tr>
             <tr><td>界面图标描边 <code>.ico</code></td><td>一处定义：<code>stroke-width 1.7</code> + 圆头端点</td><td>不缩放</td><td>方框 19 / 22 / 24</td><td>22 个图标同一套粗细，风格才叫统一</td></tr>
           </table>
@@ -756,7 +761,7 @@ ul.rules li::marker { color: var(--green); }
             <li><b>已知缺口：</b>若将来允许把 <code>--fs-scale</code> 调到 1 以上，<code>--fs-hero</code>（26 × 1.1 ≈ 28.6px）会顶不进 58px 的 <code>.bigbtn</code>。真要做「可调大」，<code>--tap-*</code> 必须同时给系数。这一版没有，先记在这儿。</li>
             <li><b>v0.4 把界面图标定成一套 inline SVG 描边</b>：尺寸走 <code>.ico</code> 的方框（19 / 22 / 24 三档），<b>不吃 <code>--fs-scale</code></b>，颜色走 <code>currentColor</code> 所以选中态只要改文字色就跟着变。定义集中在 <code>&lt;body&gt;</code> 顶部的 sprite，屏内只用 <code>&lt;use href="#i-…"&gt;</code> 引用——仍然是单文件自包含，没有外部图标库。</li>
             <li>仍然<b>不进令牌</b>的三类图形：加减号 / 返回箭头 / 「?」这些是<b>打字字符</b>不是图标；模拟状态栏 13px 由 OS 绘制；商品图 <code>.pic</code> 故意留 emoji——那是<b>照片占位</b>，彩色才对，换成同粗细线稿反而分不出猪肉和豆腐。屏内唯一吃字号的角标是购物车数字，它走 <code>--fs-body</code>，不许落到地板以下。</li>
-            <li><b>v0.5 首页那五段是手算出来的，不是试出来的：</b>问候 32 + 店铺图 98 + 一级横滑 66 + 左右分栏 272 + 提示条约 52 ＝ 520，加 4 段间距 40 ＝ <b>560</b>，可用区 576（824 − 状态栏 40 − header 62 − 结算条 79 − 底栏 63 − 上内边距 4），<b>余 16px</b>。这是本文件目前最挤的一屏，<code>--fs-scale</code> 若往上调，第一个撑破的就是它——所以首页是全局字号机制落地时<b>必须回归测试的第一屏</b>。「想吃哪类」那四个字之所以挤在滑道左边而不是单独起一行，就是因为那一行 34px 这屏给不起。</li>
+            <li><b>v0.5 首页那五段是手算出来的，不是试出来的：</b>问候 32 + 店铺图 98 + 一级横滑 56 + 左右分栏 272 + 提示条约 52 ＝ 510，加 4 段间距 40 ＝ <b>550</b>，可用区 576（824 − 状态栏 40 − header 62 − 结算条 79 − 底栏 63 − 上内边距 4），<b>余 26px</b>。这是本文件目前最挤的一屏，<code>--fs-scale</code> 若往上调，第一个撑破的就是它——所以首页是全局字号机制落地时<b>必须回归测试的第一屏</b>。分类条从 v0.6 起不再钉「想吃哪类」说明，那一行也就不占额外的标题高度。</li>
             <li><b>药丸顶掉标题是取舍，不是免费：</b>药丸只能放 4 个字（整丸实测宽 150px，而最窄一档留给它的是 152px——S0 有铃铛、其余屏有返回，右边还压着一个帮助按钮），所以「阳光生鲜（文三路）· 步行 5 分钟 · 营业到晚上 6 点」这句话必须拆两处：<b>店名进药丸，全称和营业信息进首页那张店铺图下面那行</b>。分店括注从此不在每一屏都看得见，这是砍掉的代价。</li>
           </ul>
         </div>
@@ -801,7 +806,8 @@ ul.rules li::marker { color: var(--green); }
         <div class="panel-b">
           <table class="sp">
             <tr><th>不要这样</th><th>要这样</th><th>落在哪屏</th></tr>
-            <tr><td class="no">双指缩放地图选店</td><td>店铺列表 + 「步行几分钟」</td><td>S1</td></tr>
+            <tr><td class="no">只能双指缩放地图选店</td><td>默认列表；地图可选，用大字店名标记与放大/缩小按钮；距离明确标「直线距离」</td><td>S1</td></tr>
+            <tr><td class="no">未授权定位就无法买菜</td><td>全部门店 + 店名/街道/小区搜索；定位成功默认 3 公里，可扩大至 10/20 公里</td><td>S1</td></tr>
             <tr><td class="no">两级分类逐级下钻 + 面包屑回退</td><td>一级横滑、二级竖列、商品同屏——两级<b>永远同时在场</b>，没有「点进去再退回来」这一下</td><td>S0</td></tr>
             <tr><td class="no">长按一级分类格才展开二级</td><td>点一下就换，左边那一列立刻跟着变</td><td>S0</td></tr>
             <tr><td class="no">左滑删除商品</td><td>看得见的减号，减到 0 自动去掉</td><td>S2 / T1</td></tr>
@@ -812,9 +818,9 @@ ul.rules li::marker { color: var(--green); }
             <tr><td class="no">打字填地址 / 手写门牌</td><td>预先存好，屏上只用点</td><td>S3</td></tr>
             <tr><td class="no">倒计时、优惠券弹窗、红色营销角标</td><td>除首页外一屏一个决定，不催促</td><td>全程</td></tr>
             <tr><td class="no">付钱付一半，底栏一键跳回首页</td><td>底栏只在一级页；进结算后收起，横向出口只留左上角返回；药丸同时锁死</td><td>S3–S5</td></tr>
-            <tr><td class="no">把「换一家店」做成藏在角落的入口</td><td>店名就写在屏顶正中那一格，点它到 S1</td><td>S0 / S2 / T1</td></tr>
+            <tr><td class="no">把「换一家店」做成藏在角落的入口</td><td>首页与购物车都点正中门店药丸到 S1；购物车不另设「换店」按钮</td><td>S0 / S2 / T1</td></tr>
             <tr><td class="no">记住「我刚才在哪个类别」再滑回去找</td><td>选中态常驻不变：<b>没选中</b>的格子会跟着手指走，<b>被选中</b>那格一直留在原地当锚</td><td>S0</td></tr>
-            <tr class="is-open"><td><b>v0.5 主动破例：</b>一级分类要靠一次横向滑动才看全</td><td>缓解四件：滑道左边钉着一个不跟着滑的「想吃哪类」，所以「这一行是什么」永远看得见；一屏露<b>3 格 + 约 30px 的半格</b>，被裁那一截就是「这边还有」的线索；格子 74 × 66 比按钮下限大一圈；被选中那格始终留在原位不跳动。<b>要不要再加左右箭头，见 §3.5</b></td><td>S0</td></tr>
+            <tr class="is-open"><td><b>v0.5 主动破例：</b>一级分类要靠一次横向滑动才看全</td><td>缓解三件：分类格左图右文、菜名直接是「肉」「蔬菜」，不再靠旁边的说明句解释这一行；一屏露出约 3 格 + 被裁的下一格，裁口就是「这边还有」的线索；格子最小 88 × 56 仍比按钮下限大一圈，且被选中那格始终留在原位不跳动。<b>要不要再加左右箭头，见 §3.5</b></td><td>S0</td></tr>
             <tr class="is-open"><td><b>v0.5 主动破例：</b>二级栏和商品列各自纵向可滑</td><td>最后一项<b>故意画成被裁一半</b>（二级栏第 6 项「鱼」只剩半截、商品第 4 条只露上半张卡），用「看得见没看完」代替任何刷新手势；「全部」永远置顶，滑不动也不会漏</td><td>S0</td></tr>
           </table>
         </div>
@@ -825,9 +831,9 @@ ul.rules li::marker { color: var(--green); }
         <div class="panel-b">
           <table class="sp">
             <tr><th>系统 / 后端叫法</th><th>屏上叫</th><th>出处</th></tr>
-            <tr><td><code>cart</code> 购物车</td><td class="yes">底栏 Tab 叫「购物车」，屏内叫「已经买了 3 样」</td><td>Tab 故意沿用电商通用词不另造；v0.5 起 S2 / T1 已无「我买了啥」这行大字标题，靠底栏那句合计定位</td></tr>
+            <tr><td><code>cart</code> 购物车</td><td class="yes">底栏 Tab 叫「购物车」，屏内叫「已经买了 3 样」</td><td>Tab 故意沿用电商通用词不另造；v0.5 起 S2 / T1 已无「我买了啥」这行大字标题，靠底栏那句合计定位。<b>合计只算能买的行</b>——售罄、超库存的行在 T1 里勾不上，S0 底栏也不把它们算进「已经买了」；车里全是这种行时，底栏写「篮子里没有能买的菜 ¥0.00」且「下一步」置灰，不写「还没挑菜」。购物车角标仍按车内实际件数显示，提醒老人进去删掉</td></tr>
             <tr><td><code>shop</code> / <code>store_id</code> 门店</td><td class="yes">直接写店名「阳光生鲜」</td><td>药丸（全 7 屏）+ S0 店铺图下那行的全称「阳光生鲜 · 文三路」</td></tr>
-            <tr><td><code>category</code> / 一级分类树</td><td class="yes">想吃哪类（格子上的字仍是「肉」「蔬菜」这类菜市场的说法）</td><td>S0 滑道左边钉住的 <code>.l1cap</code>。「柜台」这个词从 v0.5 起屏上没有了，只活在本文件的叙述里</td></tr>
+            <tr><td><code>category</code> / 一级分类树</td><td class="yes">屏上不写总称，格子上的字仍是「肉」「蔬菜」这类菜市场的说法</td><td>S0 横滑条只有分类格，不再钉说明文字；「想吃哪类」「柜台」都只活在本文件的叙述里</td></tr>
             <tr><td><code>level = 2</code> 子分类</td><td class="yes">屏上写作「全部 / 猪肉 / 牛肉 / 羊肉 / 鸡肉 / 鱼」，不带「分类」「类目」字样</td><td><b>v0.5 改动：</b>子分类从「并进父柜台、屏上看不见」变成<b>明写在左边一列</b>。这是本次唯一一处屏上露出了第二层结构</td></tr>
             <tr><td><code>count</code> 该分类 SKU 数</td><td class="yes">数字跟在类别名后面：「猪肉 3」「全部 9」</td><td>S0 二级栏。<b>不再写「种」字</b>——一行只有 84px，加了「种」就要么换行要么缩到地板以下</td></tr>
             <tr><td><code>checkout</code> 结算</td><td class="yes">「一共 3 样，要付」</td><td>S4 合计行。已从标题降级为屏内那句话</td></tr>
@@ -836,10 +842,15 @@ ul.rules li::marker { color: var(--green); }
             <tr><td><code>pickup_code</code> 核销码</td><td class="yes">把这个号给他看</td><td>S5</td></tr>
             <tr><td><code>sku / product</code></td><td class="yes">直接写「五花肉」</td><td>S0 / S2 / T1</td></tr>
             <tr><td><code>stock = 0</code> 缺货</td><td class="yes">今天卖完了</td><td>S0 未画状态</td></tr>
-            <tr><td><code>status = paid</code> 已支付</td><td class="yes">已经告诉店里了</td><td>S5 主话</td></tr>
+            <tr><td><code>status = pending_payment</code> 待支付</td><td class="yes">还差一步：付钱 / 还没付钱</td><td>S5 待支付变体、订单卡</td></tr>
+            <tr><td><code>status = paid</code> 已支付</td><td class="yes">已经告诉店里了</td><td>S5 主话；后台叫「待接单」</td></tr>
+            <tr><td><code>status = refund_pending</code> 退款中</td><td class="yes">退款申请已经交给店长，确认后会退回 ¥53.00</td><td>订单卡</td></tr>
+            <tr><td><code>status = refunded</code> 已退款</td><td class="yes">已退款 ¥53.00，钱会回到您付款的账户</td><td>订单卡</td></tr>
             <tr><td><code>address</code> 收货地址</td><td class="yes">送到哪儿</td><td>S3</td></tr>
-            <tr><td><code>family_pay</code> 亲属代付</td><td class="yes">让儿女帮我付</td><td>S4</td></tr>
-            <tr><td><code>cancel_order</code></td><td class="yes">不要了，取消订单</td><td>S5 红色按钮</td></tr>
+            <tr><td><code>payment_method = wechat</code></td><td class="yes">现在微信付</td><td>S4；当前是演示通道，不会真扣钱</td></tr>
+            <tr><td><code>payment_method = cash</code></td><td class="yes">收到菜再付钱</td><td>S4；后台记「货到付款 · 待当面收」</td></tr>
+            <tr><td><code>family_pay</code> 亲属代付</td><td class="no">让儿女帮我付（这一版还没做）</td><td>S4 置灰第三项，缺亲属账户与代付链路</td></tr>
+            <tr><td><code>cancel_order</code></td><td class="yes">不要了，取消订单</td><td>S5 红色按钮；已线上收款则转退款申请</td></tr>
             <tr><td><code>shop_manager</code> 店长</td><td class="yes">店里的电话</td><td>S0 提示条 / S6</td></tr>
           </table>
         </div>
@@ -851,14 +862,14 @@ ul.rules li::marker { color: var(--green); }
         <li><b>店铺是入驻还是自营。</b>影响 S1 能不能承诺「线上写的有，店里真有」，也决定库存和定价归谁改。本原型按「单店自管库存」画；若改自营，只换 S1 的数据来源，主干不变。</li>
         <li><b>一级分类超过六个怎么办。</b>现在滑道一屏露 3 格 + 半格，六个是画得下且不让人迷路的上限。店里若开出 8–10 个顶级分类，是让老人多滑两下，还是把米面油和调料合成一个大类？另外今天一种货都没有的空柜台、以及后台停用的分类（<code>is_active = false</code>），是留一格说「今天没有」还是直接隐藏——这条不定，S0 的滑道就没法验收。</li>
         <li><b>药丸顶掉标题之后，老人怎么确认「我在第几步」。</b>v0.5 起除 S6 外屏上没有大字标题了，定位只剩合计那句「一共 3 样，要付」、减号在不在、以及底栏那句「下一步 · 付钱」。<b>这三样够不够一个老人判断自己没走错，是本轮最没底的一条</b>，也是画完才看见的代价——要补的话，只能补在合计那一行上面，而不是把标题加回来。</li>
-        <li><b>药丸能不能全程点。</b>本原型按「逛的时候能点、进结算就锁死」画：S0 / S2 / T1 带「⌄」，S3–S5 灰底无「⌄」。理由是换了店，已填的地址和这一篮子全作废，那一屏没人接得住。但若产品要求结算途中也能换店，就必须先定「半篮菜 + 地址怎么办」，否则锁死是唯一不骗人的画法。</li>
+        <li><b>药丸能不能全程点。</b><b>v0.9 已定：</b>S0 与 T1 顶部统一为铃铛、当前浏览门店药丸、帮助，去掉 T1 的「购物车」标题和单独「换店」按钮；点击药丸可进 S1，结算中仍锁定门店。药丸只标识当前浏览门店，T1 仍展示所有店的分组，不因顶部选择而过滤。换店仅改变浏览门店，不迁移或清空购物车，首页显示「已换店，原店购物车里的菜仍为您保留」。购物车继续按门店分组，结算仍按原分组下单。</li>
         <li><b>铃铛里装什么。</b>S0 和 T1 画了铃铛入口，但<b>没画它点开的屏</b>——这是本轮新造出来的第三个空壳。装的是「店里通知：您买的鸡蛋今天到晚了」，还是「订单进度变更」，还是干脆是消息中心？若首版没有内容，这个铃铛应该删掉而不是留着等。</li>
         <li><b>横滑要不要加左右箭头。</b>现在只靠「露半格」暗示还能滑。加一对 44px 的箭头最直白，但会挤掉一格半的可见数（342px 里给两侧各留 44 就只剩 2 格），对老人反而是「怎么只有两个类别」。要不要加、还是加在类别多于几个时才出现——没定。</li>
         <li><b>「全部 9」和「猪肉 3」的计数口径。</b>PRD §5.4 写「商品可归属任意一级分类，也可不选分类」，所以那 9 个里可能有一件<b>只挂了「肉」、没挂任何二级</b>。它现在被「全部」兜住（这是选「全部置顶」要解决的问题），但<b>会不会在「猪肉」的计数里凭空少一件</b>——「全部 9」与「3+2+1+2+1=9」这条等式在真实数据下到底成不成立，要后端给口径。</li>
-        <li><b>到店付现金要不要留。</b>S4 第三条会造成线上下单、线下实收两张皮，需要店长确认。首版若砍掉，只剩微信 + 儿女代付，S4 更干净。</li>
+        <li><b>到店付现金要不要留。</b><b>v0.7 已定：留，但改名并合并</b>——S4 第三条不再是「到店付现金」，而是「收到菜再付钱」，送货上门与到店自取都能选，后台记「货到付款 · 待当面收」。线上下单、线下实收的两张皮靠后台订单列表那行小字兜住；「让儿女帮我付」这一版不做（缺亲属账户与代付链路），在 S4 置灰保留位置。</li>
         <li><b>起送金额与配送费。</b>现在 ¥53.00 里没有任何配送费。一旦有，S3 与 S4 之间必须插一屏「再加 X 元才送到」，主流程从 6 屏变 7 屏——这是最容易破坏「步骤少」的地方。</li>
-        <li><b>已付款的订单谁能取消。</b>付款前自助取消已画在 S5；付款后是老人自己点、还是必须店长同意？决定 S5 要不要保留那个红色按钮。</li>
-        <li><b>定位失败又没存过小区时，S0 显示什么。</b>现在 S0 的药丸和店铺图都直接写「阳光生鲜 · 文三路」，前提是已经绑过地址。第一次打开的那一屏还没画——尤其要定：<b>没有店的时候，药丸里写什么</b>。</li>
+        <li><b>已付款的订单谁能取消。</b><b>v0.7 已定：分两种。</b>没收到钱的单（待支付、货到付款）老人自己点「不要了，取消订单」就立刻取消，菜还给店里；<b>已经线上收款的单，老人点了只算提交退款申请（状态「退款中」），必须店长在后台「同意退款」才退钱并回补库存，驳回要写一句给老人看的理由</b>。配送中与已完成的单不给这个按钮，只留「打给店里」。S5 的红色按钮因此保留。</li>
+        <li><b>首次没有门店时显示什么。</b><b>v0.8 已定：</b>先进入 S1 找店，不自动选择列表第一家。选定门店后按顾客账号记住门店 ID，返回首页、切 Tab、重开应用仍逛同一家；保存的门店停业或失效时提供「找别家店」，不静默切换。</li>
         <li><b>谁替老人做首次绑定。「订单」「我的」两个 Tab 还没画。</b>认出你是谁依赖家属先绑手机号与地址，这条前置流程在本原型之外，缺了它老人根本到不了 S0。订单页要按什么状态口径排（已告诉店里 / 店里备好了 / 可以拿了 / 已完成），我的页要不要放地址与家属绑定——这两屏不定，底栏就是三个空壳入口（加上铃铛是四个），点进去会白屏。</li>
         <li><b>购物车空态长什么样，以及首页的空态。</b>底栏常驻之后，老人会在什么都没买的时候点进购物车，首页也会在没买任何东西时显示「已经买了 0 样」这种怪话。T1 画的是「3 样」这一种状态；空篮子是提示「还一样都没挑，去上面挑几样」并把 dock 那句换掉，还是直接不给 dock？</li>
         <li><b>角标算一家店还是所有店。</b>PRD §3.5 定了不同店的菜<b>不能并成一单</b>，那底栏角标写「3」到底只指当前这一家，还是把所有店的篮子加起来？若相加，等于用图标暗示老人「这些能一起结」。本原型先按<b>当前所在店</b>计数——这也正是首页 dock 那句「已经买了 3 样」的口径。</li>
@@ -867,12 +878,16 @@ ul.rules li::marker { color: var(--green); }
   </section>
 
   <footer class="footer">
-    <div><b>捎点啥 sds</b> · 老人下单流程原型 v0.5 · 2026-11-15 · 单文件自包含，浏览器直接打开即可逐屏评审，8 块画板按每行 3 屏排布。</div>
+    <div><b>捎点啥 sds</b> · 老人下单流程原型 v0.9 · 2026-11-16 · 单文件自包含，浏览器直接打开即可逐屏评审，8 块画板按每行 3 屏排布。</div>
     <div>v0.2 变更：新增 <b>S2「想吃哪一类」</b>柜台屏，主干由 7 屏变 8 屏，S 编号自 S3 起顺延；屏内文字字号全部收进 <code>:root</code> 的 <code>--fs-*</code> 令牌（当时取值未动，v0.3 起由 <code>--fs-scale</code> 统一缩放）。</div>
     <div><i>以下 v0.2–v0.4 三条是当时的记录，其中的 S 编号与屏数已被后面的版本改过，按当时代读，不回改。</i></div>
     <div>v0.3 变更：加标准电商<b>底部导航</b>（首页 / 购物车 / 订单 / 我的），只在一级页 S0 与 T1 常驻，S1–S7 下单途中收起；新增 <b>T1「购物车（一级页）」</b>，按店分组、跨店不合并。字号整体缩一号＝<code>--fs-scale: .9</code>，触控同步收回一档（58 / 54 / 48 / 44）并抽成 <code>--tap-*</code> 令牌，<b>故意不吃字号系数</b>——用户能调字，防误触的按钮高度不能跟着抖。</div>
     <div>v0.4 变更：界面图标从 emoji 换成<b>一套 inline SVG 描边</b>（21 个符号，<code>stroke-width 1.7</code>、<code>currentColor</code>、三档方框 19 / 22 / 24），底栏选中态照通用电商做法＝变绿 + 描边加重 + 淡色填实。覆盖底栏、柜台格、店铺与付法选项、提示条、成功勾共 34 处；<b>商品图 <code>.pic</code> 仍留 emoji</b>，那是照片占位不是图标。图标定义集中在 <code>&lt;body&gt;</code> 顶部的 sprite，屏内用 <code>&lt;use&gt;</code> 引用，不引外部库。</div>
     <div>v0.5 变更（本轮，两处都是结构性的）：<b>①首页重画成分类浏览一屏</b>——一级分类横滑（74 × 66 一格，左边钉住「想吃哪类」）、二级分类竖列（「全部」置顶兜住只挂一级或没挂分类的商品）、商品列在右边，<b>两级同时在场，取消「点进柜台再退回来」那一层</b>；连带删掉旧 S2「想吃哪一类」与旧 S3「今天的菜」，主干由 8 屏变 <b>6 屏</b>，画板由 10 块变 <b>8 块</b>，S 编号自 S4 起前移两位。<b>这一版推翻了 v0.2 定下的「只走一级」口径</b>，理由是它把「看子分类」变成只能靠一级格的种类数猜。<b>②header 中间换成门店药丸、顶掉页面标题</b>：短店名「阳光生鲜」常驻 7 屏，S3–S5 进结算后锁死（灰底、无「⌄」），S1 换店页画成当前态；S0 与 T1 左侧加铃铛。图标增至 22 个（新增 <code>i-bell</code> <code>i-chevron</code>，删掉已无处的 <code>i-layers</code>）。字号取值与配色令牌<b>一个都没动</b>。</div>
+    <div>v0.6 变更：一级分类格从「上图下文、74 × 66」改为<b>「左图右文、自适应最小 88 × 56」</b>，并<b>去掉滑道左侧钉住的「想吃哪类」说明</b>——图标与菜名横排更好扫读，长菜名（如「鸡蛋牛奶」）不再折行；整行宽度全部交给分类格，高度收回 10px 留给商品列，整屏垂直预算仍是 550，余量 26px。sprite、配色、字号与触控令牌均未改动。另补两条底栏口径：<b>「已经买了」只算能买的行</b>（售罄、超库存的不算，与 T1 的默认勾选一致；整车都是这种行时写「篮子里没有能买的菜」），<b>没有能买的菜时「下一步」置灰不可点</b>——不弹提示，灰按钮本身就是答案；购物车角标仍按车内实际件数显示，提醒老人进去删掉售罄的菜。</div>
+    <div>v0.7 变更（把交易闭环补上，改的是 S4 / S5 与订单口径，画板数量与令牌未动）：<b>①S4 付法与实现对齐</b>——从「微信支付 / 让儿女帮我付 / 到店付现金」改为<b>「现在微信付 / 收到菜再付钱」两项可选</b>，第三项「让儿女帮我付」置灰保留（亲属代付未实现，缺账户与代付链路）；默认选中的是「收到菜再付钱」，配送与自取都能选，后台记「货到付款 · 待当面收」。App 里付款选项与 S3 同屏、就在合计下面，底栏按钮随付法在「确认下单 / 下单并付钱」之间变。<b>②选微信付时下单只到「待支付」</b>，S5 换成<b>「还差一步：付钱」变体</b>：橙色圆标 + 大字金额 + 进度第二步是「付钱」，三个按钮为「现在付钱 ¥53.00 / 稍后再付，先看订单 / 不要了，取消订单」，点付款再弹一次「确认付钱」确认层；当前是<b>演示付款通道</b>，不会真扣钱，屏上明写这句。<b>③取消与退款写实</b>：未收款的单（待支付、货到付款）老人自己点就立刻取消、菜还给店里；<b>已线上收款的单点了只算提交退款申请（状态「退款中」）</b>，店长在后台「同意退款」才退钱并回补库存，「驳回」则订单回到申请前的状态并留下一句给老人看的理由（订单卡显示「店长没有同意退款：…」）。配送中与已完成不给取消按钮。新增术语行 <code>pending_payment</code> / <code>refund_pending</code> / <code>refunded</code> / <code>payment_method</code>，§3.5 里「到店付现金要不要留」「已付款的订单谁能取消」两条据此改为已定。</div>
+    <div>v0.8 变更：<b>S1 找店接入真实门店与前台定位</b>，默认列表并支持高德地图，标记与卡片联动；可搜索店名/街道/小区，默认附近 3 公里并可扩大至 10/20 公里。定位失败显示全部门店，地图失败可回列表；展示接单/休息状态、地址、今日时段、电话，休息门店不可进店下单。GPS 的 WGS84 坐标先转 GCJ-02，与后台高德选点一致；距离只标直线估算，不承诺步行时间或配送范围。<b>门店选择按顾客持久化，换店保留各店购物车，结算中不换店</b>。S1 纵向使用滚动内容区（工具区约 240px、可选地图 260px、每店卡片约 230px），不把多店卡片强塞进一屏；触控不小于 48px。画板仍为 8 块，点击 S1「地图找店」可评审地图变体。</div>
+    <div>v0.9 变更：<b>T1 顶部与首页统一</b>，使用「消息铃铛 + 当前浏览门店药丸 + 帮助」，移除「购物车」标题及单独的绿色「换店」按钮。门店名称与首页同步，点药丸仍进 S1；所有门店的购物车继续分组显示，不随顶部门店筛选，数量、备注、金额与结算逻辑不变。顶部复用原有高度，未新增行，字号与触控令牌保持不变。</div>
     <div>屏内的店名、价格、订单号均为演示数据，不代表真实供给。本文件定的是<b>流程与可达性规格</b>，不是视觉终稿；界面图标风格已在 v0.4 定下，商品图与店铺图仍留到视觉稿阶段。v0.5 只改了<b>结构与信息层级</b>，配色令牌、字号基准、触控档位三项一律没动。</div>
     <div>关联文档：<code>docs/prd/SDS-PRD.md</code>（工程规格稿） · <code>docs/prd/PRD-捎点啥-sds-v0.1.md</code>（产品叙事稿）</div>
   </footer>

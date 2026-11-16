@@ -14,6 +14,7 @@ import {
 import type { BusinessHours } from '@sds/db';
 import { requireAdmin, type AdminEnv } from '../middleware/admin-auth';
 import { guardPermission } from '../lib/admin-access';
+import { fanOutCatalogProductsToShop } from '../lib/catalog-fanout';
 
 /** 平台侧店铺管理，对应 PRD 5.2 / 5.3 与 6.x 店铺模块 */
 export const shopRoutes = new Hono<AdminEnv>();
@@ -85,28 +86,15 @@ const updateShopSchema = createShopSchema
   .refine((value) => Object.keys(value).length > 0, '至少需要一个字段');
 
 /**
- * 把已发布总部商品补到指定门店（幂等）。
- * ON CONFLICT DO NOTHING 保证不覆盖门店已改的价格、上下架、排序；库存本来就在门店侧。
+ * 把已发布总部商品补到指定门店（幂等），并补齐门店 SKU 与 0 库存行。
  */
 async function attachPublishedProducts(
   db: Awaited<ReturnType<typeof getDb>>,
   shopId: string,
   categoryScope: string[] | null
 ) {
-  const categoryFilter = categoryScope
-    ? sql`and cp.category_id in (${sql.join(categoryScope.map((id) => sql`${id}`), sql`, `)})`
-    : sql``;
-
-  const inserted = await db.execute(sql`
-    insert into products
-      (shop_id, catalog_product_id, name, description, image_url, unit, stock_type, is_available, sort_order, is_test)
-    select ${shopId}, cp.id, cp.name, cp.description, cp.image_url, cp.unit, cp.stock_type, true, 0, cp.is_test
-      from catalog_products cp
-     where cp.status = 'published' ${categoryFilter}
-    on conflict (shop_id, catalog_product_id) where catalog_product_id is not null do nothing
-    returning id
-  `);
-  return inserted.rowCount ?? 0;
+  const result = await fanOutCatalogProductsToShop(db, shopId, categoryScope);
+  return result.importedProducts;
 }
 
 const memberSchema = z.object({
@@ -367,7 +355,7 @@ shopRoutes.post('/:id/catalog/import', async (c) => {
     categoryScope = rows.map((row) => row.id);
   }
 
-  const created = await attachPublishedProducts(db, shopId, categoryScope);
+  const imported = await fanOutCatalogProductsToShop(db, shopId, categoryScope);
 
   const [published] = await db
     .select({ total: sql<number>`count(*)::int` })
@@ -380,7 +368,8 @@ shopRoutes.post('/:id/catalog/import', async (c) => {
 
   return c.json({
     ok: true,
-    created,
+    created: imported.importedProducts,
+    createdSkus: imported.createdSkus,
     publishedTotal: published?.total ?? 0
   });
 });

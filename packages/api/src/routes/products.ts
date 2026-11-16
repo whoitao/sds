@@ -1,10 +1,25 @@
 import { Hono, type Context } from 'hono';
 import { and, asc, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { categories, catalogCategories, catalogProducts, getDb, products, productStockTypeEnum, productStocks, shops } from '@sds/db';
+import {
+  categories,
+  catalogCategories,
+  catalogProducts,
+  catalogSkus,
+  getDb,
+  productSkuStocks,
+  productSkus,
+  products,
+  productStockTypeEnum,
+  purchaseOrderItems,
+  quantityModeEnum,
+  shops,
+  stockMovements
+} from '@sds/db';
 import { requireAdmin, type AdminEnv } from '../middleware/admin-auth';
 import { guardPermission } from '../lib/admin-access';
 import { resolveCategoryScope } from '../lib/category-scope';
+import { inferQuantityMode } from '../lib/quantity';
 
 /**
  * 平台侧商品管理，对应 PRD 5.4 categories / 5.5 products。
@@ -508,7 +523,10 @@ const productFields = {
 const createProductSchema = z.object({
   ...productFields,
   // 门店本地商品必须有价；跟随总部建议价只适用于已关联总部商品的编辑
-  price: productFields.price.unwrap()
+  price: productFields.price.unwrap(),
+  specName: z.string().trim().min(1, '规格名称必填').max(50).optional(),
+  barcode: z.string().trim().max(64).nullish(),
+  quantityMode: z.enum(quantityModeEnum.enumValues).optional()
 });
 const updateProductSchema = z
   .object({
@@ -523,6 +541,55 @@ const updateProductSchema = z
     sortOrder: productFields.sortOrder
   })
   .refine((value) => Object.keys(value).length > 0, '至少需要一个字段');
+
+const productSkuFields = {
+  specName: z.string().trim().min(1, '规格名称必填').max(50),
+  barcode: z.string().trim().max(64).nullish(),
+  price: z.number().min(0, '售价不能为负').max(99999999).nullable(),
+  unit: z.string().trim().min(1, '单位必填').max(20),
+  stockType: z.enum(productStockTypeEnum.enumValues).optional(),
+  quantityMode: z.enum(quantityModeEnum.enumValues).optional(),
+  isAvailable: z.boolean().optional(),
+  isDefault: z.boolean().optional(),
+  sortOrder: z.number().int().min(0).max(9999).optional()
+};
+
+const createProductSkuSchema = z.object(productSkuFields);
+
+const updateProductSkuSchema = z
+  .object({
+    specName: productSkuFields.specName.optional(),
+    barcode: productSkuFields.barcode,
+    price: productSkuFields.price.optional(),
+    unit: productSkuFields.unit.optional(),
+    stockType: productSkuFields.stockType,
+    quantityMode: productSkuFields.quantityMode,
+    isAvailable: productSkuFields.isAvailable,
+    isDefault: productSkuFields.isDefault,
+    sortOrder: productSkuFields.sortOrder
+  })
+  .refine((value) => Object.keys(value).length > 0, '至少需要一个字段');
+
+async function productSkuHasFractionalStock(skuId: string) {
+  const db = await getDb();
+  const [stock] = await db
+    .select({ quantity: productSkuStocks.quantity })
+    .from(productSkuStocks)
+    .where(eq(productSkuStocks.productSkuId, skuId))
+    .limit(1);
+  if (stock && Number(stock.quantity) % 1 !== 0) return true;
+
+  const result = await db.execute(sql`
+    select 1
+      from purchase_order_items poi
+      join purchase_orders po on po.id = poi.purchase_order_id
+     where poi.product_sku_id = ${skuId}::uuid
+       and po.status in ('draft', 'submitted')
+       and poi.quantity <> trunc(poi.quantity)
+     limit 1
+  `);
+  return (result.rowCount ?? 0) > 0;
+}
 
 async function categoryBelongsToShop(categoryId: string, shopId: string) {
   const [row] = await (await getDb())
@@ -595,10 +662,27 @@ productRoutes.get('/products', async (c) => {
         catalogCategoryId: catalogProducts.categoryId,
         catalogCategoryName: catalogCategories.name,
         catalogPrice: catalogProducts.defaultPrice,
-        // 门店级库存：只在门店商品行上，总部商品不持有库存
+        // 门店级库存：库存挂在 SKU 上，这里汇总展示
         stockQuantity: sql<number>`coalesce((
-          select ps.quantity from product_stocks ps where ps.product_id = "products"."id"
-        ), 0)::int`,
+          select sum(st.quantity)
+            from product_sku_stocks st
+            join product_skus ps on ps.id = st.product_sku_id
+           where ps.product_id = "products"."id"
+        ), 0)::float8`,
+        skuCount: sql<number>`(
+          select count(*) from product_skus ps where ps.product_id = "products"."id"
+        )::int`,
+        lowStockCount: sql<number>`(
+          select count(*) from product_sku_stocks st
+            join product_skus ps on ps.id = st.product_sku_id
+           where ps.product_id = "products"."id"
+             and st.quantity <= st.min_threshold
+        )::int`,
+        defaultSkuId: sql<string | null>`(
+          select ps.id from product_skus ps
+           where ps.product_id = "products"."id" and ps.is_default
+           limit 1
+        )`,
         // 门店价为空时按总部建议价展示
         effectivePrice: sql<string | null>`coalesce(${products.price}, ${catalogProducts.defaultPrice})`,
         priceOverridden: sql<boolean>`${products.price} is not null and ${catalogProducts.defaultPrice} is not null and ${products.price} <> ${catalogProducts.defaultPrice}`
@@ -628,7 +712,7 @@ productRoutes.post('/products', async (c) => {
     return c.json({ code: 'INVALID_BODY', message: parsed.error.issues[0]?.message ?? '参数不合法' }, 400);
   }
 
-  const { shopId, categoryId, price, ...rest } = parsed.data;
+  const { shopId, categoryId, price, specName, barcode, quantityMode, ...rest } = parsed.data;
   const denied = await guardPermission(c, 'products.write', { shopId });
   if (denied) return denied;
 
@@ -639,22 +723,58 @@ productRoutes.post('/products', async (c) => {
     return c.json({ code: 'CATEGORY_SHOP_MISMATCH', message: '分类不属于该店铺' }, 400);
   }
 
-  const [row] = await (await getDb())
-    .insert(products)
-    .values({
-      ...rest,
-      shopId,
-      categoryId: categoryId ?? null,
-      price: price.toFixed(2),
-      description: rest.description ?? null,
-      imageUrl: rest.imageUrl ?? null,
-      stockType: rest.stockType ?? 'tracked',
-      isAvailable: rest.isAvailable ?? true,
-      sortOrder: rest.sortOrder ?? 0
-    })
-    .returning({ id: products.id });
+  const db = await getDb();
+  const stockType = rest.stockType ?? 'tracked';
+  const result = await db.transaction(async (tx) => {
+    const [product] = await tx
+      .insert(products)
+      .values({
+        ...rest,
+        shopId,
+        categoryId: categoryId ?? null,
+        price: price.toFixed(2),
+        description: rest.description ?? null,
+        imageUrl: rest.imageUrl ?? null,
+        stockType,
+        isAvailable: rest.isAvailable ?? true,
+        sortOrder: rest.sortOrder ?? 0
+      })
+      .returning({ id: products.id });
 
-  return c.json({ item: row }, 201);
+    const [sku] = await tx
+      .insert(productSkus)
+      .values({
+        shopId,
+        productId: product.id,
+        catalogSkuId: null,
+        specName: specName ?? '标准装',
+        barcode: barcode ?? null,
+        unit: rest.unit,
+        price: price.toFixed(2),
+        stockType,
+        quantityMode: quantityMode ?? inferQuantityMode(rest.unit),
+        isAvailable: rest.isAvailable ?? true,
+        isDefault: true,
+        sortOrder: 0
+      })
+      .returning({ id: productSkus.id });
+
+    if (stockType === 'tracked') {
+      await tx.insert(productSkuStocks).values({
+        productSkuId: sku.id,
+        shopId,
+        quantity: '0.00',
+        minThreshold: '0.00'
+      });
+    }
+
+    return { productId: product.id, skuId: sku.id };
+  });
+
+  return c.json(
+    { item: { id: result.productId, defaultSkuId: result.skuId } },
+    201
+  );
 });
 
 productRoutes.patch('/products/:id', async (c) => {
@@ -702,17 +822,60 @@ productRoutes.patch('/products/:id', async (c) => {
     return c.json({ code: 'CATEGORY_SHOP_MISMATCH', message: '分类不属于该店铺' }, 400);
   }
 
-  const [row] = await db
-    .update(products)
-    .set({
-      ...rest,
-      ...(categoryId === undefined ? {} : { categoryId }),
-      ...(price === undefined ? {} : { price: price === null ? null : price.toFixed(2) }),
-      updatedAt: new Date()
-    })
-    .where(eq(products.id, id))
-    .returning({ id: products.id });
+  const row = await db.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(products)
+      .set({
+        ...rest,
+        ...(categoryId === undefined ? {} : { categoryId }),
+        ...(price === undefined ? {} : { price: price === null ? null : price.toFixed(2) }),
+        updatedAt: new Date()
+      })
+      .where(eq(products.id, id))
+      .returning({ id: products.id });
+    if (!updated) return null;
 
+    const [defaultSku] = await tx
+      .select({ id: productSkus.id })
+      .from(productSkus)
+      .where(and(eq(productSkus.productId, id), eq(productSkus.isDefault, true)))
+      .limit(1);
+
+    if (defaultSku) {
+      await tx
+        .update(productSkus)
+        .set({
+          ...(price === undefined ? {} : { price: price === null ? null : price.toFixed(2) }),
+          ...(rest.unit === undefined ? {} : { unit: rest.unit }),
+          ...(rest.stockType === undefined ? {} : { stockType: rest.stockType }),
+          updatedAt: new Date()
+        })
+        .where(eq(productSkus.id, defaultSku.id));
+
+      if (rest.stockType === 'tracked') {
+        await tx
+          .insert(productSkuStocks)
+          .values({
+            productSkuId: defaultSku.id,
+            shopId: current.shopId,
+            quantity: '0.00',
+            minThreshold: '0.00'
+          })
+          .onConflictDoNothing();
+      }
+    }
+
+    if (rest.isAvailable !== undefined) {
+      await tx
+        .update(productSkus)
+        .set({ isAvailable: rest.isAvailable, updatedAt: new Date() })
+        .where(eq(productSkus.productId, id));
+    }
+
+    return updated;
+  });
+
+  if (!row) return c.json({ code: 'NOT_FOUND', message: '商品不存在' }, 404);
   return c.json({ item: row });
 });
 
@@ -758,16 +921,330 @@ productRoutes.patch('/products/:id/availability', async (c) => {
   return c.json({ item: row });
 });
 
-const updateStockSchema = z.object({
-  quantity: z.number().int('库存需为整数').min(0, '库存不能为负').max(999999)
+// ---------------------------------------------------------------- 门店规格（SKU）
+
+productRoutes.get('/products/:productId/skus', async (c) => {
+  const denied = await guardPermission(c, 'products.read');
+  if (denied) return denied;
+
+  const db = await getDb();
+  const productId = c.req.param('productId');
+  const [product] = await db
+    .select({
+      id: products.id,
+      shopId: products.shopId,
+      name: products.name,
+      catalogProductId: products.catalogProductId
+    })
+    .from(products)
+    .where(eq(products.id, productId))
+    .limit(1);
+  if (!product) return c.json({ code: 'NOT_FOUND', message: '商品不存在' }, 404);
+
+  const items = await db
+    .select({
+      id: productSkus.id,
+      productId: productSkus.productId,
+      shopId: productSkus.shopId,
+      catalogSkuId: productSkus.catalogSkuId,
+      specName: productSkus.specName,
+      barcode: productSkus.barcode,
+      unit: productSkus.unit,
+      price: productSkus.price,
+      stockType: productSkus.stockType,
+      quantityMode: productSkus.quantityMode,
+      isAvailable: productSkus.isAvailable,
+      isDefault: productSkus.isDefault,
+      sortOrder: productSkus.sortOrder,
+      createdAt: productSkus.createdAt,
+      updatedAt: productSkus.updatedAt,
+      catalogStatus: catalogSkus.status,
+      effectivePrice: sql<string | null>`coalesce(${productSkus.price}, ${catalogSkus.defaultPrice})`,
+      stockQuantity: sql<string>`coalesce(${productSkuStocks.quantity}, 0)`,
+      minThreshold: sql<string>`coalesce(${productSkuStocks.minThreshold}, 0)`,
+      maxThreshold: productSkuStocks.maxThreshold
+    })
+    .from(productSkus)
+    .leftJoin(catalogSkus, eq(catalogSkus.id, productSkus.catalogSkuId))
+    .leftJoin(productSkuStocks, eq(productSkuStocks.productSkuId, productSkus.id))
+    .where(eq(productSkus.productId, productId))
+    .orderBy(asc(productSkus.sortOrder), asc(productSkus.createdAt));
+
+  return c.json({ product, items });
 });
 
-/** 门店库存写入：库存只挂在门店商品行上（product_stocks），总部商品不共享库存 */
+productRoutes.post('/products/:productId/skus', async (c) => {
+  const db = await getDb();
+  const productId = c.req.param('productId');
+  const [product] = await db
+    .select({
+      id: products.id,
+      shopId: products.shopId,
+      catalogProductId: products.catalogProductId,
+      stockType: products.stockType
+    })
+    .from(products)
+    .where(eq(products.id, productId))
+    .limit(1);
+  if (!product) return c.json({ code: 'NOT_FOUND', message: '商品不存在' }, 404);
+
+  const denied = await guardPermission(c, 'products.write', {
+    shopId: product.shopId,
+    productId
+  });
+  if (denied) return denied;
+
+  if (product.catalogProductId) {
+    return c.json(
+      {
+        code: 'CATALOG_SKU_LOCKED',
+        message: '共享商品规格由总部维护；门店只能调整售价与上下架'
+      },
+      403
+    );
+  }
+
+  const parsed = createProductSkuSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ code: 'INVALID_BODY', message: parsed.error.issues[0]?.message ?? '参数不合法' }, 400);
+  }
+  const data = parsed.data;
+  const priceValue = data.price;
+  if (priceValue === null) {
+    return c.json({ code: 'PRICE_REQUIRED', message: '本地规格必须填写售价' }, 400);
+  }
+
+  const stockType = data.stockType ?? product.stockType;
+  let created: { id: string };
+  try {
+    created = await db.transaction(async (tx) => {
+      const existing = await tx
+        .select({ id: productSkus.id })
+        .from(productSkus)
+        .where(eq(productSkus.productId, productId));
+      const shouldDefault = data.isDefault ?? existing.length === 0;
+      if (shouldDefault && existing.length > 0) {
+        await tx
+          .update(productSkus)
+          .set({ isDefault: false, updatedAt: new Date() })
+          .where(eq(productSkus.productId, productId));
+      }
+
+      const [sku] = await tx
+        .insert(productSkus)
+        .values({
+          shopId: product.shopId,
+          productId,
+          catalogSkuId: null,
+          specName: data.specName,
+          barcode: data.barcode ?? null,
+          unit: data.unit,
+          price: priceValue.toFixed(2),
+          stockType,
+          quantityMode: data.quantityMode ?? inferQuantityMode(data.unit),
+          isAvailable: data.isAvailable ?? true,
+          isDefault: shouldDefault,
+          sortOrder: data.sortOrder ?? 0
+        })
+        .returning({ id: productSkus.id });
+
+      if (stockType === 'tracked') {
+        await tx.insert(productSkuStocks).values({
+          productSkuId: sku.id,
+          shopId: product.shopId,
+          quantity: '0.00',
+          minThreshold: '0.00'
+        });
+      }
+      return sku;
+    });
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      return c.json({ code: 'SKU_SPEC_DUPLICATED', message: '该商品下已有同名规格' }, 409);
+    }
+    throw error;
+  }
+
+  return c.json({ item: created }, 201);
+});
+
+productRoutes.patch('/product-skus/:id', async (c) => {
+  const db = await getDb();
+  const id = c.req.param('id');
+  const [current] = await db
+    .select({
+      id: productSkus.id,
+      shopId: productSkus.shopId,
+      productId: productSkus.productId,
+      catalogSkuId: productSkus.catalogSkuId,
+      isDefault: productSkus.isDefault,
+      quantityMode: productSkus.quantityMode,
+      stockType: productSkus.stockType,
+      productCatalogId: products.catalogProductId
+    })
+    .from(productSkus)
+    .innerJoin(products, eq(products.id, productSkus.productId))
+    .where(eq(productSkus.id, id))
+    .limit(1);
+  if (!current) return c.json({ code: 'NOT_FOUND', message: '规格不存在' }, 404);
+
+  const denied = await guardPermission(c, 'products.write', {
+    shopId: current.shopId,
+    productId: current.productId
+  });
+  if (denied) return denied;
+
+  const parsed = updateProductSkuSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ code: 'INVALID_BODY', message: parsed.error.issues[0]?.message ?? '参数不合法' }, 400);
+  }
+  const data = parsed.data;
+
+  if (current.catalogSkuId) {
+    const locked = ['specName', 'barcode', 'unit', 'stockType', 'quantityMode'].filter(
+      (key) => data[key as 'specName'] !== undefined
+    );
+    if (locked.length > 0) {
+      return c.json(
+        { code: 'FIELD_LOCKED', message: `共享规格字段由总部维护：${locked.join('、')}` },
+        403
+      );
+    }
+  }
+  if (!current.catalogSkuId && data.price === null) {
+    return c.json({ code: 'PRICE_REQUIRED', message: '本地规格必须填写售价' }, 400);
+  }
+  if (data.isDefault === false && current.isDefault) {
+    return c.json({ code: 'DEFAULT_SKU_REQUIRED', message: '默认规格不能直接取消，请先设置其他默认规格' }, 409);
+  }
+  if (
+    data.quantityMode === 'integer' &&
+    current.quantityMode === 'decimal_2' &&
+    (await productSkuHasFractionalStock(id))
+  ) {
+    return c.json(
+      {
+        code: 'INVALID_QUANTITY_MODE',
+        message: '该规格已有小数库存或在途采购，不能改为整数模式'
+      },
+      409
+    );
+  }
+
+  const stockType = data.stockType ?? current.stockType;
+  try {
+    await db.transaction(async (tx) => {
+      if (data.isDefault === true && !current.isDefault) {
+        await tx
+          .update(productSkus)
+          .set({ isDefault: false, updatedAt: new Date() })
+          .where(eq(productSkus.productId, current.productId));
+      }
+      await tx
+        .update(productSkus)
+        .set({
+          ...(data.specName === undefined ? {} : { specName: data.specName }),
+          ...(data.barcode === undefined ? {} : { barcode: data.barcode }),
+          ...(data.price === undefined
+            ? {}
+            : { price: data.price === null ? null : data.price.toFixed(2) }),
+          ...(data.unit === undefined ? {} : { unit: data.unit }),
+          ...(data.stockType === undefined ? {} : { stockType: data.stockType }),
+          ...(data.quantityMode === undefined ? {} : { quantityMode: data.quantityMode }),
+          ...(data.isAvailable === undefined ? {} : { isAvailable: data.isAvailable }),
+          ...(data.isDefault === undefined ? {} : { isDefault: data.isDefault }),
+          ...(data.sortOrder === undefined ? {} : { sortOrder: data.sortOrder }),
+          updatedAt: new Date()
+        })
+        .where(eq(productSkus.id, id));
+
+      if (stockType === 'tracked') {
+        await tx
+          .insert(productSkuStocks)
+          .values({
+            productSkuId: id,
+            shopId: current.shopId,
+            quantity: '0.00',
+            minThreshold: '0.00'
+          })
+          .onConflictDoNothing();
+      }
+    });
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      return c.json({ code: 'SKU_SPEC_DUPLICATED', message: '该商品下已有同名规格' }, 409);
+    }
+    throw error;
+  }
+
+  return c.json({ item: { id } });
+});
+
+productRoutes.delete('/product-skus/:id', async (c) => {
+  const db = await getDb();
+  const id = c.req.param('id');
+  const [current] = await db
+    .select({
+      id: productSkus.id,
+      shopId: productSkus.shopId,
+      productId: productSkus.productId,
+      catalogSkuId: productSkus.catalogSkuId,
+      isDefault: productSkus.isDefault
+    })
+    .from(productSkus)
+    .where(eq(productSkus.id, id))
+    .limit(1);
+  if (!current) return c.json({ code: 'NOT_FOUND', message: '规格不存在' }, 404);
+
+  const denied = await guardPermission(c, 'products.write', {
+    shopId: current.shopId,
+    productId: current.productId
+  });
+  if (denied) return denied;
+
+  if (current.catalogSkuId) {
+    return c.json({ code: 'CATALOG_SKU_LOCKED', message: '共享规格不能删除，只能停用' }, 403);
+  }
+  if (current.isDefault) {
+    return c.json({ code: 'DEFAULT_SKU_REQUIRED', message: '默认规格不能删除' }, 409);
+  }
+
+  const [stock] = await db
+    .select({ quantity: productSkuStocks.quantity })
+    .from(productSkuStocks)
+    .where(eq(productSkuStocks.productSkuId, id))
+    .limit(1);
+  if (stock && Number(stock.quantity) > 0) {
+    return c.json(
+      { code: 'SKU_HAS_STOCK_HISTORY', message: '该规格仍有库存，请先调拨或报损为 0' },
+      409
+    );
+  }
+
+  const [movement] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(stockMovements)
+    .where(eq(stockMovements.productSkuId, id));
+  const [purchase] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(purchaseOrderItems)
+    .where(eq(purchaseOrderItems.productSkuId, id));
+  if ((movement?.count ?? 0) > 0 || (purchase?.count ?? 0) > 0) {
+    return c.json(
+      { code: 'SKU_HAS_STOCK_HISTORY', message: '该规格已有库存流水或采购记录，不能删除' },
+      409
+    );
+  }
+
+  await db.delete(productSkus).where(eq(productSkus.id, id));
+  return c.json({ ok: true });
+});
+
+/** 旧直改库存接口下线：库存只能通过 SKU 台账（调整/采购入库）变更 */
 productRoutes.patch('/products/:id/stock', async (c) => {
   const id = c.req.param('id');
-  const db = await getDb();
-  const [current] = await db
-    .select({ shopId: products.shopId, stockType: products.stockType })
+  const [current] = await (await getDb())
+    .select({ shopId: products.shopId })
     .from(products)
     .where(eq(products.id, id))
     .limit(1);
@@ -777,24 +1254,13 @@ productRoutes.patch('/products/:id/stock', async (c) => {
   const denied = await guardPermission(c, 'products.write', { shopId: current.shopId, productId: id });
   if (denied) return denied;
 
-  if (current.stockType === 'untracked') {
-    return c.json({ code: 'STOCK_NOT_TRACKED', message: '该商品未开启库存追踪' }, 409);
-  }
-
-  const parsed = updateStockSchema.safeParse(await c.req.json().catch(() => null));
-  if (!parsed.success) {
-    return c.json({ code: 'INVALID_BODY', message: parsed.error.issues[0]?.message ?? '参数不合法' }, 400);
-  }
-
-  await db
-    .insert(productStocks)
-    .values({ productId: id, shopId: current.shopId, quantity: parsed.data.quantity })
-    .onConflictDoUpdate({
-      target: productStocks.productId,
-      set: { quantity: parsed.data.quantity, updatedAt: new Date() }
-    });
-
-  return c.json({ ok: true, productId: id, quantity: parsed.data.quantity });
+  return c.json(
+    {
+      code: 'DIRECT_STOCK_DISABLED',
+      message: '库存已改为 SKU 台账，请在「库存管理」中调整，或通过采购入库'
+    },
+    410
+  );
 });
 
 productRoutes.delete('/products/:id', async (c) => {
@@ -818,6 +1284,16 @@ productRoutes.delete('/products/:id', async (c) => {
     );
   }
 
-  const [row] = await db.delete(products).where(eq(products.id, id)).returning({ id: products.id });
-  return c.json({ item: row });
+  try {
+    const [row] = await db.delete(products).where(eq(products.id, id)).returning({ id: products.id });
+    return c.json({ item: row });
+  } catch (error) {
+    if (isForeignKeyViolation(error)) {
+      return c.json(
+        { code: 'SKU_HAS_STOCK_HISTORY', message: '商品规格已有库存流水，不能删除，请改为下架' },
+        409
+      );
+    }
+    throw error;
+  }
 });

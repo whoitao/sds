@@ -19,16 +19,19 @@ import {
   fetchCart,
   fetchHome,
   fetchProducts,
-  fetchShops,
   type CartPayload,
   type CategoryChild,
   type CategoryNode,
   type CustomerProfile,
   type ProductItem,
+  type ProductSkuItem,
   type ShopInfo
 } from '../api';
-import { colors, fontSize, radius, spacing, tap } from '../theme';
+import { cardShadow, colors, fontSize, radius, spacing, tap } from '../theme';
 import { productIcon, type MaterialIconName } from '../product-icons';
+import ScreenHeader from '../components/ScreenHeader';
+import TabBar from '../components/TabBar';
+import BottomDock from '../components/BottomDock';
 
 const CATEGORY_ICON: Record<string, MaterialIconName> = {
   肉: 'food-steak',
@@ -65,12 +68,22 @@ export default function HomeScreen({
   customer,
   token,
   onOpenProfile,
-  onOpenCart
+  onOpenCart,
+  onOpenOrders,
+  onOpenShops,
+  shopId,
+  shopNotice,
+  onShopNameChange
 }: {
   customer: CustomerProfile;
   token: string;
   onOpenProfile: () => void;
   onOpenCart: () => void;
+  onOpenOrders: () => void;
+  onOpenShops: () => void;
+  shopId: string;
+  shopNotice: string;
+  onShopNameChange: (name: string) => void;
 }) {
   const [shop, setShop] = useState<ShopInfo | null>(null);
   const [categories, setCategories] = useState<CategoryNode[]>([]);
@@ -78,7 +91,11 @@ export default function HomeScreen({
   const [childId, setChildId] = useState<string | null>(null);
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [cart, setCart] = useState<Record<string, number>>({});
-  const [cartSummary, setCartSummary] = useState({ itemCount: 0, totalAmount: '0.00' });
+  const [cartSummary, setCartSummary] = useState({
+    itemCount: 0,
+    buyableCount: 0,
+    buyableTotal: '0.00'
+  });
   const [cartBusy, setCartBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [goodsLoading, setGoodsLoading] = useState(false);
@@ -103,25 +120,21 @@ export default function HomeScreen({
     setLoading(true);
     setError('');
     try {
-      const shopsPayload = await fetchShops();
-      const first = shopsPayload.items[0];
-      if (!first) {
-        setError('附近暂时没有营业的门店');
-        return;
-      }
-      const home = await fetchHome(first.id);
+      setProducts([]);
+      const home = await fetchHome(shopId);
       setShop(home.shop);
+      onShopNameChange(home.shop.name);
       setCategories(home.categories);
       const firstRoot = home.categories[0]?.id ?? null;
       setRootId(firstRoot);
       setChildId(null);
-      if (firstRoot) await loadProducts(first.id, firstRoot);
+      await loadProducts(shopId, firstRoot);
     } catch (err) {
       setError(err instanceof Error ? err.message : '页面加载失败');
     } finally {
       setLoading(false);
     }
-  }, [loadProducts]);
+  }, [loadProducts, shopId, onShopNameChange]);
 
   useEffect(() => {
     void bootstrap();
@@ -129,11 +142,23 @@ export default function HomeScreen({
 
   const applyCart = useCallback((payload: CartPayload) => {
     const quantityByProduct: Record<string, number> = {};
+    let buyableCount = 0;
+    let buyableTotal = 0;
     for (const group of payload.carts) {
-      for (const line of group.items) quantityByProduct[line.productId] = line.quantity;
+      for (const line of group.items) {
+        quantityByProduct[line.productId] = (quantityByProduct[line.productId] ?? 0) + line.quantity;
+        // 售罄或超过库存的行在购物车里选不中，首页也不能算进「已经买了」
+        if (line.soldOut || (line.stockQuantity > 0 && line.quantity > line.stockQuantity)) continue;
+        buyableCount += line.quantity;
+        buyableTotal += Number(line.unitPrice) * line.quantity;
+      }
     }
     setCart(quantityByProduct);
-    setCartSummary({ itemCount: payload.itemCount, totalAmount: payload.totalAmount });
+    setCartSummary({
+      itemCount: payload.itemCount,
+      buyableCount,
+      buyableTotal: buyableTotal.toFixed(2)
+    });
   }, []);
 
   useEffect(() => {
@@ -153,8 +178,9 @@ export default function HomeScreen({
     [categories, rootId]
   );
 
-  const cartCount = cartSummary.itemCount;
-  const cartTotal = Number(cartSummary.totalAmount);
+  const cartBadge = cartSummary.itemCount;
+  const buyableCount = cartSummary.buyableCount;
+  const buyableTotal = Number(cartSummary.buyableTotal);
 
   function selectRoot(category: CategoryNode) {
     if (category.id === rootId) return;
@@ -171,16 +197,40 @@ export default function HomeScreen({
     void loadProducts(shop.id, nextId ?? rootId);
   }
 
-  async function addToCart(item: ProductItem) {
+  async function addSkuToCart(sku: ProductSkuItem) {
     if (cartBusy) return;
+    if (sku.soldOut) {
+      Alert.alert('这个规格暂时售罄', '可以换一个规格，或稍后再看看。');
+      return;
+    }
     setCartBusy(true);
     try {
-      applyCart(await addCartItem(token, item.id));
+      applyCart(await addCartItem(token, sku.skuId));
     } catch (err) {
       Alert.alert('没能放进篮子', err instanceof Error ? err.message : '请稍后再试');
     } finally {
       setCartBusy(false);
     }
+  }
+
+  function addToCart(item: ProductItem) {
+    const available = item.skus.filter((sku) => !sku.soldOut);
+    if (available.length === 0) {
+      Alert.alert('这个菜今天卖完了', '明天再来看看吧。');
+      return;
+    }
+    if (available.length === 1) {
+      void addSkuToCart(available[0]);
+      return;
+    }
+    Alert.alert(
+      '选一个规格',
+      undefined,
+      available.map((sku) => ({
+        text: `${sku.specName} ¥${formatPrice(sku.price)}`,
+        onPress: () => void addSkuToCart(sku)
+      }))
+    );
   }
 
   function callShop() {
@@ -219,6 +269,9 @@ export default function HomeScreen({
           >
             <Text style={styles.retryText}>再试一次</Text>
           </Pressable>
+          <Pressable accessibilityRole="button" style={styles.retryButton} onPress={onOpenShops}>
+            <Text style={styles.retryText}>找别家店</Text>
+          </Pressable>
         </View>
       </SafeAreaView>
     );
@@ -228,47 +281,20 @@ export default function HomeScreen({
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" />
 
-      <View style={styles.header}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="消息"
-          style={styles.headerIcon}
-          onPress={() => Alert.alert('暂无新消息', '有优惠或取菜通知时会显示在这里。')}
-        >
-          <Ionicons name="notifications-outline" size={22} color={colors.ink2} />
-        </Pressable>
-
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`当前门店 ${shop.name}，点击换店`}
-          style={styles.shopPill}
-          onPress={() => Alert.alert('换店', '附近的店（S1）本轮未接入，先展示最近一家营业门店。')}
-        >
-          <Ionicons name="storefront-outline" size={18} color={colors.greenDeep} />
-          <Text style={styles.shopPillName} numberOfLines={1}>
-            {shop.name}
-          </Text>
-          <Ionicons name="chevron-down" size={18} color={colors.greenDeep} />
-        </Pressable>
-
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="帮助，拨打门店电话"
-          style={styles.helpButton}
-          onPress={callShop}
-        >
-          <View style={styles.helpContent}>
-            <Ionicons name="help-circle-outline" size={20} color={colors.ink2} />
-            <Text style={styles.helpText}>帮助</Text>
-          </View>
-        </Pressable>
-      </View>
+      <ScreenHeader
+        left="bell"
+        onLeftPress={() => Alert.alert('暂无新消息', '有优惠或取菜通知时会显示在这里。')}
+        shopName={shop.name}
+        onShopPress={onOpenShops}
+        onHelpPress={callShop}
+      />
 
       <ScrollView
         style={styles.body}
         contentContainerStyle={styles.bodyContent}
         showsVerticalScrollIndicator={false}
       >
+        {shopNotice ? <Text accessibilityRole="alert" style={styles.shopNotice}>{shopNotice}</Text> : null}
         <View style={styles.greetingRow}>
           <Text style={styles.greeting} numberOfLines={1}>
             {customerName(customer)}，您好
@@ -300,36 +326,37 @@ export default function HomeScreen({
           </Text>
         </View>
 
-        <View style={styles.level1Row}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.level1List}
-          >
-            {categories.map((category) => {
-              const active = category.id === rootId;
-              return (
-                <Pressable
-                  key={category.id}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: active }}
-                  accessibilityLabel={`${category.name}，${category.productCount} 种`}
-                  style={[styles.level1Item, active ? styles.level1ItemActive : null]}
-                  onPress={() => selectRoot(category)}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.level1List}
+        >
+          {categories.map((category) => {
+            const active = category.id === rootId;
+            return (
+              <Pressable
+                key={category.id}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+                accessibilityLabel={`${category.name}，${category.productCount} 种`}
+                style={[styles.level1Item, active ? styles.level1ItemActive : null]}
+                onPress={() => selectRoot(category)}
+              >
+                <MaterialCommunityIcons
+                  name={categoryIcon(category.name)}
+                  size={22}
+                  color={active ? colors.greenDeep : colors.ink2}
+                />
+                <Text
+                  style={[styles.level1Text, active ? styles.level1TextActive : null]}
+                  numberOfLines={1}
                 >
-                  <MaterialCommunityIcons
-                    name={categoryIcon(category.name)}
-                    size={22}
-                    color={active ? colors.greenDeep : colors.ink2}
-                  />
-                  <Text style={[styles.level1Text, active ? styles.level1TextActive : null]}>
-                    {category.name}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-        </View>
+                  {category.name}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
 
         <View style={styles.split}>
           <View style={styles.level2}>
@@ -396,6 +423,8 @@ export default function HomeScreen({
             ) : (
               products.map((item) => {
                 const qty = cart[item.id] ?? 0;
+                const hasRange = Number(item.priceTo) > Number(item.priceFrom);
+                const specHint = item.skus.length > 1 ? ` · ${item.skus.length} 规格` : '';
                 return (
                   <View key={item.id} style={styles.goodsRow}>
                     {item.imageUrl ? (
@@ -410,22 +439,34 @@ export default function HomeScreen({
                       </View>
                     )}
                     <View style={styles.goodsText}>
-                      <Text style={styles.goodsName} numberOfLines={1}>
+                      <Text
+                        style={[styles.goodsName, item.soldOut ? styles.goodsNameSoldOut : null]}
+                        numberOfLines={1}
+                      >
                         {item.name}
                         {qty > 0 ? <Text style={styles.boughtTag}> 已买 {qty}</Text> : null}
                       </Text>
                       <Text style={styles.goodsPrice}>
-                        ¥{formatPrice(item.price)} {item.unit}
+                        ¥{formatPrice(item.priceFrom)}
+                        {hasRange ? `~${formatPrice(item.priceTo)}` : ''} {item.unit}
+                        {specHint}
                       </Text>
                     </View>
                     <Pressable
                       accessibilityRole="button"
-                      accessibilityLabel={`增加 ${item.name}`}
-                      style={styles.plusButton}
-                      disabled={cartBusy}
-                      onPress={() => void addToCart(item)}
+                      accessibilityLabel={
+                        item.soldOut ? `${item.name} 已售罄` : `增加 ${item.name}`
+                      }
+                      accessibilityState={{ disabled: item.soldOut }}
+                      style={[styles.plusButton, item.soldOut ? styles.plusButtonDisabled : null]}
+                      disabled={cartBusy || item.soldOut}
+                      onPress={() => addToCart(item)}
                     >
-                      <Ionicons name="add" size={28} color={colors.white} />
+                      {item.soldOut ? (
+                        <Text style={styles.plusSoldOutText}>售罄</Text>
+                      ) : (
+                        <Ionicons name="add" size={28} color={colors.white} />
+                      )}
                     </Pressable>
                   </View>
                 );
@@ -442,73 +483,34 @@ export default function HomeScreen({
         </View>
       </ScrollView>
 
-      <View style={styles.dock}>
-        <View>
-          <Text style={styles.dockLabel}>
-            {cartCount > 0 ? `已经买了 ${cartCount} 样` : '还没挑菜'}
-          </Text>
-          <Text style={styles.dockTotal}>¥{cartTotal.toFixed(2)}</Text>
-        </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="下一步"
-          style={styles.dockButton}
-          onPress={() =>
-            Alert.alert(
-              cartCount > 0 ? '下单链路本轮未接入' : '先挑几样菜',
-              cartCount > 0 ? '清点、选配送方式与付款将在下一步实现。' : '点商品右边的「+」就能放进篮子。'
-            )
-          }
-        >
-          <Text style={styles.dockButtonText}>下一步</Text>
-        </Pressable>
-      </View>
+      <BottomDock
+        label={
+          buyableCount > 0
+            ? `已经买了 ${buyableCount} 样`
+            : cartBadge > 0
+              ? '篮子里没有能买的菜'
+              : '还没挑菜'
+        }
+        total={buyableTotal.toFixed(2)}
+        actionLabel="下一步"
+        onAction={onOpenCart}
+        disabled={buyableCount === 0}
+      />
 
-      <View style={styles.tabbar}>
-        <Pressable style={styles.tab} accessibilityRole="button" accessibilityLabel="首页，当前页">
-          <Ionicons name="home" size={22} color={colors.greenDeep} />
-          <Text style={[styles.tabText, styles.tabTextActive]}>首页</Text>
-        </Pressable>
-        <Pressable
-          style={styles.tab}
-          accessibilityRole="button"
-          accessibilityLabel={`购物车，${cartCount} 样`}
-          onPress={onOpenCart}
-        >
-          <View>
-            <Ionicons name="cart-outline" size={22} color={colors.ink2} />
-            {cartCount > 0 ? (
-              <View style={styles.cartBadge}>
-                <Text style={styles.cartBadgeText}>{cartCount}</Text>
-              </View>
-            ) : null}
-          </View>
-          <Text style={styles.tabText}>购物车</Text>
-        </Pressable>
-        <Pressable
-          style={styles.tab}
-          accessibilityRole="button"
-          accessibilityLabel="订单"
-          onPress={() => Alert.alert('订单本轮未接入', '下单后可以在这里查看取菜进度。')}
-        >
-          <Ionicons name="receipt-outline" size={22} color={colors.ink2} />
-          <Text style={styles.tabText}>订单</Text>
-        </Pressable>
-        <Pressable
-          style={styles.tab}
-          accessibilityRole="button"
-          accessibilityLabel={`我的，当前登录 ${customerName(customer)}`}
-          onPress={onOpenProfile}
-        >
-          <Ionicons name="person-outline" size={22} color={colors.ink2} />
-          <Text style={styles.tabText}>我的</Text>
-        </Pressable>
-      </View>
+      <TabBar
+        active="home"
+        cartCount={cartBadge}
+        onHome={() => undefined}
+        onCart={onOpenCart}
+        onOrders={onOpenOrders}
+        onProfile={onOpenProfile}
+      />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  shopNotice: { fontSize: fontSize.body, color: colors.greenDeep, backgroundColor: colors.greenSoft, padding: spacing.md, borderRadius: radius.md, lineHeight: 24 },
   safeArea: {
     flex: 1,
     backgroundColor: colors.paper,
@@ -540,63 +542,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.white
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm
-  },
-  headerIcon: {
-    width: tap.min,
-    height: tap.min,
-    borderRadius: radius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.line
-  },
-  shopPill: {
-    flex: 1,
-    minHeight: tap.min,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingHorizontal: spacing.md,
-    borderRadius: 999,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.line
-  },
-  shopPillName: {
-    flexShrink: 1,
-    fontSize: fontSize.name,
-    fontWeight: '700',
-    color: colors.greenDeep
-  },
-  helpButton: {
-    minHeight: tap.min,
-    minWidth: 76,
-    paddingHorizontal: 10,
-    borderRadius: radius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.line
-  },
-  helpContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4
-  },
-  helpText: {
-    fontSize: fontSize.body,
-    fontWeight: '600',
-    color: colors.ink2
-  },
   body: {
     flex: 1
   },
@@ -625,7 +570,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.line,
-    overflow: 'hidden'
+    overflow: 'hidden',
+    ...cardShadow
   },
   shopCover: {
     height: 52,
@@ -667,32 +613,32 @@ const styles = StyleSheet.create({
     fontSize: fontSize.body,
     color: colors.ink2
   },
-  level1Row: {
-    flexDirection: 'row',
-    alignItems: 'center'
-  },
   level1List: {
     gap: spacing.sm,
     paddingRight: spacing.md
   },
   level1Item: {
-    width: 74,
-    height: 66,
-    borderRadius: radius.md,
+    minWidth: 88,
+    height: 56,
+    flexDirection: 'row',
+    paddingHorizontal: 12,
+    borderRadius: 14,
     backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.line,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4
+    gap: 6,
+    ...cardShadow
   },
   level1ItemActive: {
     backgroundColor: colors.greenSoft,
     borderColor: colors.green,
-    borderWidth: 2
+    borderWidth: 1.5
   },
   level1Text: {
-    fontSize: fontSize.name,
+    fontSize: fontSize.body,
+    lineHeight: 22,
     fontWeight: '600',
     color: colors.ink2
   },
@@ -770,11 +716,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    padding: 10,
+    padding: 11,
     backgroundColor: colors.card,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.line
+    borderColor: colors.line,
+    ...cardShadow
   },
   goodsPic: {
     width: 48,
@@ -800,6 +747,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.ink
   },
+  goodsNameSoldOut: {
+    color: colors.ink2
+  },
   boughtTag: {
     fontSize: fontSize.body,
     fontWeight: '700',
@@ -816,6 +766,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.green,
     alignItems: 'center',
     justifyContent: 'center'
+  },
+  plusButtonDisabled: {
+    backgroundColor: colors.line
+  },
+  plusSoldOutText: {
+    fontSize: fontSize.body,
+    fontWeight: '700',
+    color: colors.ink3
   },
   tip: {
     flexDirection: 'row',
@@ -836,81 +794,5 @@ const styles = StyleSheet.create({
   tipStrong: {
     fontWeight: '700',
     color: '#1E3F63'
-  },
-  dock: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.md,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: 10,
-    backgroundColor: colors.card,
-    borderTopWidth: 1,
-    borderTopColor: colors.line
-  },
-  dockLabel: {
-    fontSize: fontSize.body,
-    color: colors.ink2
-  },
-  dockTotal: {
-    fontSize: fontSize.money,
-    fontWeight: '700',
-    color: colors.ink
-  },
-  dockButton: {
-    minHeight: tap.primary,
-    paddingHorizontal: spacing.xl,
-    borderRadius: radius.md,
-    backgroundColor: colors.greenDeep,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  dockButtonText: {
-    fontSize: fontSize.title,
-    fontWeight: '700',
-    color: colors.white
-  },
-  tabbar: {
-    flexDirection: 'row',
-    backgroundColor: colors.card,
-    borderTopWidth: 1,
-    borderTopColor: colors.line,
-    paddingTop: 6,
-    paddingBottom: 8
-  },
-  tab: {
-    flex: 1,
-    minHeight: tap.min,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 2
-  },
-  tabText: {
-    fontSize: fontSize.body,
-    fontWeight: '600',
-    color: colors.ink2
-  },
-  tabTextActive: {
-    color: colors.greenDeep,
-    fontWeight: '700'
-  },
-  cartBadge: {
-    position: 'absolute',
-    top: -5,
-    right: -14,
-    minWidth: 22,
-    height: 22,
-    paddingHorizontal: 3,
-    borderRadius: 11,
-    borderWidth: 1.5,
-    borderColor: colors.green,
-    backgroundColor: colors.card,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  cartBadgeText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.greenDeep
   }
 });

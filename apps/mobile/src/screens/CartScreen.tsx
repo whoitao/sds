@@ -22,10 +22,29 @@ import {
   updateCartItem,
   type CartGroup,
   type CartItem,
-  type CartPayload
+  type CartPayload,
+  type CheckoutGroup,
+  type QuantityMode
 } from '../api';
-import { colors, fontSize, radius, spacing, tap } from '../theme';
+import { cardShadow, colors, fontSize, radius, spacing, tap } from '../theme';
 import { productIcon } from '../product-icons';
+import ScreenHeader from '../components/ScreenHeader';
+import TabBar from '../components/TabBar';
+import BottomDock from '../components/BottomDock';
+
+/** 整数规格不带小数尾巴，称重规格最多两位且去掉多余的 0 */
+function formatQuantity(value: number, mode: QuantityMode) {
+  if (mode === 'integer') return String(Math.round(value));
+  return String(Number(value.toFixed(2)));
+}
+
+function isAtStockLimit(item: CartItem) {
+  return item.stockQuantity > 0 && item.quantity >= item.stockQuantity;
+}
+
+function canChoose(item: CartItem) {
+  return !item.soldOut && !(item.stockQuantity > 0 && item.quantity > item.stockQuantity);
+}
 
 /**
  * 移动端购物车 T1（对应设计稿 elder-order-flow.html）：
@@ -35,15 +54,24 @@ import { productIcon } from '../product-icons';
  */
 export default function CartScreen({
   token,
+  shopName,
   onGoHome,
-  onOpenProfile
+  onOpenProfile,
+  onOpenOrders,
+  onOpenShops,
+  onCheckout
 }: {
   token: string;
+  shopName: string;
   onGoHome: () => void;
   onOpenProfile: () => void;
+  onOpenOrders: () => void;
+  onOpenShops: () => void;
+  onCheckout: (groups: CheckoutGroup[]) => void;
 }) {
   const [payload, setPayload] = useState<CartPayload | null>(null);
   const [remarks, setRemarks] = useState<Record<string, string>>({});
+  const [unselected, setUnselected] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -92,6 +120,20 @@ export default function CartScreen({
     void run(() => updateCartItem(token, item.id, nextQuantity));
   }
 
+  function itemSelected(item: CartItem) {
+    return canChoose(item) && !unselected.has(item.id);
+  }
+
+  function toggleSelected(item: CartItem) {
+    if (busy || !canChoose(item)) return;
+    setUnselected((prev) => {
+      const next = new Set(prev);
+      if (next.has(item.id)) next.delete(item.id);
+      else next.add(item.id);
+      return next;
+    });
+  }
+
   function confirmRemove(item: CartItem) {
     Alert.alert('去掉这样菜？', `「${item.name}」会从购物车里删除。`, [
       { text: '留着', style: 'cancel' },
@@ -127,22 +169,39 @@ export default function CartScreen({
     }
   }
 
+  function startCheckout() {
+    const groups: CheckoutGroup[] = carts
+      .map((group) => ({
+        shopId: group.shopId,
+        shopName: group.shopName,
+        remark: remarks[group.id] ?? group.remark,
+        items: group.items.filter(itemSelected)
+      }))
+      .filter((group) => group.items.length > 0);
+    if (groups.length > 0) onCheckout(groups);
+  }
+
   const itemCount = payload?.itemCount ?? 0;
-  const totalAmount = Number(payload?.totalAmount ?? 0).toFixed(2);
   const carts = payload?.carts ?? [];
+  const selectedItems = carts.flatMap((group) => group.items).filter(itemSelected);
+  const selectedCount = selectedItems.reduce((sum, item) => sum + item.quantity, 0);
+  const selectedTotal = selectedItems
+    .reduce((sum, item) => sum + Number(item.unitPrice) * item.quantity, 0)
+    .toFixed(2);
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" />
 
-      <View style={styles.header}>
-        <Text style={styles.pageTitle}>购物车</Text>
-        {itemCount > 0 ? (
-          <Text style={styles.pageSubtitle}>
-            共 {itemCount} 样 · ¥{totalAmount}
-          </Text>
-        ) : null}
-      </View>
+      <ScreenHeader
+        left="bell"
+        onLeftPress={() => Alert.alert('暂无新消息', '订单进度变化时会显示在这里。')}
+        shopName={shopName || '选择门店'}
+        onShopPress={onOpenShops}
+        onHelpPress={() =>
+          Alert.alert('需要帮忙？', '可以到「我的」里联系客服，或者直接拨打门店电话。')
+        }
+      />
 
       {loading ? (
         <View style={styles.center}>
@@ -180,9 +239,16 @@ export default function CartScreen({
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
-          {carts.map((group) => (
+          {carts.map((group) => {
+            const groupSelected = group.items.filter(itemSelected);
+            const groupSelectedCount = groupSelected.reduce((sum, item) => sum + item.quantity, 0);
+            const groupSelectedTotal = groupSelected
+              .reduce((sum, item) => sum + Number(item.unitPrice) * item.quantity, 0)
+              .toFixed(2);
+            return (
             <View key={group.id} style={styles.card}>
-              <View style={styles.cardHeader}>
+              <View style={styles.groupHeader}>
+                <Ionicons name="storefront-outline" size={18} color={colors.greenDeep} />
                 <Text style={styles.shopName} numberOfLines={1}>
                   {group.shopName}
                 </Text>
@@ -197,9 +263,31 @@ export default function CartScreen({
                 </Pressable>
               </View>
 
-              {group.items.map((item) => (
-                <View key={item.id} style={styles.item}>
+              <View style={styles.groupBody}>
+              {group.items.map((item) => {
+                const quantityLabel = formatQuantity(item.quantity, item.quantityMode);
+                const stockRemaining = formatQuantity(item.stockQuantity, item.quantityMode);
+                const atStockLimit = isAtStockLimit(item);
+                const stockBlocked = item.soldOut || atStockLimit;
+                const choosable = canChoose(item);
+                const selected = itemSelected(item);
+                return (
+                  <View key={item.id} style={styles.item}>
                   <View style={styles.itemMain}>
+                    <Pressable
+                      accessibilityRole="checkbox"
+                      accessibilityLabel={`选择 ${item.name}`}
+                      accessibilityState={{ checked: selected, disabled: !choosable }}
+                      style={[styles.selectHit, !choosable ? styles.selectDisabled : null]}
+                      disabled={busy || !choosable}
+                      onPress={() => toggleSelected(item)}
+                    >
+                      <Ionicons
+                        name={selected ? 'checkmark-circle' : 'ellipse-outline'}
+                        size={28}
+                        color={selected ? colors.green : colors.ink3}
+                      />
+                    </Pressable>
                     {item.imageUrl ? (
                       <Image
                         source={{ uri: item.imageUrl }}
@@ -230,6 +318,24 @@ export default function CartScreen({
                           <Ionicons name="trash-outline" size={20} color={colors.danger} />
                         </Pressable>
                       </View>
+                      {item.specName ? (
+                        <Text style={styles.itemSpec} numberOfLines={1}>
+                          {item.specName}
+                        </Text>
+                      ) : null}
+                      {item.soldOut ? (
+                        <Text style={[styles.itemSpec, styles.stockError]}>
+                          已售罄，请删除这样菜
+                        </Text>
+                      ) : item.stockQuantity > 0 && item.quantity > item.stockQuantity ? (
+                        <Text style={[styles.itemSpec, styles.stockError]}>
+                          库存仅剩 {stockRemaining} {item.unit}，请减少数量
+                        </Text>
+                      ) : atStockLimit ? (
+                        <Text style={[styles.itemSpec, styles.stockLimit]}>
+                          已达库存上限（{stockRemaining} {item.unit}）
+                        </Text>
+                      ) : null}
                       <View style={styles.itemBottom}>
                         <View style={styles.itemPrices}>
                           <Text style={styles.unitPrice}>
@@ -258,26 +364,44 @@ export default function CartScreen({
                               />
                             </View>
                           </Pressable>
-                          <Text style={styles.quantity} accessibilityLabel={`数量 ${item.quantity}`}>
-                            {item.quantity}
+                          <Text
+                            style={styles.quantity}
+                            numberOfLines={1}
+                            adjustsFontSizeToFit
+                            minimumFontScale={0.7}
+                            accessibilityLabel={`数量 ${quantityLabel}`}
+                          >
+                            {quantityLabel}
                           </Text>
                           <Pressable
                             accessibilityRole="button"
                             accessibilityLabel={`增加 ${item.name}`}
+                            accessibilityState={{ disabled: busy || stockBlocked }}
                             style={styles.stepperHit}
-                            disabled={busy}
+                            disabled={busy || stockBlocked}
                             onPress={() => changeQuantity(item, item.quantity + 1)}
                           >
-                            <View style={[styles.stepperButton, styles.stepperButtonPlus]}>
-                              <Ionicons name="add" size={22} color={colors.white} />
+                            <View
+                              style={[
+                                styles.stepperButton,
+                                styles.stepperButtonPlus,
+                                stockBlocked ? styles.stepperButtonPlusDisabled : null
+                              ]}
+                            >
+                              <Ionicons
+                                name="add"
+                                size={22}
+                                color={stockBlocked ? colors.ink3 : colors.white}
+                              />
                             </View>
                           </Pressable>
                         </View>
                       </View>
                     </View>
                   </View>
-                </View>
-              ))}
+                  </View>
+                );
+              })}
 
               <View style={styles.remarkRow}>
                 <Text style={styles.remarkLabel}>备注</Text>
@@ -304,79 +428,31 @@ export default function CartScreen({
               </View>
 
               <Text style={styles.groupTotal}>
-                本店合计 ¥{group.totalAmount}（{group.itemCount} 样）
+                本店合计 ¥{groupSelectedTotal}（{groupSelectedCount} 样）
               </Text>
+              </View>
             </View>
-          ))}
+            );
+          })}
         </ScrollView>
       )}
 
-      <View style={styles.dock}>
-        <View style={styles.dockInfo}>
-          <Text style={styles.dockCount}>
-            {itemCount > 0 ? `已买 ${itemCount} 样` : '还没挑菜'}
-          </Text>
-          <Text style={styles.dockTotal}>¥{totalAmount}</Text>
-        </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="下一步"
-          style={[styles.nextButton, itemCount === 0 && styles.nextDisabled]}
-          disabled={itemCount === 0}
-          onPress={() =>
-            Alert.alert(
-              '下一步：确认下单',
-              '清点、取菜方式和付款还没接上，这一步先停在这里。您可以继续修改购物车。'
-            )
-          }
-        >
-          <Text style={styles.nextButtonText}>下一步</Text>
-          <Ionicons name="arrow-forward" size={22} color="#FFFFFF" />
-        </Pressable>
-      </View>
+      <BottomDock
+        label={selectedCount > 0 ? `已选 ${selectedCount} 样` : '还没选菜'}
+        total={selectedTotal}
+        actionLabel="下一步"
+        onAction={startCheckout}
+        disabled={selectedCount === 0 || busy}
+      />
 
-      <View style={styles.tabbar}>
-        <Pressable
-          style={styles.tab}
-          accessibilityRole="button"
-          accessibilityLabel="首页"
-          onPress={onGoHome}
-        >
-          <Ionicons name="home-outline" size={22} color={colors.ink2} />
-          <Text style={styles.tabText}>首页</Text>
-        </Pressable>
-        <Pressable
-          style={styles.tab}
-          accessibilityRole="button"
-          accessibilityLabel="购物车，当前页"
-        >
-          <Ionicons name="cart" size={22} color={colors.greenDeep} />
-          <Text style={[styles.tabText, styles.tabTextActive]}>购物车</Text>
-          {itemCount > 0 ? (
-            <View style={styles.cartBadge}>
-              <Text style={styles.cartBadgeText}>{itemCount}</Text>
-            </View>
-          ) : null}
-        </Pressable>
-        <Pressable
-          style={styles.tab}
-          accessibilityRole="button"
-          accessibilityLabel="订单"
-          onPress={() => Alert.alert('订单本轮未接入', '下单后可以在这里查看取菜进度。')}
-        >
-          <Ionicons name="receipt-outline" size={22} color={colors.ink2} />
-          <Text style={styles.tabText}>订单</Text>
-        </Pressable>
-        <Pressable
-          style={styles.tab}
-          accessibilityRole="button"
-          accessibilityLabel="我的"
-          onPress={onOpenProfile}
-        >
-          <Ionicons name="person-outline" size={22} color={colors.ink2} />
-          <Text style={styles.tabText}>我的</Text>
-        </Pressable>
-      </View>
+      <TabBar
+        active="cart"
+        cartCount={itemCount}
+        onHome={onGoHome}
+        onCart={() => undefined}
+        onOrders={onOpenOrders}
+        onProfile={onOpenProfile}
+      />
     </SafeAreaView>
   );
 }
@@ -386,23 +462,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.paper,
     paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0
-  },
-  header: {
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.sm,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between'
-  },
-  pageTitle: {
-    fontSize: fontSize.hero,
-    fontWeight: '700',
-    color: colors.ink
-  },
-  pageSubtitle: {
-    fontSize: fontSize.body,
-    color: colors.ink2
   },
   body: {
     flex: 1
@@ -430,7 +489,7 @@ const styles = StyleSheet.create({
     minWidth: 200,
     paddingHorizontal: spacing.lg,
     borderRadius: radius.md,
-    backgroundColor: colors.green,
+    backgroundColor: colors.greenDeep,
     alignItems: 'center',
     justifyContent: 'center'
   },
@@ -444,23 +503,32 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.line,
-    padding: spacing.md,
-    gap: spacing.sm
+    ...cardShadow
   },
-  cardHeader: {
+  groupHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.sm
+    gap: spacing.sm,
+    minHeight: 52,
+    paddingLeft: spacing.md,
+    paddingRight: spacing.xs,
+    backgroundColor: colors.greenSoft,
+    borderTopLeftRadius: radius.lg - 1,
+    borderTopRightRadius: radius.lg - 1
+  },
+  groupBody: {
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.md
   },
   shopName: {
     flex: 1,
-    fontSize: fontSize.title,
+    fontSize: fontSize.name,
     fontWeight: '700',
     color: colors.ink
   },
   clearButton: {
     minHeight: tap.min,
+    minWidth: 56,
     paddingHorizontal: spacing.sm,
     alignItems: 'center',
     justifyContent: 'center'
@@ -468,32 +536,42 @@ const styles = StyleSheet.create({
   clearButtonText: {
     fontSize: fontSize.body,
     fontWeight: '600',
-    color: colors.danger
+    color: colors.ink2
   },
   item: {
     borderTopWidth: 1,
     borderTopColor: colors.line,
-    paddingTop: spacing.sm,
+    paddingVertical: spacing.sm,
     gap: spacing.xs
   },
   itemMain: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: spacing.sm
+    gap: 6
+  },
+  selectHit: {
+    width: 44,
+    height: tap.min,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  selectDisabled: {
+    opacity: 0.4
   },
   itemInfo: {
     flex: 1,
+    minWidth: 0,
     gap: spacing.xs
   },
   itemImage: {
-    width: 48,
-    height: 48,
-    borderRadius: 11
+    width: 40,
+    height: 40,
+    borderRadius: 10
   },
   itemPic: {
-    width: 48,
-    height: 48,
-    borderRadius: 11,
+    width: 40,
+    height: 40,
+    borderRadius: 10,
     backgroundColor: colors.cardSoft,
     borderWidth: 1,
     borderColor: colors.line,
@@ -512,6 +590,16 @@ const styles = StyleSheet.create({
     color: colors.ink,
     lineHeight: 26
   },
+  itemSpec: {
+    fontSize: fontSize.mini,
+    color: colors.ink3
+  },
+  stockError: {
+    color: colors.danger
+  },
+  stockLimit: {
+    color: colors.amber
+  },
   deleteButton: {
     width: tap.min,
     height: tap.min,
@@ -522,9 +610,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: spacing.sm
+    gap: 4
   },
   itemPrices: {
+    flex: 1,
+    minWidth: 0,
     gap: 2
   },
   unitPrice: {
@@ -539,38 +629,44 @@ const styles = StyleSheet.create({
   stepper: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4
+    gap: 2
   },
   stepperHit: {
-    width: tap.min,
+    width: 44,
     height: tap.min,
     alignItems: 'center',
     justifyContent: 'center'
   },
   stepperButton: {
-    width: 40,
-    height: 40,
+    width: 38,
+    height: 38,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.card,
     borderWidth: 1.5,
     borderColor: '#BFE0CB',
-    borderRadius: 12
+    borderRadius: 11
   },
   stepperButtonPlus: {
     backgroundColor: colors.green,
     borderColor: colors.green
+  },
+  stepperButtonPlusDisabled: {
+    backgroundColor: colors.line,
+    borderColor: colors.line
   },
   stepperDisabled: {
     backgroundColor: colors.paper,
     borderColor: colors.line
   },
   quantity: {
-    width: 26,
+    minWidth: 36,
+    paddingHorizontal: 0,
     textAlign: 'center',
     fontSize: fontSize.title,
     fontWeight: '700',
-    color: colors.ink
+    color: colors.ink,
+    fontVariant: ['tabular-nums']
   },
   remarkRow: {
     flexDirection: 'row',
@@ -614,89 +710,7 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     fontSize: fontSize.body,
     fontWeight: '600',
-    color: colors.ink2
-  },
-  dock: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    backgroundColor: colors.card,
-    borderTopWidth: 1,
-    borderTopColor: colors.line
-  },
-  dockInfo: {
-    flex: 1,
-    gap: 2
-  },
-  dockCount: {
-    fontSize: fontSize.body,
-    color: colors.ink2
-  },
-  dockTotal: {
-    fontSize: fontSize.title,
-    fontWeight: '700',
-    color: colors.danger
-  },
-  nextButton: {
-    minHeight: tap.primary,
-    minWidth: 160,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.xs,
-    paddingHorizontal: spacing.lg,
-    borderRadius: radius.md,
-    backgroundColor: colors.green
-  },
-  nextDisabled: {
-    backgroundColor: colors.ink3
-  },
-  nextButtonText: {
-    fontSize: fontSize.title,
-    fontWeight: '700',
-    color: '#FFFFFF'
-  },
-  tabbar: {
-    flexDirection: 'row',
-    backgroundColor: colors.card,
-    borderTopWidth: 1,
-    borderTopColor: colors.line,
-    paddingTop: 6,
-    paddingBottom: 8
-  },
-  tab: {
-    flex: 1,
-    minHeight: tap.min,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 2
-  },
-  tabText: {
-    fontSize: fontSize.body,
-    fontWeight: '600',
-    color: colors.ink2
-  },
-  tabTextActive: {
-    color: colors.greenDeep,
-    fontWeight: '700'
-  },
-  cartBadge: {
-    position: 'absolute',
-    top: 2,
-    right: '28%',
-    minWidth: 20,
-    height: 20,
-    paddingHorizontal: 5,
-    borderRadius: 10,
-    backgroundColor: colors.danger,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  cartBadgeText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF'
+    color: colors.ink2,
+    paddingTop: spacing.xs
   }
 });

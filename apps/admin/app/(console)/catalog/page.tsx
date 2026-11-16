@@ -1,10 +1,11 @@
 'use client';
 
-// 总部商品库：共享商品（名称/描述/图片/单位/建议价）+ 发布流 + 强制下架
-// 门店侧只保留价格、上下架、排序、库存，故本页不出现门店维度操作
+// 总部商品库：共享商品（名称/描述/图片/建议价）+ 规格 + 发布流 + 强制下架
+// 总部只维护商品与规格，库存由平台运营通过库存台账维护
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Key } from 'react';
 import {
+  Alert,
   Button,
   Empty,
   Form,
@@ -14,6 +15,7 @@ import {
   Popconfirm,
   Select,
   Space,
+  Switch,
   Table,
   Tag,
   Tooltip,
@@ -27,9 +29,11 @@ import {
   PlusOutlined,
   SearchOutlined,
   StopOutlined,
+  TagsOutlined,
   UndoOutlined
 } from '@ant-design/icons';
 import { adminColors as colors } from '../../../lib/theme';
+import { getAdminTableProps } from '../../../lib/table';
 import { useAdminSettings } from '../../../components/AdminSettingsProvider';
 
 interface CatalogCategoryRow {
@@ -59,6 +63,65 @@ interface CatalogRow {
   updatedAt: string;
   shopProductCount: number;
   blockedShopCount: number;
+  skuCount: number;
+  defaultSkuId: string | null;
+}
+
+type QuantityMode = 'integer' | 'decimal_2';
+
+interface CatalogSkuRow {
+  id: string;
+  specName: string;
+  barcode: string | null;
+  unit: string;
+  defaultPrice: string;
+  stockType: 'tracked' | 'untracked';
+  quantityMode: QuantityMode;
+  isDefault: boolean;
+  status: 'active' | 'disabled';
+  sortOrder: number;
+  shopSkuCount: number;
+  availableShopSkuCount: number;
+}
+
+interface CatalogSkuDraft {
+  specName: string;
+  barcode: string;
+  unit: string;
+  defaultPrice: string;
+  stockType: 'tracked' | 'untracked';
+  quantityMode: QuantityMode;
+  isDefault: boolean;
+  status: 'active' | 'disabled';
+  sortOrder: number;
+}
+
+function emptyCatalogSkuDraft(row: CatalogRow): CatalogSkuDraft {
+  return {
+    specName: '',
+    barcode: '',
+    unit: row.unit,
+    defaultPrice: row.defaultPrice,
+    stockType: row.stockType,
+    quantityMode: 'integer',
+    isDefault: false,
+    status: 'active',
+    sortOrder: 0
+  };
+}
+
+function catalogSkuDraftFromRow(row: CatalogSkuRow): CatalogSkuDraft {
+  return {
+    specName: row.specName,
+    barcode: row.barcode ?? '',
+    unit: row.unit,
+    defaultPrice: row.defaultPrice,
+    stockType: row.stockType,
+    quantityMode: row.quantityMode,
+    isDefault: row.isDefault,
+    status: row.status,
+    sortOrder: row.sortOrder
+  };
 }
 
 const STATUS_META: Record<CatalogRow['status'], { label: string; color: string }> = {
@@ -101,6 +164,15 @@ export default function CatalogPage() {
   const [publishPrompt, setPublishPrompt] = useState<{ ids: string[]; shopCount: number } | null>(null);
   const [offlinePrompt, setOfflinePrompt] = useState<CatalogRow | null>(null);
   const [offlineReason, setOfflineReason] = useState('');
+
+  const [skuProduct, setSkuProduct] = useState<CatalogRow | null>(null);
+  const [skuRows, setSkuRows] = useState<CatalogSkuRow[]>([]);
+  const [skuLoading, setSkuLoading] = useState(false);
+  const [skuModalOpen, setSkuModalOpen] = useState(false);
+  const [editingSku, setEditingSku] = useState<CatalogSkuRow | null>(null);
+  const [skuDraft, setSkuDraft] = useState<CatalogSkuDraft | null>(null);
+  const [skuSubmitting, setSkuSubmitting] = useState(false);
+  const [skuError, setSkuError] = useState('');
 
   const [cleanupOpen, setCleanupOpen] = useState(false);
   const [cleanupCounts, setCleanupCounts] = useState<{
@@ -359,6 +431,196 @@ export default function CatalogPage() {
     }
   }
 
+  async function loadSkus(productId: string) {
+    setSkuLoading(true);
+    setSkuError('');
+    try {
+      const response = await fetch(`/api/admin/catalog/products/${productId}/skus`, {
+        cache: 'no-store'
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        setSkuError(payload?.message ?? '规格加载失败');
+        return;
+      }
+      setSkuRows(payload.items ?? []);
+    } catch {
+      setSkuError('接口不可用');
+    } finally {
+      setSkuLoading(false);
+    }
+  }
+
+  function openSkuModal(row: CatalogRow) {
+    setSkuProduct(row);
+    setSkuModalOpen(true);
+    setEditingSku(null);
+    setSkuDraft(null);
+    setSkuError('');
+    void loadSkus(row.id);
+  }
+
+  function startCreateSku() {
+    if (!skuProduct || skuProduct.status === 'archived') return;
+    setEditingSku(null);
+    setSkuDraft(emptyCatalogSkuDraft(skuProduct));
+    setSkuError('');
+  }
+
+  function startEditSku(row: CatalogSkuRow) {
+    setEditingSku(row);
+    setSkuDraft(catalogSkuDraftFromRow(row));
+    setSkuError('');
+  }
+
+  function updateSkuDraft(patch: Partial<CatalogSkuDraft>) {
+    setSkuDraft((current) => (current ? { ...current, ...patch } : current));
+  }
+
+  async function saveSku() {
+    if (!skuProduct || !skuDraft) return;
+    const defaultPrice = Number(skuDraft.defaultPrice);
+    if (!Number.isFinite(defaultPrice) || defaultPrice < 0) {
+      setSkuError('建议价不合法');
+      return;
+    }
+    if (!skuDraft.specName.trim() || !skuDraft.unit.trim()) {
+      setSkuError('规格名称与单位必填');
+      return;
+    }
+
+    const body = {
+      specName: skuDraft.specName.trim(),
+      barcode: skuDraft.barcode.trim() || null,
+      unit: skuDraft.unit.trim(),
+      defaultPrice,
+      stockType: skuDraft.stockType,
+      quantityMode: skuDraft.quantityMode,
+      isDefault: skuDraft.isDefault,
+      status: skuDraft.status,
+      sortOrder: skuDraft.sortOrder
+    };
+
+    setSkuSubmitting(true);
+    setSkuError('');
+    try {
+      const response = await fetch(
+        editingSku
+          ? `/api/admin/catalog/skus/${editingSku.id}`
+          : `/api/admin/catalog/products/${skuProduct.id}/skus`,
+        {
+          method: editingSku ? 'PATCH' : 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body)
+        }
+      );
+      const payload = await response.json();
+      if (!response.ok) {
+        setSkuError(payload?.message ?? '规格保存失败');
+        return;
+      }
+      setEditingSku(null);
+      setSkuDraft(null);
+      await loadSkus(skuProduct.id);
+      void load();
+    } catch {
+      setSkuError('规格保存失败');
+    } finally {
+      setSkuSubmitting(false);
+    }
+  }
+
+  function deleteSku(row: CatalogSkuRow) {
+    if (!skuProduct) return;
+    Modal.confirm({
+      title: `删除规格「${row.specName}」？`,
+      content: '已同步到门店的规格不能删除，只能停用。',
+      okText: '删除',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        const response = await fetch(`/api/admin/catalog/skus/${row.id}`, {
+          method: 'DELETE'
+        });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok) {
+          setSkuError(payload?.message ?? '删除失败');
+          return;
+        }
+        await loadSkus(skuProduct.id);
+        void load();
+      }
+    });
+  }
+
+  const skuColumns: TableColumnsType<CatalogSkuRow> = [
+    {
+      title: '规格',
+      dataIndex: 'specName',
+      render: (value: string, row) => (
+        <Space size={4}>
+          <span>{value}</span>
+          {row.isDefault ? <Tag color="blue">默认</Tag> : null}
+          {row.status === 'disabled' ? <Tag color="default">停用</Tag> : null}
+        </Space>
+      )
+    },
+    { title: '单位', dataIndex: 'unit', width: 70 },
+    {
+      title: '建议价',
+      dataIndex: 'defaultPrice',
+      width: 110,
+      align: 'right',
+      render: (value: string) => `¥${Number(value).toFixed(2)}`
+    },
+    {
+      title: '库存追踪',
+      dataIndex: 'stockType',
+      width: 100,
+      render: (value: CatalogSkuRow['stockType']) => STOCK_TYPE_LABEL[value]
+    },
+    {
+      title: '数量模式',
+      dataIndex: 'quantityMode',
+      width: 100,
+      render: (value: QuantityMode) =>
+        value === 'integer' ? <Tag>整数</Tag> : <Tag color="cyan">2 位小数</Tag>
+    },
+    {
+      title: '已铺门店',
+      dataIndex: 'shopSkuCount',
+      width: 110,
+      align: 'right',
+      render: (value: number, row) =>
+        value > 0 ? `${value} 家（${row.availableShopSkuCount} 启用）` : '—'
+    },
+    {
+      title: '操作',
+      key: 'actions',
+      width: 150,
+      render: (_, row) => (
+        <Space size={4}>
+          <Button
+            size="small"
+            disabled={skuProduct?.status === 'archived'}
+            onClick={() => startEditSku(row)}
+          >
+            编辑
+          </Button>
+          {!row.isDefault ? (
+            <Button
+              size="small"
+              danger
+              disabled={skuProduct?.status === 'archived'}
+              onClick={() => deleteSku(row)}
+            >
+              删除
+            </Button>
+          ) : null}
+        </Space>
+      )
+    }
+  ];
+
   const draftSelected = rows.filter((row) => selectedKeys.includes(row.id) && row.status === 'draft');
 
   const columns: TableColumnsType<CatalogRow> = [
@@ -370,6 +632,7 @@ export default function CatalogPage() {
         <Space size={6}>
           <span>{value}</span>
           {row.isTest ? <Tag color="orange">测试</Tag> : null}
+          {row.skuCount > 1 ? <Tag>{row.skuCount} 规格</Tag> : null}
           {row.blockedShopCount > 0 ? <Tag color="error">强制下架中</Tag> : null}
         </Space>
       )
@@ -419,7 +682,7 @@ export default function CatalogPage() {
     {
       title: '操作',
       key: 'action',
-      width: 180,
+      width: 220,
       align: 'right',
       fixed: 'right',
       render: (_: unknown, row) => (
@@ -433,6 +696,16 @@ export default function CatalogPage() {
               aria-label="编辑"
               disabled={row.status === 'archived'}
               onClick={() => openEdit(row)}
+            />
+          </Tooltip>
+          <Tooltip title="规格">
+            <Button
+              variant="text"
+              color="primary"
+              size="small"
+              icon={<TagsOutlined />}
+              aria-label="规格"
+              onClick={() => openSkuModal(row)}
             />
           </Tooltip>
           {row.status === 'draft' ? (
@@ -519,7 +792,7 @@ export default function CatalogPage() {
           <Space size={12}>
             <span style={{ fontSize: 14, fontWeight: 600, color: colors.text }}>总部商品库</span>
             <span style={{ fontSize: 12, color: colors.textTertiary }}>
-              共享字段总部维护，门店只改价格/上下架/库存
+              共享字段总部维护，门店只改价格与上下架
             </span>
           </Space>
           <Space size={8}>
@@ -619,7 +892,7 @@ export default function CatalogPage() {
         <Table<CatalogRow>
           rowKey="id"
           loading={loading}
-          columns={columns}
+          {...getAdminTableProps(columns)}
           dataSource={rows}
           rowSelection={{
             selectedRowKeys: selectedKeys,
@@ -696,6 +969,183 @@ export default function CatalogPage() {
                 />
               </Form.Item>
             </Form>
+          </Modal>
+
+          <Modal
+            open={skuModalOpen}
+            title={skuProduct ? `规格管理 · ${skuProduct.name}` : '规格管理'}
+            onCancel={() => setSkuModalOpen(false)}
+            width={920}
+            footer={[
+              <Button key="close" onClick={() => setSkuModalOpen(false)}>
+                关闭
+              </Button>,
+              skuDraft ? (
+                <Button
+                  key="save"
+                  type="primary"
+                  loading={skuSubmitting}
+                  onClick={() => void saveSku()}
+                >
+                  保存规格
+                </Button>
+              ) : null
+            ]}
+          >
+            <Space style={{ marginBottom: 12 }}>
+              <Button
+                type="primary"
+                disabled={skuProduct?.status === 'archived'}
+                onClick={startCreateSku}
+              >
+                新增规格
+              </Button>
+              <Button
+                onClick={() => {
+                  if (skuProduct) void loadSkus(skuProduct.id);
+                }}
+              >
+                刷新
+              </Button>
+              {skuProduct?.status !== 'published' ? (
+                <Tag>草稿商品规格不会铺货到门店</Tag>
+              ) : null}
+            </Space>
+
+            {skuError ? (
+              <Alert
+                type="error"
+                showIcon
+                title={skuError}
+                style={{ marginBottom: 12 }}
+                closable
+                onClose={() => setSkuError('')}
+              />
+            ) : null}
+
+            {skuDraft ? (
+              <div
+                style={{
+                  marginBottom: 16,
+                  padding: 12,
+                  border: `1px solid ${colors.border}`,
+                  borderRadius: 8,
+                  background: colors.subtle
+                }}
+              >
+                <div style={{ marginBottom: 8, fontWeight: 600 }}>
+                  {editingSku ? `编辑规格：${editingSku.specName}` : '新增规格'}
+                </div>
+                <Space wrap align="start">
+                  <div>
+                    <div style={{ fontSize: 12, marginBottom: 4 }}>规格名称</div>
+                    <Input
+                      style={{ width: 160 }}
+                      value={skuDraft.specName}
+                      onChange={(event) => updateSkuDraft({ specName: event.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 12, marginBottom: 4 }}>条码</div>
+                    <Input
+                      style={{ width: 150 }}
+                      value={skuDraft.barcode}
+                      onChange={(event) => updateSkuDraft({ barcode: event.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 12, marginBottom: 4 }}>单位</div>
+                    <Input
+                      style={{ width: 90 }}
+                      value={skuDraft.unit}
+                      onChange={(event) => updateSkuDraft({ unit: event.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 12, marginBottom: 4 }}>建议价</div>
+                    <Input
+                      style={{ width: 120 }}
+                      value={skuDraft.defaultPrice}
+                      onChange={(event) => updateSkuDraft({ defaultPrice: event.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 12, marginBottom: 4 }}>库存追踪</div>
+                    <Select
+                      style={{ width: 110 }}
+                      value={skuDraft.stockType}
+                      onChange={(value) => updateSkuDraft({ stockType: value })}
+                      options={[
+                        { value: 'tracked', label: '追踪' },
+                        { value: 'untracked', label: '不追踪' }
+                      ]}
+                    />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 12, marginBottom: 4 }}>数量模式</div>
+                    <Select
+                      style={{ width: 120 }}
+                      value={skuDraft.quantityMode}
+                      onChange={(value) => updateSkuDraft({ quantityMode: value })}
+                      options={[
+                        { value: 'integer', label: '整数' },
+                        { value: 'decimal_2', label: '2 位小数' }
+                      ]}
+                    />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 12, marginBottom: 4 }}>排序</div>
+                    <InputNumber
+                      style={{ width: 90 }}
+                      min={0}
+                      max={9999}
+                      precision={0}
+                      value={skuDraft.sortOrder}
+                      onChange={(value) => updateSkuDraft({ sortOrder: Number(value ?? 0) })}
+                    />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 12, marginBottom: 4 }}>默认规格</div>
+                    <Switch
+                      checked={skuDraft.isDefault}
+                      disabled={Boolean(editingSku?.isDefault)}
+                      onChange={(checked) => updateSkuDraft({ isDefault: checked })}
+                    />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 12, marginBottom: 4 }}>启用</div>
+                    <Switch
+                      checked={skuDraft.status === 'active'}
+                      disabled={Boolean(editingSku?.isDefault)}
+                      onChange={(checked) =>
+                        updateSkuDraft({ status: checked ? 'active' : 'disabled' })
+                      }
+                    />
+                  </div>
+                  <Button
+                    style={{ marginTop: 22 }}
+                    onClick={() => {
+                      setSkuDraft(null);
+                      setEditingSku(null);
+                    }}
+                  >
+                    取消
+                  </Button>
+                </Space>
+                <div style={{ marginTop: 8, fontSize: 12, opacity: 0.65 }}>
+                  默认规格不能停用或删除；共享字段变更会同步到全部门店规格。
+                </div>
+              </div>
+            ) : null}
+
+            <Table
+              rowKey="id"
+              size="small"
+              loading={skuLoading}
+              {...getAdminTableProps(skuColumns)}
+              dataSource={skuRows}
+              pagination={false}
+            />
           </Modal>
 
           <Modal
