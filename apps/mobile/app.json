@@ -1,0 +1,17 @@
+{
+  "expo": {
+    "name": "捎点啥",
+    "slug": "sds-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "newArchEnabled": true,
+    "platforms": ["ios", "android"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.sds.mobile"
+    },
+    "android": {
+      "package": "com.sds.mobile"
+    }
+  }
+}

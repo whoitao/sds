@@ -1,0 +1,33 @@
+/* admin 端自定义配色统一走 CSS 变量，主题切换只改 data-theme，组件不重复写色值 */
+:root {
+  --admin-page: #fdfcf9;
+  --admin-surface: #ffffff;
+  --admin-border: #e3f0fb;
+  --admin-text: #1f2329;
+  --admin-text-secondary: #5c6672;
+  --admin-text-tertiary: #8a94a6;
+  --admin-accent-light: var(--admin-primary-soft);
+  --admin-accent-strong: var(--admin-primary-strong);
+  --admin-subtle: #f4f7fa;
+  color-scheme: light;
+}
+
+[data-theme='dark'] {
+  --admin-page: #14161a;
+  --admin-surface: #1c1f26;
+  --admin-border: #2b3140;
+  --admin-text: #e6e8ec;
+  --admin-text-secondary: #9aa4b2;
+  --admin-text-tertiary: #7b8494;
+  --admin-accent-light: var(--admin-primary-soft);
+  --admin-accent-strong: var(--admin-primary-strong);
+  --admin-subtle: #232833;
+  color-scheme: dark;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--admin-page);
+  color: var(--admin-text);
+}

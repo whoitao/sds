@@ -1,0 +1,28 @@
+{
+  "name": "@sds/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "node ../../scripts/run-app.mjs web dev",
+    "build": "next build",
+    "start": "node ../../scripts/run-app.mjs web start",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@sds/shared": "workspace:*",
+    "@sds/ui": "workspace:*",
+    "next": "^16.0.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@sds/config": "workspace:*",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "autoprefixer": "^10.4.0",
+    "postcss": "^8.4.0",
+    "tailwindcss": "^3.4.0",
+    "typescript": "~5.7.0"
+  }
+}

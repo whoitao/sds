@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>捎点啥 sds · 老人下单流程原型 v0.5</title>
+<style>
+:root {
+  /* 浅色调 · 亲民：米白纸感底 + 降饱和浅绿，避免高饱和大色块 */
+  --paper: #F7F6F1;
+  --card: #FFFFFF;
+  --card-soft: #FCFBF6;
+  --ink: #1E2A22;
+  --ink-2: #55655A;
+  --ink-3: #8A9690;
+  --line: #E3E7DF;
+  --green: #4C9A6A;
+  --green-deep: #2F6B47;
+  --green-soft: #E8F3EC;
+  --amber: #C9852B;
+  --amber-soft: #FBF1DF;
+  --blue: #4A7FB5;
+  --blue-soft: #E9F0F8;
+  --danger: #B4534A;
+  --radius: 16px;
+  --shadow: 0 1px 2px rgba(40,60,45,.05), 0 6px 18px rgba(40,60,45,.06);
+  --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* ── 屏内文字字号令牌 ────────────────────────────────
+     --fs-scale 是唯一的字号旋钮：将来全局字号机制（家属代调 / 跟随系统）只要接上它。
+     注释里的数是基准，评审对账看基准；实际渲染 = 基准 × scale。
+     地板就是 --fs-mini 本身，不写死 px，所以缩放不会把任何东西放到地板之下。 */
+  --fs-scale: .9;      /* v0.3 定档：整体缩小一号 */
+  --fs-mini:  calc(15px * var(--fs-scale));   /* 13.5 屏内地板，只放进度时间戳 */
+  --fs-body:  calc(16px * var(--fs-scale));   /* 14.4 说明、提示条、帮助按钮、底栏标签 */
+  --fs-small: calc(17px * var(--fs-scale));   /* 15.3 进度步骤名、货币符号 */
+  --fs-lead:  calc(18px * var(--fs-scale));   /* 16.2 合计行的前缀话 */
+  --fs-name:  calc(19px * var(--fs-scale));   /* 17.1 商品名、选项名、分类名 —— 正文口径 */
+  --fs-mid:   calc(20px * var(--fs-scale));   /* 18   店名、行金额、半高按钮文字 */
+  --fs-title: calc(22px * var(--fs-scale));   /* 19.8 屏标题 */
+  --fs-btn:   var(--fs-title);                /* 主按钮文字 */
+  --fs-qty:   var(--fs-title);                /* 数量数字 */
+  --fs-sum:   calc(24px * var(--fs-scale));   /* 21.6 底栏合计数字 */
+  --fs-hero:  calc(26px * var(--fs-scale));   /* 23.4 首页问候主话 */
+  --fs-ok:    calc(27px * var(--fs-scale));   /* 24.3 结果页主话 */
+  --fs-money: calc(30px * var(--fs-scale));   /* 27   合计金额 */
+  --fs-code:  calc(52px * var(--fs-scale));   /* 46.8 订单号 */
+
+  /* ── 触控尺寸令牌：故意不吃 --fs-scale ────────────────
+     字号可以让用户调，防误触的按钮高度不能跟着抖。
+     v0.3 已整体收回一档，--tap-nav 44px 是 WCAG 2.1 AA 的目标下限，再小就破线。 */
+  --tap-primary: 58px;  /* 主按钮，原 64 */
+  --tap-half:    54px;  /* 半高按钮 / 底栏结算按钮，原 58 */
+  --tap-step:    48px;  /* 加减控件，原 52 */
+  --tap-nav:     44px;  /* 返回 / 帮助，原 48 —— 已贴 WCAG 下限 */
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--paper); color: var(--ink);
+  font-family: var(--sans); font-size: 15px; line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+.doc { max-width: 1360px; margin: 0 auto; padding: 40px 32px 96px; }
+
+/* ── 文档头 ── */
+.hero { border-bottom: 1px solid var(--line); padding-bottom: 26px; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 1.4px; color: var(--green-deep); }
+.hero h1 { margin: 8px 0 10px; font-size: 30px; font-weight: 700; letter-spacing: -.4px; }
+.hero p { margin: 0; max-width: 860px; font-size: 15px; color: var(--ink-2); }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.chip {
+  padding: 5px 12px; border: 1px solid var(--line); border-radius: 999px;
+  background: var(--card); font-size: 13px; color: var(--ink-2);
+}
+.chip b { color: var(--green-deep); font-weight: 600; }
+.chip.is-warn { background: var(--amber-soft); border-color: #EBCFA0; color: #8A5B12; }
+
+/* ── 章节 ── */
+.sec { margin-top: 44px; }
+.sec-h { display: flex; align-items: baseline; gap: 12px; margin-bottom: 6px; }
+.sec-h .idx {
+  flex: none; width: 30px; height: 30px; border-radius: 9px;
+  background: var(--green-soft); color: var(--green-deep);
+  display: grid; place-items: center; font-family: var(--mono); font-size: 13px; font-weight: 700;
+}
+.sec-h h2 { margin: 0; font-size: 21px; font-weight: 700; }
+.sec-h .sub { font-size: 13.5px; color: var(--ink-3); }
+.sec-note { margin: 0 0 20px 42px; font-size: 14px; color: var(--ink-2); max-width: 900px; }
+
+/* ── 流程图 ── */
+.flow { display: flex; align-items: stretch; gap: 0; overflow-x: auto; padding: 6px 2px 18px; }
+.fstep { flex: none; width: 180px; }
+.fbox {
+  height: 100%; border: 1px solid var(--line); border-radius: 14px; background: var(--card);
+  box-shadow: var(--shadow); padding: 12px 13px; display: flex; flex-direction: column; gap: 5px;
+}
+.fbox .n { font-family: var(--mono); font-size: 11px; color: var(--green-deep); }
+.fbox .t { font-size: 15.5px; font-weight: 700; }
+.fbox .d { font-size: 12.5px; color: var(--ink-2); line-height: 1.55; }
+.fbox.is-key { border-color: #BFE0CB; background: var(--green-soft); }
+.fbox.is-end { border-color: #CBE6D5; }
+.farrow { flex: none; width: 22px; display: grid; place-items: center; color: var(--ink-3); font-size: 15px; }
+.branch {
+  margin-top: 14px; display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px;
+}
+.bbox { border: 1px dashed #D9C79E; border-radius: 12px; background: var(--amber-soft); padding: 11px 13px; font-size: 12.5px; color: #7A5210; line-height: 1.6; }
+.bbox b { display: block; font-size: 13.5px; color: #6B4508; margin-bottom: 2px; }
+.bbox.is-plain { border-color: var(--line); background: var(--card-soft); color: var(--ink-2); }
+.bbox.is-plain b { color: var(--ink); }
+
+/* ── 画板 ── */
+.boards { display: flex; flex-wrap: wrap; gap: 26px 24px; padding: 4px 2px 22px; }
+.board { flex: none; width: 390px; }
+.board-cap { margin: 0 2px 10px; display: flex; align-items: baseline; gap: 8px; }
+.board-cap .k {
+  font-family: var(--mono); font-size: 11px; font-weight: 700; color: #fff;
+  background: var(--green-deep); border-radius: 6px; padding: 2px 7px;
+}
+.board-cap .name { font-size: 15px; font-weight: 700; }
+.phone {
+  width: 390px; height: 844px; background: var(--paper); border: 10px solid #22302A;
+  border-radius: 40px; overflow: hidden; position: relative; box-shadow: 0 20px 44px rgba(30,45,35,.18);
+}
+.screen { width: 370px; height: 824px; display: flex; flex-direction: column; overflow: hidden; }
+/* 模拟 OS 状态栏，由系统绘制，不计入产品字号规格，所以不走令牌 */
+.sbar { height: 40px; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 18px; font-size: 13px; color: var(--ink-2); font-weight: 600; }
+.nav { flex: none; display: flex; align-items: center; gap: 10px; padding: 6px 14px 12px; }
+.nav .back { width: var(--tap-nav); height: var(--tap-nav); flex: none; border-radius: 50%; background: var(--card); border: 1px solid var(--line); display: grid; place-items: center; font-size: 19px; color: var(--ink); }
+.nav .title { font-size: var(--fs-title); font-weight: 700; letter-spacing: -.2px; }
+.nav .help {
+  margin-left: auto; flex: none; height: var(--tap-nav); padding: 0 14px; border-radius: 22px;
+  background: var(--green-soft); border: 1px solid #BFE0CB; color: var(--green-deep);
+  font-size: var(--fs-body); font-weight: 700; display: grid; place-items: center;
+}
+/* 门店药丸：v0.5 起顶掉页面标题——「我在哪家店」比「我在第几步」更该常驻。
+   短店名（不带分店括注）：整丸实测 150px，最窄一档（返回 + 长帮助）留给它 152px，装得下「阳光生鲜」四个字。 */
+.shoppill {
+  margin: 0 auto; flex: 0 1 auto; min-width: 0; height: var(--tap-nav); padding: 0 12px;
+  border-radius: 22px; background: var(--card); border: 1px solid #BFE0CB; color: var(--green-deep);
+  display: flex; align-items: center; gap: 7px; font-size: var(--fs-mid); font-weight: 700;
+}
+.shoppill .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 三种态，只有带「⌄」的那两种可点：逛店时能换店，进结算后锁死（改了店，地址和篮子都作废） */
+.shoppill.is-here { background: var(--green-soft); border-color: var(--green); }
+.shoppill.is-locked { background: var(--card-soft); border-color: var(--line); color: var(--ink-2); }
+.bell {
+  width: var(--tap-nav); height: var(--tap-nav); flex: none; border-radius: 50%;
+  background: var(--card); border: 1px solid var(--line); color: var(--ink-2);
+  display: grid; place-items: center;
+}
+.body { flex: 1; overflow: hidden; padding: 4px 14px 0; display: flex; flex-direction: column; gap: 12px; }
+
+/* ── 屏内组件（屏内文字一律引用 --fs-* 令牌，不写裸 px） ── */
+.card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+.card.pad { padding: 16px; }
+/* ── 界面图标：一整套 inline SVG 描边，规格只在这儿定一次 ──
+   粗细 / 尺寸 / 圆头端点统一，颜色走 currentColor，所以选中态只改 color 就跟着变。
+   尺寸不吃 --fs-scale：它是图形不是文字（见 §3.1）。商品图 .pic 仍是 emoji 照片占位，不在此列。 */
+.ico { width: 22px; height: 22px; flex: none; display: block; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.ico.sm { width: 19px; height: 19px; }
+.ico.lg { width: 24px; height: 24px; }
+.bigbtn {
+  height: var(--tap-primary); border-radius: 15px; background: var(--green-deep); color: #fff;
+  font-size: var(--fs-btn); font-weight: 700; display: grid; place-items: center; letter-spacing: .5px;
+}
+.bigbtn.is-ghost { background: var(--card); color: var(--green-deep); border: 1.5px solid #BFE0CB; }
+.bigbtn.is-soft { background: var(--green-soft); color: var(--green-deep); }
+.bigbtn.is-half { height: var(--tap-half); font-size: var(--fs-mid); }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.opt { display: flex; align-items: center; gap: 13px; padding: 15px 16px; }
+.opt .ic { width: 46px; height: 46px; flex: none; border-radius: 14px; display: grid; place-items: center; background: var(--card-soft); border: 1px solid var(--line); color: var(--ink-2); }
+.opt .t { font-size: var(--fs-name); font-weight: 700; }
+.opt .d { font-size: var(--fs-body); color: var(--ink-2); margin-top: 3px; line-height: 1.55; }
+.opt .radio { margin-left: auto; flex: none; width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--line); }
+.opt.is-on { border-color: var(--green); background: #F4FBF6; box-shadow: 0 0 0 2px var(--green-soft) inset, var(--shadow); }
+.opt.is-on .ic { background: var(--green-soft); border-color: #BFE0CB; color: var(--green-deep); }
+.opt.is-on .radio { border-color: var(--green); background: radial-gradient(circle, var(--green) 0 8px, transparent 8px); }
+/* ── S0 首页：一屏看完「哪家店 → 哪一类 → 哪一样」 ──
+   竖向预算（.body 内容区 576px，各级高度按令牌取值手算，不留裸 px 字号）：
+   问候 27 + 店铺图 92 + 一级横滑 66 + 左右分栏 272 + 提示 50 = 507，加 4 段间距 40 = 547。 */
+.hello { flex: none; display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.hello .g { font-size: var(--fs-hero); font-weight: 700; letter-spacing: -.2px; }
+.hello .d { flex: none; font-size: var(--fs-body); color: var(--ink-2); }
+.shopimg { flex: none; overflow: hidden; }
+/* 店铺照片占位：故意用 emoji 铺一条，和 .row .pic 同理，不是界面图标。
+   这里的 color 只在 emoji 缺字时兜底，所以取达标的 --ink-2，不用 --green（对浅绿底只有 2.77:1）。 */
+.shopimg .ph {
+  height: 50px; background: linear-gradient(116deg, var(--green-soft) 0%, #DCEBE1 100%);
+  display: grid; place-items: center; font-size: 22px; letter-spacing: 10px; color: var(--ink-2);
+}
+.shopimg .ov { display: flex; align-items: baseline; gap: 8px; padding: 9px 13px; }
+.shopimg .t { font-size: var(--fs-mid); font-weight: 700; }
+.shopimg .d { font-size: var(--fs-body); color: var(--ink-2); margin-left: auto; flex: none; }
+/* 一级分类横滑：74×66 一格。左边「想吃哪类」是钉住不跟着滑的说明，
+   它塞在滑道同一行里，所以竖着一分钱没花——首页是全局最挤的一屏，加不起一行标题。 */
+.l1row { flex: none; display: flex; align-items: center; gap: 8px; }
+.l1cap { flex: none; font-size: var(--fs-body); font-weight: 700; color: var(--green-deep); line-height: 1.35; }
+.l1 { flex: 1; min-width: 0; display: flex; gap: 8px; overflow-x: hidden; }
+.l1i {
+  flex: none; width: 74px; height: 66px; border-radius: 14px; background: var(--card);
+  border: 1px solid var(--line); box-shadow: var(--shadow); color: var(--ink-2);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+}
+.l1i .t { font-size: var(--fs-name); font-weight: 700; line-height: 1.2; }
+.l1i.is-on { background: var(--green-soft); border-color: var(--green); color: var(--green-deep); box-shadow: 0 0 0 2px #F4FBF6 inset, var(--shadow); }
+/* 左二级列 + 右商品列：两级同时在场，不做「点进去再退回来」 */
+.split { flex: none; display: flex; gap: 10px; height: 272px; }
+.l2 { flex: none; width: 84px; display: flex; flex-direction: column; gap: 6px; overflow: hidden; }
+.l2i {
+  flex: none; min-height: var(--tap-nav); padding: 0 8px; border-radius: 13px;
+  background: var(--card); border: 1px solid var(--line); color: var(--ink);
+  font-size: var(--fs-name); font-weight: 600; display: flex; align-items: center; gap: 4px;
+}
+.l2i .n { margin-left: auto; flex: none; font-size: var(--fs-body); font-weight: 500; color: var(--ink-2); }
+.l2i.is-on { background: var(--green-soft); border-color: var(--green); color: var(--green-deep); font-weight: 700; }
+.l2i.is-on .n { color: var(--green-deep); }
+.goods { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; overflow: hidden; }
+.grow { display: flex; align-items: center; gap: 9px; padding: 11px; flex: none; }
+.grow .pic { width: 48px; height: 48px; font-size: 19px; border-radius: 11px; }
+.grow .tx { flex: 1; min-width: 0; }
+.grow .nm { font-size: var(--fs-name); font-weight: 600; }
+.grow .nm b { margin-left: 5px; font-size: var(--fs-body); font-weight: 700; color: var(--green-deep); }
+.grow .pr { font-size: var(--fs-body); color: var(--ink-2); margin-top: 2px; }
+.grow .step { margin-left: 0; }
+.row { display: flex; align-items: center; gap: 12px; padding: 13px 16px; }
+.row .pic { width: 56px; height: 56px; flex: none; border-radius: 12px; background: var(--card-soft); border: 1px solid var(--line); display: grid; place-items: center; font-size: 22px; }
+.row .nm { font-size: var(--fs-name); font-weight: 600; }
+.row .pr { font-size: var(--fs-body); color: var(--ink-2); margin-top: 3px; }
+.row .amt { font-size: var(--fs-mid); font-weight: 700; margin-left: auto; }
+.step { display: flex; align-items: center; gap: 6px; margin-left: 10px; flex: none; }
+.step button { width: var(--tap-step); height: var(--tap-step); border-radius: 13px; border: 1.5px solid #BFE0CB; background: var(--card); color: var(--green-deep); font-size: 24px; font-weight: 700; display: grid; place-items: center; }
+.step button.is-plus { background: var(--green); border-color: var(--green); color: #fff; }
+.step .q { width: 30px; text-align: center; font-size: var(--fs-qty); font-weight: 700; }
+/* 购物车行：图小一点，把宽度让给「单价 + 单位」，避免换行断字 */
+.row.is-cart { gap: 10px; padding: 12px 14px; }
+.row.is-cart .pic { width: 36px; height: 36px; font-size: 19px; border-radius: 10px; }
+.row.is-cart .step { margin-left: 0; }
+/* 购物车一级页：一家店一个分组，分组内用细线分行（PRD §3.5 跨店不可合并） */
+.shopgroup { overflow: hidden; }
+.shopgroup > * + * { border-top: 1px solid var(--line); }
+.dock { flex: none; margin: auto 0 0; padding: 11px 14px 14px; background: var(--card); border-top: 1px solid var(--line); display: flex; align-items: center; gap: 12px; }
+.dock .sum { font-size: var(--fs-body); color: var(--ink-2); }
+.dock .sum b { display: block; font-size: var(--fs-sum); color: var(--ink); font-weight: 700; margin-top: 2px; }
+.dock .go { flex: none; margin-left: auto; height: var(--tap-half); padding: 0 22px; border-radius: 13px; background: var(--green-deep); color: #fff; font-size: var(--fs-mid); font-weight: 700; display: grid; place-items: center; }
+.total { display: flex; align-items: baseline; justify-content: space-between; padding: 14px 16px; }
+.total .k { font-size: var(--fs-lead); color: var(--ink-2); }
+.total .v { font-size: var(--fs-money); font-weight: 700; }
+.total .v small { font-size: var(--fs-small); font-weight: 600; margin-right: 2px; }
+.homer { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); width: 128px; height: 5px; border-radius: 3px; background: #C9D2CB; }
+/* 底部导航：只在一级页出现（S0 / T1）。下单流程 S1–S5 收起，流程中不给横向出口 */
+.tabbar { flex: none; display: grid; grid-template-columns: repeat(4, 1fr); background: var(--card); border-top: 1px solid var(--line); padding: 7px 0 12px; }
+.tabbar .tab { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: var(--tap-nav); }
+.tabbar .tab .ic { position: relative; display: grid; place-items: center; color: var(--ink-2); }
+.tabbar .tab .t { font-size: var(--fs-body); line-height: 1.2; font-weight: 600; color: var(--ink-2); }
+.tabbar .tab.is-on .t { color: var(--green-deep); font-weight: 700; }
+/* 选中态照通用电商做法：变绿 + 描边加重 + 淡色填实，一眼分得出当前在哪个 Tab */
+.tabbar .tab.is-on .ic { color: var(--green-deep); }
+.tabbar .tab.is-on .ico { stroke-width: 2; fill: currentColor; fill-opacity: .16; }
+/* 数量角标：中性描边数字，不是红色营销角标（§3.3 禁的是后者） */
+.tabbar .tab .n { position: absolute; top: -5px; right: -19px; min-width: 22px; height: 22px; border: 1.5px solid var(--green); border-radius: 11px; background: var(--card); color: var(--green-deep); font-size: var(--fs-body); font-weight: 700; line-height: 19px; text-align: center; padding: 0 2px; }
+
+/* ── 结果页专用 ── */
+.okhead { text-align: center; padding: 18px 0 6px; }
+.okhead .mark { width: 68px; height: 68px; margin: 0 auto 10px; border-radius: 50%; background: var(--green); color: #fff; display: grid; place-items: center; }
+.okhead .mark .ico { width: 34px; height: 34px; stroke-width: 2.2; }
+.okhead .t { font-size: var(--fs-ok); font-weight: 700; }
+.okhead .d { font-size: var(--fs-body); color: var(--ink-2); margin-top: 6px; }
+.codecard { background: linear-gradient(160deg, #FFFFFF 0%, #F1F7F2 100%); text-align: center; padding: 18px; }
+.codecard .k { font-size: var(--fs-body); color: var(--ink-2); letter-spacing: 2px; }
+.codecard .v { font-size: var(--fs-code); font-weight: 700; letter-spacing: 6px; color: var(--green-deep); line-height: 1.15; margin: 4px 0 2px; }
+.codecard .d { font-size: var(--fs-body); color: var(--ink-2); }
+.prog { display: flex; align-items: flex-start; padding: 18px 10px 6px; }
+.prog .p { flex: 1; text-align: center; position: relative; }
+.prog .p .dot { width: 22px; height: 22px; margin: 0 auto 8px; border-radius: 50%; border: 2.5px solid var(--line); background: var(--card); position: relative; z-index: 2; }
+.prog .p.is-done .dot { border-color: var(--green); background: var(--green); }
+.prog .p.is-now .dot { border-color: var(--green); background: var(--card); box-shadow: 0 0 0 5px var(--green-soft); }
+.prog .p .t { font-size: var(--fs-small); font-weight: 700; }
+.prog .p.is-pend .t { color: var(--ink-2); font-weight: 600; }
+.prog .p .d { font-size: var(--fs-mini); color: var(--ink-2); margin-top: 2px; }
+.prog .p::before { content: ""; position: absolute; top: 10px; left: 0; right: 50%; height: 2.5px; background: var(--line); }
+.prog .p::after { content: ""; position: absolute; top: 10px; left: 50%; right: 0; height: 2.5px; background: var(--line); }
+.prog .p:first-child::before, .prog .p:last-child::after { display: none; }
+.prog .p.is-done::after, .prog .p.is-done::before { background: var(--green); }
+.tip { display: flex; gap: 10px; padding: 14px 16px; background: var(--blue-soft); border-color: #C9DBEE; font-size: var(--fs-body); color: #2C5480; line-height: 1.65; }
+.tip b { color: #1E3F63; }
+.tip .ic { flex: none; display: grid; place-items: center; padding-top: 2px; }
+.callout {
+  margin-top: 20px; padding: 16px 20px; border: 1px solid #CBE6D5; border-left: 4px solid var(--green);
+  border-radius: 0 14px 14px 0; background: #F4FBF6; font-size: 14px; line-height: 1.8;
+}
+.callout > b { display: block; color: var(--green-deep); font-size: 15px; margin-bottom: 6px; }
+.callout ul { margin: 0; padding-left: 1.15em; }
+.callout li { margin: 3px 0; }
+
+/* ── 表格与清单 ── */
+.grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 20px; }
+.panel { border: 1px solid var(--line); border-radius: 14px; background: var(--card); box-shadow: var(--shadow); }
+.panel-h { padding: 13px 18px; border-bottom: 1px solid var(--line); font-size: 15px; font-weight: 700; display: flex; align-items: center; }
+.panel-h span { margin-left: auto; font-size: 12.5px; font-weight: 500; color: var(--ink-3); }
+.panel-b { padding: 14px 18px 16px; }
+table.sp { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+table.sp th, table.sp td { padding: 9px 10px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.sp th { font-size: 12.5px; color: var(--ink-3); font-weight: 700; background: var(--card-soft); white-space: nowrap; }
+table.sp tr:last-child td { border-bottom: 0; }
+table.sp code { font-family: var(--mono); font-size: 12.5px; background: var(--card-soft); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
+table.sp .no { color: var(--danger); font-weight: 700; }
+table.sp tr.is-open td { background: var(--amber-soft); color: #7A5210; }
+table.sp tr.is-open td b { color: #6B4508; }
+table.sp .yes { color: var(--green-deep); font-weight: 700; }
+ul.rules { margin: 0; padding-left: 1.15em; font-size: 13.5px; color: var(--ink-2); line-height: 1.9; }
+ul.rules li::marker { color: var(--green); }
+.footer { margin-top: 46px; padding-top: 18px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--ink-3); line-height: 1.9; }
+.footer code { font-family: var(--mono); font-size: 12px; }
+@media (max-width: 1100px) { .branch { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .doc { padding: 26px 16px 72px; } .grid-2 { grid-template-columns: 1fr; } .hero h1 { font-size: 24px; } }
+</style>
+
+</head>
+<body>
+<!-- 界面图标表：一处定义，屏内用 <use href="#i-…"/> 引用。不引外部库，单文件自包含不变。 -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M3.4 10.6 12 4l8.6 6.6"/><path d="M6 9.4V19a1.6 1.6 0 0 0 1.6 1.6h8.8A1.6 1.6 0 0 0 18 19V9.4"/><path d="M9.8 20.6v-5a2.2 2.2 0 0 1 4.4 0v5"/></symbol>
+  <symbol id="i-cart" viewBox="0 0 24 24"><circle cx="9.2" cy="19.6" r="1.6"/><circle cx="17.4" cy="19.6" r="1.6"/><path d="M2.6 3.8h2.4l2.4 11.6h10.4l1.8-8H6.2"/></symbol>
+  <symbol id="i-box" viewBox="0 0 24 24"><path d="M12 3.4 20.4 7.7v8.6L12 20.6 3.6 16.3V7.7Z"/><path d="M3.6 7.7 12 12l8.4-4.3"/><path d="M12 12v8.6"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6"/><path d="M5.2 20.2c1-3.3 3.6-5 6.8-5s5.8 1.7 6.8 5"/></symbol>
+  <symbol id="i-leaf" viewBox="0 0 24 24"><path d="M19.8 4.4C10.6 5.4 5.4 9.8 5.4 15.4c0 1.8.8 3.4.8 3.4s10.6.4 13.6-14.4Z"/><path d="M6.2 18.8C8.8 14 13 10.8 18 9"/></symbol>
+  <symbol id="i-meat" viewBox="0 0 24 24"><path d="M14.2 4.4c4.4 1.4 6.6 5.2 5.6 9-.9 3.6-4.6 6-8.4 5.4-4-.6-6.8-4-6.2-7.8.6-3.8 4.6-6.8 9-6.6Z"/><path d="M9.4 10.6c2.2-1.2 4.8-.6 6 1.4"/></symbol>
+  <symbol id="i-milk" viewBox="0 0 24 24"><path d="M10.2 3.6h3.6v2.8l2 3.2v9a1.8 1.8 0 0 1-1.8 1.8H10a1.8 1.8 0 0 1-1.8-1.8v-9l2-3.2Z"/><path d="M8.4 13.6h7.2"/></symbol>
+  <symbol id="i-bowl" viewBox="0 0 24 24"><path d="M3.8 12.6h16.4c0 4.6-3.7 7.4-8.2 7.4S3.8 17.2 3.8 12.6Z"/><path d="M9.4 9.4c0-1.6 1-2.2 1-3.4"/><path d="M14 9.4c0-1.6 1-2.2 1-3.4"/></symbol>
+  <symbol id="i-spice" viewBox="0 0 24 24"><path d="M8.6 9.6h6.8v9a1.8 1.8 0 0 1-1.8 1.8h-3.2a1.8 1.8 0 0 1-1.8-1.8Z"/><path d="M9.4 9.6c0-2.6 1.2-4 2.6-4s2.6 1.4 2.6 4"/><path d="M11 5.4h.01"/><path d="M13.4 6.4h.01"/><path d="M12.2 4h.01"/></symbol>
+  <symbol id="i-cube" viewBox="0 0 24 24"><path d="M5.4 5.4h13.2v13.2H5.4Z"/><path d="M5.4 11.9h13.2"/><path d="M11.9 5.4v13.2"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 20.8c4.2-4.8 6.4-7.9 6.4-10.6A6.4 6.4 0 0 0 5.6 10.2c0 2.7 2.2 5.8 6.4 10.6Z"/><circle cx="12" cy="10" r="2.3"/></symbol>
+  <symbol id="i-store" viewBox="0 0 24 24"><path d="M4.4 10h15.2v9a1.6 1.6 0 0 1-1.6 1.6H6a1.6 1.6 0 0 1-1.6-1.6Z"/><path d="M3.6 10 5.6 4.2h12.8L20.4 10"/><path d="M9.8 20.6v-5.4h4.4v5.4"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24"><path d="M6.4 3.8h3.2l1.6 4-2 1.4a11.8 11.8 0 0 0 5.6 5.6l1.4-2 4 1.6v3.2a2 2 0 0 1-2.1 2C10.6 19 5 13.4 4.4 5.9a2 2 0 0 1 2-2.1Z"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M12 3.6c-3.2 0-5.5 2.3-5.5 5.5 0 4.3-1.7 6-1.7 6h14.4s-1.7-1.7-1.7-6c0-3.2-2.3-5.5-5.5-5.5Z"/><path d="M10.1 18.4a2 2 0 0 0 3.8 0"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="M6.6 9.6 12 15l5.4-5.4"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4.6 7h14.8"/><path d="M9.6 7V4.8h4.8V7"/><path d="M6.6 7 7.5 19.2a1.6 1.6 0 0 0 1.6 1.4h5.8a1.6 1.6 0 0 0 1.6-1.4L17.4 7"/><path d="M10.4 11v5.6M13.6 11v5.6"/></symbol>
+  <symbol id="i-truck" viewBox="0 0 24 24"><path d="M2.8 6.8h10.4v9.6H2.8Z"/><path d="M13.2 10.4h3.4l2.6 2.9v3.1h-6"/><circle cx="6.8" cy="18.4" r="1.8"/><circle cx="17.2" cy="18.4" r="1.8"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 6.6A2.6 2.6 0 0 1 6.6 4h10.8A2.6 2.6 0 0 1 20 6.6v6.2a2.6 2.6 0 0 1-2.6 2.6h-7L6 19.2v-3.8h-.4A2.6 2.6 0 0 1 4 12.8Z"/></symbol>
+  <symbol id="i-family" viewBox="0 0 24 24"><circle cx="8.8" cy="8.4" r="3"/><path d="M3.4 19.6c.8-3 2.9-4.6 5.4-4.6s4.6 1.6 5.4 4.6"/><circle cx="16.6" cy="10" r="2.2"/><path d="M15 15.4c2.3.3 3.8 1.8 4.5 4.2"/></symbol>
+  <symbol id="i-cash" viewBox="0 0 24 24"><path d="M2.8 8.4a1.8 1.8 0 0 1 1.8-1.8h14.8a1.8 1.8 0 0 1 1.8 1.8v7.2a1.8 1.8 0 0 1-1.8 1.8H4.6a1.8 1.8 0 0 1-1.8-1.8Z"/><circle cx="12" cy="12" r="2.8"/><path d="M6.2 9.6h.01"/><path d="M17.8 14.4h.01"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M4.8 12.6 9.6 17.4 19.2 6.8"/></symbol>
+  <symbol id="i-basket" viewBox="0 0 24 24"><path d="M3.6 9.6h16.8l-1.6 8.6a2 2 0 0 1-2 1.6H7.2a2 2 0 0 1-2-1.6Z"/><path d="M8.6 9.6 11 4.4"/><path d="M15.4 9.6 13 4.4"/></symbol>
+</defs></svg>
+<div class="doc">
+  <header class="hero">
+    <div class="eyebrow">SDS · 捎点啥 · ELDER ORDER FLOW · v0.5 原型</div>
+    <h1>老人自己下单：从「打开就是这家店的菜」到「下单好了，等着就行」</h1>
+    <p>主下单人是老人本人，不是子女。这条流程的成功标准不是「能走完」，而是<b>「没人帮也能走完，且不会点错」</b>。下面 8 块真机尺寸画板（390 × 844）＝ 主干 S0–S5 六屏 + 兜底页 S6 + 购物车一级页 T1。除了首页那一屏允许来回挑，其余每屏只让老人做一个决定。</p>
+    <div class="chips">
+      <div class="chip">屏内字号 <b><code>--fs-*</code> 令牌 × <code>--fs-scale .9</code></b> · 正文 17 / 说明 14</div>
+      <div class="chip">触控 <b><code>--tap-*</code></b> · 最小 <b>44px</b> · 主按钮 <b>58px</b></div>
+      <div class="chip">header <b>常驻门店药丸</b> · 顶掉页面标题</div>
+      <div class="chip">首页 <b>一级横滑 + 二级竖列 + 商品同屏</b></div>
+      <div class="chip">一屏 <b>一个决定</b>（首页除外）</div>
+      <div class="chip">手势只有 <b>点</b> 和 <b>滑</b> · 无长按无双击</div>
+      <div class="chip">界面图标 <b>一套 inline SVG 描边</b> · 商品图仍留照片占位</div>
+      <div class="chip">底栏 <b>只在一级页</b> · 流程内收起</div>
+      <div class="chip">主色 <b>#4C9A6A</b> 浅绿</div>
+      <div class="chip">底色 <b>#F7F6F1</b> 米白</div>
+      <div class="chip">正文对比度 <b>≥ 5.5:1</b></div>
+      <div class="chip is-warn">未决 <b>店铺入驻 or 自营</b></div>
+    </div>
+  </header>
+
+  <section class="sec">
+    <div class="sec-h"><span class="idx">1</span><h2>流程主干与兜底</h2><span class="sub">6 步走完 · 3 条支线保证没有死路</span></div>
+    <p class="sec-note">主干每一步都是独立一屏，返回永远能回到上一屏；支线处理「定位失败」「不会操作」「想取消」三种最容易让老人放弃的情况。v0.5 把原来「挑柜台 → 看柜台的菜」两屏<b>合回首页一屏</b>：一级分类横滑、二级分类竖列、商品就在右边，三样同时在场。合掉的理由不是省步骤，而是不再需要「点进去看完再退回来换一类」——那一下返回，老人得先想起来自己是来干什么的。</p>
+    <p class="sec-note">电商那套底栏（首页 / 购物车 / 订单 / 我的）照标准画，但<b>只在一级页出现</b>——S0 和 T1。从 S1 换店一路到 S5 下完单，底栏<b>收起</b>，横向出口只留左上角返回。道理很实在：付钱那一屏若允许一键跳回首页，那半篮已选的菜和填好的地址怎么办，现在没人定得过。<b>S2 和 T1 是同一个篮子，两个入口</b>——S2 是顺着流程走到「清点」，T1 是从底栏回头找自己的菜；老人不必知道它们是同一个东西，但两边给的减号和合计必须一模一样。有了 T1，才存在「走到 S4 突然想去拿别的」再原路回来这条真实路径，不用把已填的地址从头来一遍。</p>
+    <p class="sec-note">v0.5 还有一处全局改动：<b>header 中间的门店药丸顶掉了页面标题</b>。「我在哪家店」是每一屏都成立的事实，「我在第几步」只在有下一步时成立，所以常驻的那格给了店。代价写实在这儿——屏上从此没有「怎么拿菜」「付钱」这类大字标题了，定位只能靠底栏合计那句话、减号的存在、以及右上角帮助按钮；这条已进 §3.5 待拍板。</p>
+
+    <div class="flow">
+      <div class="fstep"><div class="fbox is-key"><div class="n">S0 打开就是</div><div class="t">首页挑菜</div><div class="d">哪家店写在头顶，类别横滑、细分在左、菜在右边，一屏挑完</div></div></div>
+      <div class="farrow">→</div>
+      <div class="fstep"><div class="fbox"><div class="n">S1 换店</div><div class="t">附近的店</div><div class="d">列表而不是地图，写「步行 5 分钟」不写 320m</div></div></div>
+      <div class="farrow">→</div>
+      <div class="fstep"><div class="fbox"><div class="n">S2 清点</div><div class="t">我买了啥</div><div class="d">一行一样，能减能删，合计一直显示</div></div></div>
+      <div class="farrow">→</div>
+      <div class="fstep"><div class="fbox"><div class="n">S3 拿法</div><div class="t">怎么拿</div><div class="d">送货到家 / 我去拿，二选一</div></div></div>
+      <div class="farrow">→</div>
+      <div class="fstep"><div class="fbox"><div class="n">S4 付钱</div><div class="t">付钱</div><div class="d">微信 / 让儿女付 / 到店付现金</div></div></div>
+      <div class="farrow">→</div>
+      <div class="fstep"><div class="fbox is-end"><div class="n">S5 好了</div><div class="t">下单成功</div><div class="d">大字取餐码 + 三步进度 + 打给店里</div></div></div>
+    </div>
+
+    <div class="branch">
+      <div class="bbox"><b>支线 A · 定位失败 / 不肯授权</b>头顶那格药丸就是出口：点它落到 S1，S1 底部常驻「找不到想去的店？点这里选小区」，落到街道/社区列表，仍能找到店。绝不出现空白地图。首页本身不再复述店名地址，所以定位失败不会让 S0 变成一片空白。</div>
+      <div class="bbox"><b>支线 B · 每一屏右上角都有「? 帮助」</b>不是长按、不是隐藏菜单，是一个固定可见、离手指最近的大按钮。点进去是 S6 兜底页：打给店里 / 打给儿女 / 找社区志愿者。</div>
+      <div class="bbox is-plain"><b>支线 C · 我按错了，想取消</b>S5 结果页与订单详情都保留「不要了，取消订单」，且在付款前取消不产生任何扣款；已付款则走店长确认。</div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="sec-h"><span class="idx">2</span><h2>八块画板</h2><span class="sub">390 × 844 真机尺寸 · 每行 3 屏自动换行 · S0–S5 主干，S6 兜底，T1 一级页</span></div>
+    <p class="sec-note">屏内的商品、价格、店名在 8 块画板里保持一致，方便逐屏核对：张奶奶 · 阳光生鲜（文三路） · 五花肉 2 斤 ¥32.00 + 鸡蛋 1 板 ¥12.00 + 牛奶 2 盒 ¥9.00 ＝ <b>3 样 ¥53.00</b>，底栏购物车角标就是这个 <b>3</b>。演示数据集仍是六个一级分类合计 <b>91 种</b>（蔬菜 28 / 肉 9 / 鸡蛋牛奶 12 / 米面油 15 / 调料 11 / 豆腐水果 16），但 v0.5 起屏面上只露出<b>当前选中的「肉」＝ 9 种</b>：二级栏写着 全部 9 · 猪肉 3 · 牛肉 2 · 羊肉 1 · 鸡肉 2 · 鱼 1，加起来正好等于一级格上的 9，这条等式是研发可以直接验收的。<br>已买的 3 样按分类落在「肉」1 样（五花肉，S0 上有「已买」标记）、「鸡蛋牛奶」2 样（鸡蛋、牛奶）——后两样此刻不在屏上，因为在首页画的是「肉」这一格被选中；切到「鸡蛋牛奶」才看得见。合计那句「已经买了 3 样 ¥53.00」说的是<b>整家店一篮子</b>，不是当前这一类，这是 PRD §3.5「按店铺维度独立购物车」的直接后果。</p>
+    <div class="boards">
+      <div class="board">
+        <div class="board-cap"><span class="k">S0</span><span class="name">首页：一屏挑完</span><span class="sec-note" style="margin:0 0 0 6px">认出人 · 认出店 · 类别和菜同屏</span></div>
+        <div class="phone"><div class="screen">
+          <div class="sbar"><span>9:41</span><span>●●● 100%</span></div>
+          <div class="nav">
+            <div class="bell"><svg class="ico"><use href="#i-bell"/></svg></div>
+            <div class="shoppill"><svg class="ico sm"><use href="#i-store"/></svg><span class="nm">阳光生鲜</span><svg class="ico sm"><use href="#i-chevron"/></svg></div>
+            <div class="help">? 帮助</div>
+          </div>
+          <div class="body" style="gap:10px">
+            <div class="hello"><span class="g">张奶奶，您好</span><span class="d">11 月 13 日 星期四</span></div>
+            <div class="card shopimg">
+              <div class="ph">🥬 🍖 🥚 🌾</div>
+              <div class="ov"><span class="t">阳光生鲜 · 文三路</span><span class="d">步行 5 分钟</span></div>
+            </div>
+            <div class="l1row">
+              <div class="l1cap">想吃<br>哪类</div>
+              <div class="l1">
+                <div class="l1i"><svg class="ico lg"><use href="#i-leaf"/></svg><span class="t">蔬菜</span></div>
+                <div class="l1i is-on"><svg class="ico lg"><use href="#i-meat"/></svg><span class="t">肉</span></div>
+                <div class="l1i"><svg class="ico lg"><use href="#i-milk"/></svg><span class="t">鸡蛋牛奶</span></div>
+                <div class="l1i"><svg class="ico lg"><use href="#i-bowl"/></svg><span class="t">米面油</span></div>
+                <div class="l1i"><svg class="ico lg"><use href="#i-spice"/></svg><span class="t">调料</span></div>
+                <div class="l1i"><svg class="ico lg"><use href="#i-cube"/></svg><span class="t">豆腐水果</span></div>
+              </div>
+            </div>
+            <div class="split">
+              <div class="l2">
+                <div class="l2i is-on">全部<span class="n">9</span></div>
+                <div class="l2i">猪肉<span class="n">3</span></div>
+                <div class="l2i">牛肉<span class="n">2</span></div>
+                <div class="l2i">羊肉<span class="n">1</span></div>
+                <div class="l2i">鸡肉<span class="n">2</span></div>
+                <div class="l2i">鱼<span class="n">1</span></div>
+              </div>
+              <div class="goods">
+                <div class="card grow">
+                  <div class="pic">🥩</div>
+                  <div class="tx"><div class="nm">五花肉<b>已买</b></div><div class="pr">¥16.00 一斤</div></div>
+                  <div class="step"><button class="is-plus">+</button></div>
+                </div>
+                <div class="card grow">
+                  <div class="pic">🍖</div>
+                  <div class="tx"><div class="nm">里脊肉</div><div class="pr">¥14.00 一斤</div></div>
+                  <div class="step"><button class="is-plus">+</button></div>
+                </div>
+                <div class="card grow">
+                  <div class="pic">🍗</div>
+                  <div class="tx"><div class="nm">排骨</div><div class="pr">¥28.00 一斤</div></div>
+                  <div class="step"><button class="is-plus">+</button></div>
+                </div>
+                <div class="card grow">
+                  <div class="pic">🐟</div>
+                  <div class="tx"><div class="nm">鲫鱼</div><div class="pr">¥18.00 一条</div></div>
+                  <div class="step"><button class="is-plus">+</button></div>
+                </div>
+              </div>
+            </div>
+            <div class="tip"><span class="ic"><svg class="ico sm"><use href="#i-phone"/></svg></span><div>不会点？右上角<b>「帮助」</b>直接接通店里。</div></div>
+          </div>
+          <div class="dock">
+            <div class="sum">已经买了 3 样 ¥53.00</div>
+            <div class="go">下一步</div>
+          </div>
+          <div class="tabbar">
+            <div class="tab is-on"><span class="ic"><svg class="ico"><use href="#i-home"/></svg></span><span class="t">首页</span></div>
+            <div class="tab"><span class="ic"><svg class="ico"><use href="#i-cart"/></svg><span class="n">3</span></span><span class="t">购物车</span></div>
+            <div class="tab"><span class="ic"><svg class="ico"><use href="#i-box"/></svg></span><span class="t">订单</span></div>
+            <div class="tab"><span class="ic"><svg class="ico"><use href="#i-user"/></svg></span><span class="t">我的</span></div>
+          </div>
+          <div class="homer"></div>
+        </div></div>
+      </div>
+
+      <div class="board">
+        <div class="board-cap"><span class="k">S1</span><span class="name">附近的店</span><span class="sec-note" style="margin:0 0 0 6px">用列表不用地图 · 距离说成步行几分钟</span></div>
+        <div class="phone"><div class="screen">
+          <div class="sbar"><span>9:41</span><span>●●● 100%</span></div>
+          <div class="nav">
+            <div class="back">←</div>
+            <div class="shoppill is-here"><svg class="ico sm"><use href="#i-store"/></svg><span class="nm">阳光生鲜</span></div>
+            <div class="help">? 帮助</div>
+          </div>
+          <div class="body">
+            <div class="card opt is-on" style="flex-direction:column;align-items:stretch;gap:12px">
+              <div style="display:flex;align-items:center;gap:12px">
+                <div class="ic"><svg class="ico lg"><use href="#i-leaf"/></svg></div>
+                <div><div class="t">阳光生鲜（文三路）</div><div class="d">步行 5 分钟 · 营业到晚上 6 点</div></div>
+              </div>
+              <div class="bigbtn is-half">进去看菜</div>
+            </div>
+            <div class="card opt" style="flex-direction:column;align-items:stretch;gap:12px">
+              <div style="display:flex;align-items:center;gap:12px">
+                <div class="ic"><svg class="ico lg"><use href="#i-bowl"/></svg></div>
+                <div><div class="t">邻里粮油店（古荡）</div><div class="d">步行 12 分钟 · 营业到下午 5 点</div></div>
+              </div>
+              <div class="bigbtn is-ghost is-half">进去看菜</div>
+            </div>
+            <div class="card opt" style="flex-direction:column;align-items:stretch;gap:12px">
+              <div style="display:flex;align-items:center;gap:12px">
+                <div class="ic"><svg class="ico lg"><use href="#i-meat"/></svg></div>
+                <div><div class="t">鲜肉铺（黄龙）</div><div class="d">步行 15 分钟<br>上午 6 点到中午 12 点</div></div>
+              </div>
+              <div class="bigbtn is-ghost is-half">进去看菜</div>
+            </div>
+            <div class="tip" style="margin-top:auto;margin-bottom:14px"><span class="ic"><svg class="ico sm"><use href="#i-pin"/></svg></span><div>店名后面的时间就是<b>今天开门到几点</b>。找不到想去的店？<b>点这里选小区</b>。</div></div>
+          </div>
+          <div class="homer"></div>
+        </div></div>
+      </div>
+
+      <div class="board">
+        <div class="board-cap"><span class="k">S2</span><span class="name">我买了啥</span><span class="sec-note" style="margin:0 0 0 6px">能减能撤 · 合计一直在眼前</span></div>
+        <div class="phone"><div class="screen">
+          <div class="sbar"><span>9:41</span><span>●●● 100%</span></div>
+          <div class="nav">
+            <div class="back">←</div>
+            <div class="shoppill"><svg class="ico sm"><use href="#i-store"/></svg><span class="nm">阳光生鲜</span><svg class="ico sm"><use href="#i-chevron"/></svg></div>
+            <div class="help">? 帮助</div>
+          </div>
+          <div class="body" style="gap:10px">
+            <div class="card row is-cart">
+              <div class="pic">🥩</div>
+              <div><div class="nm">五花肉</div><div class="pr">¥16.00 一斤</div></div>
+              <div class="step"><button>−</button><span class="q">2</span><button class="is-plus">+</button></div>
+            </div>
+            <div class="card row is-cart">
+              <div class="pic">🥚</div>
+              <div><div class="nm">鸡蛋</div><div class="pr">¥12.00 一板</div></div>
+              <div class="step"><button>−</button><span class="q">1</span><button class="is-plus">+</button></div>
+            </div>
+            <div class="card row is-cart">
+              <div class="pic">🥛</div>
+              <div><div class="nm">牛奶</div><div class="pr">¥4.50 一盒</div></div>
+              <div class="step"><button>−</button><span class="q">2</span><button class="is-plus">+</button></div>
+            </div>
+            <div class="card total" style="margin-top:6px">
+              <span class="k">一共 3 样，合计</span><span class="v"><small>¥</small>53.00</span>
+            </div>
+            <div class="tip"><span class="ic"><svg class="ico sm"><use href="#i-trash"/></svg></span><div>不想买了？点左边的<b>减号</b>，减到 0 就自动去掉，<b>不会扣钱</b>。</div></div>
+          </div>
+          <div class="dock">
+            <div class="sum">下一步告诉您怎么拿、怎么付</div>
+            <div class="go">下一步</div>
+          </div>
+          <div class="homer"></div>
+        </div></div>
+      </div>
+      <div class="board">
+        <div class="board-cap"><span class="k">S3</span><span class="name">怎么拿菜</span><span class="sec-note" style="margin:0 0 0 6px">只有两个选择 · 时间和地址都写在明处</span></div>
+        <div class="phone"><div class="screen">
+          <div class="sbar"><span>9:41</span><span>●●● 100%</span></div>
+          <div class="nav">
+            <div class="back">←</div>
+            <div class="shoppill is-locked"><svg class="ico sm"><use href="#i-store"/></svg><span class="nm">阳光生鲜</span></div>
+            <div class="help">? 帮助</div>
+          </div>
+          <div class="body">
+            <div class="card opt is-on">
+              <div class="ic"><svg class="ico lg"><use href="#i-truck"/></svg></div>
+              <div><div class="t">送货到家</div><div class="d">明天上午 9 点到 11 点<br>送到 阳光小区 3 幢 502</div></div>
+              <div class="radio"></div>
+            </div>
+            <div class="card opt">
+              <div class="ic"><svg class="ico lg"><use href="#i-store"/></svg></div>
+              <div><div class="t">我去店里拿</div><div class="d">步行 5 分钟<br>营业到晚上 6 点</div></div>
+              <div class="radio"></div>
+            </div>
+            <div class="card pad">
+              <div style="font-size:var(--fs-body);color:var(--ink-2)">送到哪儿</div>
+              <div style="font-size:var(--fs-mid);font-weight:700;margin-top:5px">阳光小区 3 幢 502 · 张奶奶</div>
+              <div class="bigbtn is-ghost is-half" style="margin-top:12px">换个地址</div>
+            </div>
+            <div class="tip" style="margin-top:auto;margin-bottom:14px"><span class="ic"><svg class="ico sm"><use href="#i-phone"/></svg></span><div>头一次送，店里会<b>先打电话</b>再上门，不会直接敲门。</div></div>
+          </div>
+          <div class="dock">
+            <div class="sum">选好了就下一步</div>
+            <div class="go">下一步 · 付钱</div>
+          </div>
+          <div class="homer"></div>
+        </div></div>
+      </div>
+      <div class="board">
+        <div class="board-cap"><span class="k">S4</span><span class="name">付钱</span><span class="sec-note" style="margin:0 0 0 6px">金额最大 · 三种付法都不要求会打字</span></div>
+        <div class="phone"><div class="screen">
+          <div class="sbar"><span>9:41</span><span>●●● 100%</span></div>
+          <div class="nav">
+            <div class="back">←</div>
+            <div class="shoppill is-locked"><svg class="ico sm"><use href="#i-store"/></svg><span class="nm">阳光生鲜</span></div>
+            <div class="help">? 帮助</div>
+          </div>
+          <div class="body">
+            <div class="card total">
+              <span class="k">一共 3 样，要付</span><span class="v"><small>¥</small>53.00</span>
+            </div>
+            <div class="card opt is-on">
+              <div class="ic" style="background:#E8F3EC"><svg class="ico lg"><use href="#i-chat"/></svg></div>
+              <div><div class="t">微信支付</div><div class="d">按指纹就行，不用打字</div></div>
+              <div class="radio"></div>
+            </div>
+            <div class="card opt">
+              <div class="ic"><svg class="ico lg"><use href="#i-family"/></svg></div>
+              <div><div class="t">让儿女帮我付</div><div class="d">发个消息给儿子<br>他付完您接着等</div></div>
+              <div class="radio"></div>
+            </div>
+            <div class="card opt">
+              <div class="ic"><svg class="ico lg"><use href="#i-cash"/></svg></div>
+              <div><div class="t">到店付现金</div><div class="d">只有「我去店里拿」时能选</div></div>
+              <div class="radio"></div>
+            </div>
+            <div class="bigbtn" style="margin-top:auto">确认下单</div>
+            <div style="font-size:var(--fs-body);color:var(--ink-2);text-align:center;padding-bottom:14px">点一下就好，付错了可以取消</div>
+          </div>
+          <div class="homer"></div>
+        </div></div>
+      </div>
+      <div class="board">
+        <div class="board-cap"><span class="k">S5</span><span class="name">下单好了</span><span class="sec-note" style="margin:0 0 0 6px">告诉她接下来会发生什么</span></div>
+        <div class="phone"><div class="screen">
+          <div class="sbar"><span>9:42</span><span>●●● 100%</span></div>
+          <div class="nav">
+            <div class="shoppill is-locked"><svg class="ico sm"><use href="#i-store"/></svg><span class="nm">阳光生鲜</span></div>
+            <div class="help">? 帮助</div>
+          </div>
+          <div class="body">
+            <div class="okhead">
+              <div class="mark"><svg class="ico"><use href="#i-check"/></svg></div>
+              <div class="t">已经告诉店里了</div>
+              <div class="d">阳光生鲜 · 明天上午 9 点到 11 点送到家</div>
+            </div>
+            <div class="card">
+              <div class="prog">
+                <div class="p is-done"><div class="dot"></div><div class="t">下单好了</div><div class="d">9:42</div></div>
+                <div class="p is-now"><div class="dot"></div><div class="t">店里备菜</div><div class="d">今晚整理</div></div>
+                <div class="p is-pend"><div class="dot"></div><div class="t">送到家</div><div class="d">上午 9 到 11 点</div></div>
+              </div>
+            </div>
+            <div class="card codecard">
+              <div class="k">订单号</div>
+              <div class="v">0742</div>
+              <div class="d">送货来了，把这个号给他看就行</div>
+            </div>
+            <div class="two" style="margin-top:auto">
+              <div class="bigbtn is-soft is-half">打给店里</div>
+              <div class="bigbtn is-ghost is-half">回到首页</div>
+            </div>
+            <div class="bigbtn is-ghost is-half" style="margin-bottom:14px;color:var(--danger);border-color:#E7C9C6">不要了，取消订单</div>
+          </div>
+          <div class="homer"></div>
+        </div></div>
+      </div>
+      <div class="board">
+        <div class="board-cap"><span class="k">S6</span><span class="name">兜底页（支线 B）</span><span class="sec-note" style="margin:0 0 0 6px">每屏右上角都能到这里 · 不靠手势</span></div>
+        <div class="phone"><div class="screen">
+          <div class="sbar"><span>9:44</span><span>●●● 100%</span></div>
+          <div class="nav"><div class="back">←</div><div class="title">不会用？我们帮您</div></div>
+          <div class="body">
+            <div class="tip"><span class="ic"><svg class="ico sm"><use href="#i-pin"/></svg></span><div>您现在在<b>第 3 步：怎么拿菜</b>。不用重来，直接找人说就行。</div></div>
+            <div class="bigbtn">打给店里（阳光生鲜）</div>
+            <div class="bigbtn is-soft">打给儿子</div>
+            <div class="bigbtn is-ghost">叫社区志愿者来帮忙</div>
+            <div class="card pad">
+              <div style="font-size:var(--fs-name);font-weight:700">让儿子在手机上看您的订单</div>
+              <div style="font-size:var(--fs-body);color:var(--ink-2);margin-top:5px">他能看到您买了啥、什么时候送到，也能替您付钱。</div>
+              <div class="bigbtn is-half" style="margin-top:12px">发个消息给儿子</div>
+            </div>
+            <div class="bigbtn is-ghost is-half" style="margin-top:auto;margin-bottom:14px">回到刚才那一页</div>
+          </div>
+          <div class="homer"></div>
+        </div></div>
+      </div>
+      <div class="board">
+        <div class="board-cap"><span class="k">T1</span><span class="name">购物车（一级页）</span><span class="sec-note" style="margin:0 0 0 6px">底栏进来的篮子 · 一家店一分，不合并</span></div>
+        <div class="phone"><div class="screen">
+          <div class="sbar"><span>9:47</span><span>●●● 100%</span></div>
+          <div class="nav">
+            <div class="bell"><svg class="ico"><use href="#i-bell"/></svg></div>
+            <div class="shoppill"><svg class="ico sm"><use href="#i-store"/></svg><span class="nm">阳光生鲜</span><svg class="ico sm"><use href="#i-chevron"/></svg></div>
+            <div class="help">? 帮助</div>
+          </div>
+          <div class="body" style="gap:10px">
+            <div class="card shopgroup">
+              <div style="display:flex;align-items:center;gap:9px;padding:11px 14px;background:var(--green-soft);font-size:var(--fs-body);font-weight:600;color:var(--green-deep)">
+                <svg class="ico sm"><use href="#i-leaf"/></svg><span>阳光生鲜（文三路） · 3 样</span>
+              </div>
+              <div class="row is-cart">
+                <div class="pic">🥩</div>
+                <div><div class="nm">五花肉</div><div class="pr">¥16.00 一斤</div></div>
+                <div class="step"><button>−</button><span class="q">2</span><button class="is-plus">+</button></div>
+              </div>
+              <div class="row is-cart">
+                <div class="pic">🥚</div>
+                <div><div class="nm">鸡蛋</div><div class="pr">¥12.00 一板</div></div>
+                <div class="step"><button>−</button><span class="q">1</span><button class="is-plus">+</button></div>
+              </div>
+              <div class="row is-cart">
+                <div class="pic">🥛</div>
+                <div><div class="nm">牛奶</div><div class="pr">¥4.50 一盒</div></div>
+                <div class="step"><button>−</button><span class="q">2</span><button class="is-plus">+</button></div>
+              </div>
+              <div class="total">
+                <span class="k">这一家一共 3 样，合计</span><span class="v"><small>¥</small>53.00</span>
+              </div>
+            </div>
+            <div class="tip" style="margin-top:auto;margin-bottom:12px"><span class="ic"><svg class="ico sm"><use href="#i-basket"/></svg></span><div>不同店的菜<b>不能并成一单</b>，得分开下。这一屏只有阳光生鲜这一家。</div></div>
+          </div>
+          <div class="dock">
+            <div class="sum">接着告诉您怎么拿、怎么付</div>
+            <div class="go">下一步 · 怎么拿</div>
+          </div>
+          <div class="tabbar">
+            <div class="tab"><span class="ic"><svg class="ico"><use href="#i-home"/></svg></span><span class="t">首页</span></div>
+            <div class="tab is-on"><span class="ic"><svg class="ico"><use href="#i-cart"/></svg><span class="n">3</span></span><span class="t">购物车</span></div>
+            <div class="tab"><span class="ic"><svg class="ico"><use href="#i-box"/></svg></span><span class="t">订单</span></div>
+            <div class="tab"><span class="ic"><svg class="ico"><use href="#i-user"/></svg></span><span class="t">我的</span></div>
+          </div>
+          <div class="homer"></div>
+        </div></div>
+      </div>
+
+
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="sec-h"><span class="idx">3</span><h2>可核对的硬规格</h2><span class="sub">字号 / 触控 / 对比度 / 手势 / 文案 · 每条都能在代码里验证</span></div>
+    <p class="sec-note">下面每一项都是本文件里的实际取值，不是愿望清单。研发时可以直接做成 lint 规则与验收用例。</p>
+
+    <div class="grid-2">
+      <div class="panel">
+        <div class="panel-h">3.1 字号与触控<span>地板是 <code>--fs-mini</code>，随缩放一起走</span></div>
+        <div class="panel-b">
+          <table class="sp">
+            <tr><th>元素</th><th>令牌</th><th>基准</th><th>× .9 实渲</th><th>为什么</th></tr>
+            <tr><td>门店药丸 <code>.shoppill</code></td><td><code>--fs-mid</code></td><td>20</td><td>18</td><td>v0.5 起顶掉标题，成为每屏常驻的那一行</td></tr>
+            <tr><td>页面标题 <code>.nav .title</code></td><td><code>--fs-title</code></td><td>22</td><td>19.8</td><td><b>只剩 S6 兜底页还有</b>，其余屏已由药丸顶掉</td></tr>
+            <tr><td>首页问候 / 结果主话 <code>.hello .g .okhead .t</code></td><td><code>--fs-hero</code> <code>--fs-ok</code></td><td>26 / 27</td><td>23.4 / 24.3</td><td>老花距离下不用凑近</td></tr>
+            <tr><td>商品名 / 选项名 / 类别名 <code>.row .nm .grow .nm .opt .t .l1i .t .l2i</code></td><td><code>--fs-name</code></td><td>19</td><td>17.1</td><td>正文口径，整套的锚</td></tr>
+            <tr><td>店名全称 / 行金额 <code>.shopimg .t .row .amt</code></td><td><code>--fs-mid</code></td><td>20</td><td>18</td><td>比正文高一档，指路用</td></tr>
+            <tr><td>合计金额 / 主按钮 <code>.total .v .bigbtn</code></td><td><code>--fs-money</code> <code>--fs-btn</code></td><td>30 / 22</td><td>27 / 19.8</td><td>涉及钱的一律加粗放大</td></tr>
+            <tr><td>底栏合计 / 数量数字 <code>.dock .sum b .step .q</code></td><td><code>--fs-sum</code> <code>--fs-qty</code></td><td>24 / 22</td><td>21.6 / 19.8</td><td>不点开购物车也能核</td></tr>
+            <tr><td>订单号 <code>.codecard .v</code></td><td><code>--fs-code</code></td><td>52</td><td>46.8</td><td>隔着一步路给送货员看清</td></tr>
+            <tr><td>说明 / 提示条 / 底栏标签与角标 <code>.pr .opt .d .tip .tabbar .t .tabbar .n</code></td><td><code>--fs-body</code></td><td>16</td><td>14.4</td><td>常用小字的地板，比 <code>--fs-mini</code> 高一档</td></tr>
+            <tr><td>日期 / 单位 / 二级栏种数 / 「已买」标 <code>.hello .d .shopimg .d .grow .pr .l2i .n .grow .nm b</code></td><td><code>--fs-body</code></td><td>16</td><td>14.4</td><td>v0.5 首页新增的四类小字，一律走同一档，不新开一层</td></tr>
+            <tr><td>进度条时间戳 <code>.prog .d</code></td><td><code>--fs-mini</code></td><td>15</td><td>13.5</td><td>全系统最小档，只放时间</td></tr>
+            <tr><td>主按钮高度 <code>.bigbtn</code></td><td><code>--tap-primary</code></td><td>不缩放</td><td>58（原 64）</td><td>拇指不误触、食指不用瞄准</td></tr>
+            <tr><td>半高按钮 / 底栏结算 <code>.bigbtn.is-half .dock .go</code></td><td><code>--tap-half</code></td><td>不缩放</td><td>54（原 58）</td><td>一屏里第二档按钮</td></tr>
+            <tr><td>加减控件 <code>.step button</code></td><td><code>--tap-step</code></td><td>不缩放</td><td>48（原 52）</td><td>一单要点 3–6 次</td></tr>
+            <tr><td>返回 / 帮助 / 铃铛 / 底栏单项 / 二级栏一项 <code>.nav .back .bell .help .tabbar .tab .l2i</code></td><td><code>--tap-nav</code></td><td>不缩放</td><td class="no">44（原 48）</td><td>WCAG 2.1 AA 目标下限，收回来的最后一格</td></tr>
+            <tr><td>门店药丸 <code>.shoppill</code></td><td><code>--tap-nav</code>（高度）</td><td>不缩放</td><td>44，宽最长 150</td><td>每屏都要点得到，不能比返回还小</td></tr>
+            <tr><td>一级分类格 <code>.l1i</code></td><td>自定 74 × 66</td><td>不缩放</td><td>74 × 66</td><td>比 44 大一圈，因为横滑要靠它当「还能滑」的线索</td></tr>
+            <tr><td>商品行整卡 <code>.grow</code></td><td>整卡即加购热区</td><td>不缩放</td><td>约 156 × 65</td><td>加号只是提示，落点其实是整条</td></tr>
+            <tr><td>界面图标描边 <code>.ico</code></td><td>一处定义：<code>stroke-width 1.7</code> + 圆头端点</td><td>不缩放</td><td>方框 19 / 22 / 24</td><td>22 个图标同一套粗细，风格才叫统一</td></tr>
+          </table>
+          <ul class="rules" style="margin-top:12px">
+            <li>屏内文字只引用 <code>--fs-*</code>，<b>没有一处裸 px</b>。v0.3 做的事是把基准整体乘 <code>--fs-scale: .9</code>——旋钮只有这一个，屏内 HTML 与这张表都不用再动。</li>
+            <li>地板是 <b><code>--fs-mini</code> 这个令牌</b>，不是一个写死的 px：缩放后它是 13.5px。其余文字一律不低于 <code>--fs-body</code>。这样整体调大调小都不会破自己的规矩。</li>
+            <li>触控尺寸<b>故意不吃 <code>--fs-scale</code></b>：字号可以让用户（或家属代调）选，防误触的按钮高度不能跟着抖。<code>--tap-nav</code> 44px 已贴 WCAG 下限，再收就破线。</li>
+            <li><b>已知缺口：</b>若将来允许把 <code>--fs-scale</code> 调到 1 以上，<code>--fs-hero</code>（26 × 1.1 ≈ 28.6px）会顶不进 58px 的 <code>.bigbtn</code>。真要做「可调大」，<code>--tap-*</code> 必须同时给系数。这一版没有，先记在这儿。</li>
+            <li><b>v0.4 把界面图标定成一套 inline SVG 描边</b>：尺寸走 <code>.ico</code> 的方框（19 / 22 / 24 三档），<b>不吃 <code>--fs-scale</code></b>，颜色走 <code>currentColor</code> 所以选中态只要改文字色就跟着变。定义集中在 <code>&lt;body&gt;</code> 顶部的 sprite，屏内只用 <code>&lt;use href="#i-…"&gt;</code> 引用——仍然是单文件自包含，没有外部图标库。</li>
+            <li>仍然<b>不进令牌</b>的三类图形：加减号 / 返回箭头 / 「?」这些是<b>打字字符</b>不是图标；模拟状态栏 13px 由 OS 绘制；商品图 <code>.pic</code> 故意留 emoji——那是<b>照片占位</b>，彩色才对，换成同粗细线稿反而分不出猪肉和豆腐。屏内唯一吃字号的角标是购物车数字，它走 <code>--fs-body</code>，不许落到地板以下。</li>
+            <li><b>v0.5 首页那五段是手算出来的，不是试出来的：</b>问候 32 + 店铺图 98 + 一级横滑 66 + 左右分栏 272 + 提示条约 52 ＝ 520，加 4 段间距 40 ＝ <b>560</b>，可用区 576（824 − 状态栏 40 − header 62 − 结算条 79 − 底栏 63 − 上内边距 4），<b>余 16px</b>。这是本文件目前最挤的一屏，<code>--fs-scale</code> 若往上调，第一个撑破的就是它——所以首页是全局字号机制落地时<b>必须回归测试的第一屏</b>。「想吃哪类」那四个字之所以挤在滑道左边而不是单独起一行，就是因为那一行 34px 这屏给不起。</li>
+            <li><b>药丸顶掉标题是取舍，不是免费：</b>药丸只能放 4 个字（整丸实测宽 150px，而最窄一档留给它的是 152px——S0 有铃铛、其余屏有返回，右边还压着一个帮助按钮），所以「阳光生鲜（文三路）· 步行 5 分钟 · 营业到晚上 6 点」这句话必须拆两处：<b>店名进药丸，全称和营业信息进首页那张店铺图下面那行</b>。分店括注从此不在每一屏都看得见，这是砍掉的代价。</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-h">3.2 对比度实测<span>按 WCAG 2.1 相对亮度算，非目测</span></div>
+        <div class="panel-b">
+          <table class="sp">
+            <tr><th>前景 / 背景</th><th>实测</th><th>判定</th></tr>
+            <tr><td>正文 <code>#1E2A22</code> / 米白 <code>#F7F6F1</code></td><td>13.77:1</td><td class="yes">通过 AAA</td></tr>
+            <tr><td>次要说明 <code>#55655A</code> / 卡片白</td><td>6.18:1</td><td class="yes">通过 AA</td></tr>
+            <tr><td>次要说明 <code>#55655A</code> / 米白</td><td>5.72:1</td><td class="yes">通过 AA</td></tr>
+            <tr><td>主按钮白字 / <code>#2F6B47</code></td><td>6.33:1</td><td class="yes">通过 AA 正文级</td></tr>
+            <tr><td>选中态字 <code>#2F6B47</code> / <code>#E8F3EC</code></td><td>5.57:1</td><td class="yes">通过 AA</td></tr>
+            <tr><td>药丸 / 一级格 / 二级栏 选中态同上一项</td><td>5.57:1</td><td class="yes">通过 AA，v0.5 复用</td></tr>
+            <tr><td>锁定态药丸 <code>#55655A</code> / <code>#FCFBF6</code></td><td>5.97:1</td><td class="yes">通过 AA，v0.5 新测</td></tr>
+            <tr><td>店铺图占位兜底字 <code>#55655A</code> / 渐变最深 <code>#DCEBE1</code></td><td>5.01:1</td><td class="yes">通过 AA，v0.5 新测</td></tr>
+            <tr><td>选中格描边 <code>#4C9A6A</code> / 米白</td><td>3.16:1</td><td class="yes">图形级达标（非文本 3:1）</td></tr>
+            <tr><td>「已买」标记 <code>#2F6B47</code> / 卡片白</td><td>6.33:1</td><td class="yes">通过 AA</td></tr>
+            <tr><td>提示条字 <code>#2C5480</code> / <code>#E9F0F8</code></td><td>6.80:1</td><td class="yes">通过 AA</td></tr>
+            <tr><td>取消订单 <code>#B4534A</code> / 卡片白</td><td>4.91:1</td><td class="yes">通过 AA</td></tr>
+            <tr><td>加减号 / 成功勾白描边 / <code>#4C9A6A</code></td><td>3.42:1</td><td class="yes">图形级达标（非文本 3:1）</td></tr>
+            <tr><td>描边图标最低项 <code>#55655A</code> / <code>#E8F3EC</code></td><td>5.44:1</td><td class="yes">图形级达标，v0.4 新测</td></tr>
+            <tr><td>弱化灰 <code>#8A9690</code> / 米白</td><td>2.83:1</td><td class="no">不达标，屏内禁用</td></tr>
+          </table>
+          <ul class="rules" style="margin-top:12px">
+            <li><b>v0.3 缩放带来的判定变化：</b>原先 19px 粗体（商品名）算 WCAG「大文本」，只要求 3:1；乘 .9 之后是 17.1px，掉到 18.66px 粗体门槛以下，<b>按普通文本 4.5:1 判</b>。颜色一个都没动，最低的一项是取消订单 4.91:1，仍全部达标。</li>
+            <li>实底按钮的白字底色必须是 <code>--green-deep #2F6B47</code>。换成 <code>--green #4C9A6A</code> 只有 3.42:1，够大文本、不够老人正文。</li>
+            <li><code>--green</code> 保留给图标底、选中描边、进度条、底栏角标描边这类<b>图形</b>，不承担文字对比度。</li>
+            <li>底栏标签：未选中 <code>#55655A</code> / 卡片白 = 6.18:1，选中 <code>#2F6B47</code> / 卡片白 = 6.33:1，都是本表已实测过的组合，没有新面孔。</li>
+            <li><b>描边图标不会单独产生新的对比度问题：</b>它用 <code>currentColor</code>，所以它的对比度就是它所在文字色的对比度。逐对实测——底栏未选中 6.18:1、底栏选中 6.33:1、一级格与二级栏选中态和店铺 pin <code>#2F6B47</code> / <code>#E8F3EC</code> 5.57:1、未选中付法选项与锁定态药丸 <code>#55655A</code> / <code>#FCFBF6</code> 5.97:1、微信那条 <code>#55655A</code> / <code>#E8F3EC</code> 5.44:1、提示条与帮助 6.80:1。图形只要求 WCAG 1.4.11 的 3:1，最低一项 5.44:1 仍有一倍余量；唯一压实底的成功勾是白描边 / <code>#4C9A6A</code> = 3.42:1，也过线。</li>
+            <li><b>首页的选中态不是只靠颜色表达的：</b>一级格与二级栏被选中的那一格同时改三件事——底色转 <code>--green-soft</code>、描边转 <code>--green</code>、文字转 <code>--green-deep</code> 且字重从 600 加到 700，未选中那格则始终带描边和投影。所以「哪一格是当前类别」不依赖看出色差，色弱或屏幕偏色也读得出来（WCAG 1.4.1 用色 / 1.4.11 非文本对比）。药丸的三种态同理：可点的带「⌄」，锁死的既没有「⌄」也退了底色。</li>
+            <li>系统状态栏（9:41、电量）由 OS 绘制，不计入产品文字规格。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="grid-2" style="margin-top:20px">
+      <div class="panel">
+        <div class="panel-h">3.3 禁用手势 → 替代做法<span>目标是零学习成本</span></div>
+        <div class="panel-b">
+          <table class="sp">
+            <tr><th>不要这样</th><th>要这样</th><th>落在哪屏</th></tr>
+            <tr><td class="no">双指缩放地图选店</td><td>店铺列表 + 「步行几分钟」</td><td>S1</td></tr>
+            <tr><td class="no">两级分类逐级下钻 + 面包屑回退</td><td>一级横滑、二级竖列、商品同屏——两级<b>永远同时在场</b>，没有「点进去再退回来」这一下</td><td>S0</td></tr>
+            <tr><td class="no">长按一级分类格才展开二级</td><td>点一下就换，左边那一列立刻跟着变</td><td>S0</td></tr>
+            <tr><td class="no">左滑删除商品</td><td>看得见的减号，减到 0 自动去掉</td><td>S2 / T1</td></tr>
+            <tr><td class="no">长按唤出「更多操作」</td><td>所有能做的事都摊在屏幕上</td><td>全程</td></tr>
+            <tr><td class="no">拖拽滑块调数量</td><td>加减按钮，点一次变一个</td><td>S2 / T1</td></tr>
+            <tr><td class="no">下拉刷新 / 双击</td><td>进页面就是最新数据</td><td>全程</td></tr>
+            <tr><td class="no">输手机号 + 收验证码登录</td><td>家属预先绑定，打开就是「张奶奶，您好」</td><td>S0</td></tr>
+            <tr><td class="no">打字填地址 / 手写门牌</td><td>预先存好，屏上只用点</td><td>S3</td></tr>
+            <tr><td class="no">倒计时、优惠券弹窗、红色营销角标</td><td>除首页外一屏一个决定，不催促</td><td>全程</td></tr>
+            <tr><td class="no">付钱付一半，底栏一键跳回首页</td><td>底栏只在一级页；进结算后收起，横向出口只留左上角返回；药丸同时锁死</td><td>S3–S5</td></tr>
+            <tr><td class="no">把「换一家店」做成藏在角落的入口</td><td>店名就写在屏顶正中那一格，点它到 S1</td><td>S0 / S2 / T1</td></tr>
+            <tr><td class="no">记住「我刚才在哪个类别」再滑回去找</td><td>选中态常驻不变：<b>没选中</b>的格子会跟着手指走，<b>被选中</b>那格一直留在原地当锚</td><td>S0</td></tr>
+            <tr class="is-open"><td><b>v0.5 主动破例：</b>一级分类要靠一次横向滑动才看全</td><td>缓解四件：滑道左边钉着一个不跟着滑的「想吃哪类」，所以「这一行是什么」永远看得见；一屏露<b>3 格 + 约 30px 的半格</b>，被裁那一截就是「这边还有」的线索；格子 74 × 66 比按钮下限大一圈；被选中那格始终留在原位不跳动。<b>要不要再加左右箭头，见 §3.5</b></td><td>S0</td></tr>
+            <tr class="is-open"><td><b>v0.5 主动破例：</b>二级栏和商品列各自纵向可滑</td><td>最后一项<b>故意画成被裁一半</b>（二级栏第 6 项「鱼」只剩半截、商品第 4 条只露上半张卡），用「看得见没看完」代替任何刷新手势；「全部」永远置顶，滑不动也不会漏</td><td>S0</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-h">3.4 术语口语化对照<span>代码里的名词不许出现在屏上</span></div>
+        <div class="panel-b">
+          <table class="sp">
+            <tr><th>系统 / 后端叫法</th><th>屏上叫</th><th>出处</th></tr>
+            <tr><td><code>cart</code> 购物车</td><td class="yes">底栏 Tab 叫「购物车」，屏内叫「已经买了 3 样」</td><td>Tab 故意沿用电商通用词不另造；v0.5 起 S2 / T1 已无「我买了啥」这行大字标题，靠底栏那句合计定位</td></tr>
+            <tr><td><code>shop</code> / <code>store_id</code> 门店</td><td class="yes">直接写店名「阳光生鲜」</td><td>药丸（全 7 屏）+ S0 店铺图下那行的全称「阳光生鲜 · 文三路」</td></tr>
+            <tr><td><code>category</code> / 一级分类树</td><td class="yes">想吃哪类（格子上的字仍是「肉」「蔬菜」这类菜市场的说法）</td><td>S0 滑道左边钉住的 <code>.l1cap</code>。「柜台」这个词从 v0.5 起屏上没有了，只活在本文件的叙述里</td></tr>
+            <tr><td><code>level = 2</code> 子分类</td><td class="yes">屏上写作「全部 / 猪肉 / 牛肉 / 羊肉 / 鸡肉 / 鱼」，不带「分类」「类目」字样</td><td><b>v0.5 改动：</b>子分类从「并进父柜台、屏上看不见」变成<b>明写在左边一列</b>。这是本次唯一一处屏上露出了第二层结构</td></tr>
+            <tr><td><code>count</code> 该分类 SKU 数</td><td class="yes">数字跟在类别名后面：「猪肉 3」「全部 9」</td><td>S0 二级栏。<b>不再写「种」字</b>——一行只有 84px，加了「种」就要么换行要么缩到地板以下</td></tr>
+            <tr><td><code>checkout</code> 结算</td><td class="yes">「一共 3 样，要付」</td><td>S4 合计行。已从标题降级为屏内那句话</td></tr>
+            <tr><td><code>fulfillment</code> 履约方式</td><td class="yes">「送货到家 / 我去店里拿」</td><td>S3 两个选项名。已从标题降级为选项本身</td></tr>
+            <tr><td><code>delivery / pickup</code></td><td class="yes">送货到家 / 我去店里拿</td><td>S3 两个选项</td></tr>
+            <tr><td><code>pickup_code</code> 核销码</td><td class="yes">把这个号给他看</td><td>S5</td></tr>
+            <tr><td><code>sku / product</code></td><td class="yes">直接写「五花肉」</td><td>S0 / S2 / T1</td></tr>
+            <tr><td><code>stock = 0</code> 缺货</td><td class="yes">今天卖完了</td><td>S0 未画状态</td></tr>
+            <tr><td><code>status = paid</code> 已支付</td><td class="yes">已经告诉店里了</td><td>S5 主话</td></tr>
+            <tr><td><code>address</code> 收货地址</td><td class="yes">送到哪儿</td><td>S3</td></tr>
+            <tr><td><code>family_pay</code> 亲属代付</td><td class="yes">让儿女帮我付</td><td>S4</td></tr>
+            <tr><td><code>cancel_order</code></td><td class="yes">不要了，取消订单</td><td>S5 红色按钮</td></tr>
+            <tr><td><code>shop_manager</code> 店长</td><td class="yes">店里的电话</td><td>S0 提示条 / S6</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="callout">
+      <b>3.5 画这 8 屏时冒出来的、需要产品先拍板的 14 件事</b>
+      <ul>
+        <li><b>店铺是入驻还是自营。</b>影响 S1 能不能承诺「线上写的有，店里真有」，也决定库存和定价归谁改。本原型按「单店自管库存」画；若改自营，只换 S1 的数据来源，主干不变。</li>
+        <li><b>一级分类超过六个怎么办。</b>现在滑道一屏露 3 格 + 半格，六个是画得下且不让人迷路的上限。店里若开出 8–10 个顶级分类，是让老人多滑两下，还是把米面油和调料合成一个大类？另外今天一种货都没有的空柜台、以及后台停用的分类（<code>is_active = false</code>），是留一格说「今天没有」还是直接隐藏——这条不定，S0 的滑道就没法验收。</li>
+        <li><b>药丸顶掉标题之后，老人怎么确认「我在第几步」。</b>v0.5 起除 S6 外屏上没有大字标题了，定位只剩合计那句「一共 3 样，要付」、减号在不在、以及底栏那句「下一步 · 付钱」。<b>这三样够不够一个老人判断自己没走错，是本轮最没底的一条</b>，也是画完才看见的代价——要补的话，只能补在合计那一行上面，而不是把标题加回来。</li>
+        <li><b>药丸能不能全程点。</b>本原型按「逛的时候能点、进结算就锁死」画：S0 / S2 / T1 带「⌄」，S3–S5 灰底无「⌄」。理由是换了店，已填的地址和这一篮子全作废，那一屏没人接得住。但若产品要求结算途中也能换店，就必须先定「半篮菜 + 地址怎么办」，否则锁死是唯一不骗人的画法。</li>
+        <li><b>铃铛里装什么。</b>S0 和 T1 画了铃铛入口，但<b>没画它点开的屏</b>——这是本轮新造出来的第三个空壳。装的是「店里通知：您买的鸡蛋今天到晚了」，还是「订单进度变更」，还是干脆是消息中心？若首版没有内容，这个铃铛应该删掉而不是留着等。</li>
+        <li><b>横滑要不要加左右箭头。</b>现在只靠「露半格」暗示还能滑。加一对 44px 的箭头最直白，但会挤掉一格半的可见数（342px 里给两侧各留 44 就只剩 2 格），对老人反而是「怎么只有两个类别」。要不要加、还是加在类别多于几个时才出现——没定。</li>
+        <li><b>「全部 9」和「猪肉 3」的计数口径。</b>PRD §5.4 写「商品可归属任意一级分类，也可不选分类」，所以那 9 个里可能有一件<b>只挂了「肉」、没挂任何二级</b>。它现在被「全部」兜住（这是选「全部置顶」要解决的问题），但<b>会不会在「猪肉」的计数里凭空少一件</b>——「全部 9」与「3+2+1+2+1=9」这条等式在真实数据下到底成不成立，要后端给口径。</li>
+        <li><b>到店付现金要不要留。</b>S4 第三条会造成线上下单、线下实收两张皮，需要店长确认。首版若砍掉，只剩微信 + 儿女代付，S4 更干净。</li>
+        <li><b>起送金额与配送费。</b>现在 ¥53.00 里没有任何配送费。一旦有，S3 与 S4 之间必须插一屏「再加 X 元才送到」，主流程从 6 屏变 7 屏——这是最容易破坏「步骤少」的地方。</li>
+        <li><b>已付款的订单谁能取消。</b>付款前自助取消已画在 S5；付款后是老人自己点、还是必须店长同意？决定 S5 要不要保留那个红色按钮。</li>
+        <li><b>定位失败又没存过小区时，S0 显示什么。</b>现在 S0 的药丸和店铺图都直接写「阳光生鲜 · 文三路」，前提是已经绑过地址。第一次打开的那一屏还没画——尤其要定：<b>没有店的时候，药丸里写什么</b>。</li>
+        <li><b>谁替老人做首次绑定。「订单」「我的」两个 Tab 还没画。</b>认出你是谁依赖家属先绑手机号与地址，这条前置流程在本原型之外，缺了它老人根本到不了 S0。订单页要按什么状态口径排（已告诉店里 / 店里备好了 / 可以拿了 / 已完成），我的页要不要放地址与家属绑定——这两屏不定，底栏就是三个空壳入口（加上铃铛是四个），点进去会白屏。</li>
+        <li><b>购物车空态长什么样，以及首页的空态。</b>底栏常驻之后，老人会在什么都没买的时候点进购物车，首页也会在没买任何东西时显示「已经买了 0 样」这种怪话。T1 画的是「3 样」这一种状态；空篮子是提示「还一样都没挑，去上面挑几样」并把 dock 那句换掉，还是直接不给 dock？</li>
+        <li><b>角标算一家店还是所有店。</b>PRD §3.5 定了不同店的菜<b>不能并成一单</b>，那底栏角标写「3」到底只指当前这一家，还是把所有店的篮子加起来？若相加，等于用图标暗示老人「这些能一起结」。本原型先按<b>当前所在店</b>计数——这也正是首页 dock 那句「已经买了 3 样」的口径。</li>
+      </ul>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div><b>捎点啥 sds</b> · 老人下单流程原型 v0.5 · 2026-11-15 · 单文件自包含，浏览器直接打开即可逐屏评审，8 块画板按每行 3 屏排布。</div>
+    <div>v0.2 变更：新增 <b>S2「想吃哪一类」</b>柜台屏，主干由 7 屏变 8 屏，S 编号自 S3 起顺延；屏内文字字号全部收进 <code>:root</code> 的 <code>--fs-*</code> 令牌（当时取值未动，v0.3 起由 <code>--fs-scale</code> 统一缩放）。</div>
+    <div><i>以下 v0.2–v0.4 三条是当时的记录，其中的 S 编号与屏数已被后面的版本改过，按当时代读，不回改。</i></div>
+    <div>v0.3 变更：加标准电商<b>底部导航</b>（首页 / 购物车 / 订单 / 我的），只在一级页 S0 与 T1 常驻，S1–S7 下单途中收起；新增 <b>T1「购物车（一级页）」</b>，按店分组、跨店不合并。字号整体缩一号＝<code>--fs-scale: .9</code>，触控同步收回一档（58 / 54 / 48 / 44）并抽成 <code>--tap-*</code> 令牌，<b>故意不吃字号系数</b>——用户能调字，防误触的按钮高度不能跟着抖。</div>
+    <div>v0.4 变更：界面图标从 emoji 换成<b>一套 inline SVG 描边</b>（21 个符号，<code>stroke-width 1.7</code>、<code>currentColor</code>、三档方框 19 / 22 / 24），底栏选中态照通用电商做法＝变绿 + 描边加重 + 淡色填实。覆盖底栏、柜台格、店铺与付法选项、提示条、成功勾共 34 处；<b>商品图 <code>.pic</code> 仍留 emoji</b>，那是照片占位不是图标。图标定义集中在 <code>&lt;body&gt;</code> 顶部的 sprite，屏内用 <code>&lt;use&gt;</code> 引用，不引外部库。</div>
+    <div>v0.5 变更（本轮，两处都是结构性的）：<b>①首页重画成分类浏览一屏</b>——一级分类横滑（74 × 66 一格，左边钉住「想吃哪类」）、二级分类竖列（「全部」置顶兜住只挂一级或没挂分类的商品）、商品列在右边，<b>两级同时在场，取消「点进柜台再退回来」那一层</b>；连带删掉旧 S2「想吃哪一类」与旧 S3「今天的菜」，主干由 8 屏变 <b>6 屏</b>，画板由 10 块变 <b>8 块</b>，S 编号自 S4 起前移两位。<b>这一版推翻了 v0.2 定下的「只走一级」口径</b>，理由是它把「看子分类」变成只能靠一级格的种类数猜。<b>②header 中间换成门店药丸、顶掉页面标题</b>：短店名「阳光生鲜」常驻 7 屏，S3–S5 进结算后锁死（灰底、无「⌄」），S1 换店页画成当前态；S0 与 T1 左侧加铃铛。图标增至 22 个（新增 <code>i-bell</code> <code>i-chevron</code>，删掉已无处的 <code>i-layers</code>）。字号取值与配色令牌<b>一个都没动</b>。</div>
+    <div>屏内的店名、价格、订单号均为演示数据，不代表真实供给。本文件定的是<b>流程与可达性规格</b>，不是视觉终稿；界面图标风格已在 v0.4 定下，商品图与店铺图仍留到视觉稿阶段。v0.5 只改了<b>结构与信息层级</b>，配色令牌、字号基准、触控档位三项一律没动。</div>
+    <div>关联文档：<code>docs/prd/SDS-PRD.md</code>（工程规格稿） · <code>docs/prd/PRD-捎点啥-sds-v0.1.md</code>（产品叙事稿）</div>
+  </footer>
+
+</div>
+</body>
+</html>
