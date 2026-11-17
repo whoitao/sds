@@ -1,26 +1,26 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { ROLES, ORDER_STATUS_LABELS } from '@sds/shared';
-import { publicShopRoutes } from './routes/public-shops';
-import { registerHealthRoutes } from './routes/health';
-import { adminAuthRoutes } from './routes/admin-auth';
-import { adminAccountRoutes } from './routes/admin-accounts';
-import { adminRbacRoutes } from './routes/admin-rbac';
-import { adminPreferenceRoutes } from './routes/admin-preferences';
-import { shopRoutes } from './routes/shops';
-import { productRoutes } from './routes/products';
-import { catalogRoutes } from './routes/catalog';
-import { inventoryRoutes } from './routes/inventory';
-import { purchaseRoutes } from './routes/purchases';
-import { mobileRoutes } from './routes/mobile';
-import { cartRoutes } from './routes/mobile-cart';
-import { adminCartRoutes } from './routes/admin-carts';
-import { mobileOrderRoutes } from './routes/mobile-orders';
-import { adminOrderRoutes } from './routes/admin-orders';
-import { authRoutes } from './routes/auth';
-import { addressRoutes } from './routes/addresses';
-import { regionRoutes } from './routes/regions';
-import { uploadRoutes } from './routes/uploads';
+import { publicShopRoutes } from './routes/public-shops.js';
+import { registerHealthRoutes } from './routes/health.js';
+import { adminAuthRoutes } from './routes/admin-auth.js';
+import { adminAccountRoutes } from './routes/admin-accounts.js';
+import { adminRbacRoutes } from './routes/admin-rbac.js';
+import { adminPreferenceRoutes } from './routes/admin-preferences.js';
+import { shopRoutes } from './routes/shops.js';
+import { productRoutes } from './routes/products.js';
+import { catalogRoutes } from './routes/catalog.js';
+import { inventoryRoutes } from './routes/inventory.js';
+import { purchaseRoutes } from './routes/purchases.js';
+import { mobileRoutes } from './routes/mobile.js';
+import { cartRoutes } from './routes/mobile-cart.js';
+import { adminCartRoutes } from './routes/admin-carts.js';
+import { mobileOrderRoutes } from './routes/mobile-orders.js';
+import { adminOrderRoutes } from './routes/admin-orders.js';
+import { authRoutes } from './routes/auth.js';
+import { addressRoutes } from './routes/addresses.js';
+import { regionRoutes } from './routes/regions.js';
+import { uploadRoutes } from './routes/uploads.js';
 
 /**
  * API 装配入口：认证中间件、RBAC、店铺隔离等按 PRD 4.5 分层逐步接入。

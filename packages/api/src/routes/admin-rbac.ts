@@ -9,9 +9,9 @@ import {
   adminUsers,
   getDb
 } from '@sds/db';
-import { requireAdmin, type AdminEnv } from '../middleware/admin-auth';
-import { guardPermission, loadAdminAccess } from '../lib/admin-access';
-import { validateCondition } from '../lib/abac';
+import { requireAdmin, type AdminEnv } from '../middleware/admin-auth.js';
+import { guardPermission, loadAdminAccess } from '../lib/admin-access.js';
+import { validateCondition } from '../lib/abac.js';
 
 /**
  * 后台管理员 ABAC 权限管理。

@@ -2,10 +2,10 @@ import { Hono } from 'hono';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { adminUsers, getDb } from '@sds/db';
-import { verifyPassword } from '../lib/password';
-import { signAdminToken } from '../lib/jwt';
-import { requireAdmin, type AdminEnv } from '../middleware/admin-auth';
-import { normalizePreferences } from '../lib/preferences';
+import { verifyPassword } from '../lib/password.js';
+import { signAdminToken } from '../lib/jwt.js';
+import { requireAdmin, type AdminEnv } from '../middleware/admin-auth.js';
+import { normalizePreferences } from '../lib/preferences.js';
 
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCK_MINUTES = 15;

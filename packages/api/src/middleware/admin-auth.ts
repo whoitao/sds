@@ -1,5 +1,5 @@
 import type { MiddlewareHandler } from 'hono';
-import { verifyAdminToken, type AdminTokenPayload } from '../lib/jwt';
+import { verifyAdminToken, type AdminTokenPayload } from '../lib/jwt.js';
 
 export type AdminEnv = {
   Variables: {

@@ -11,14 +11,14 @@ import {
   productStockTypeEnum,
   quantityModeEnum
 } from '@sds/db';
-import { requireAdmin, type AdminEnv } from '../middleware/admin-auth';
-import { guardPermission } from '../lib/admin-access';
+import { requireAdmin, type AdminEnv } from '../middleware/admin-auth.js';
+import { guardPermission } from '../lib/admin-access.js';
 import {
   fanOutCatalogProductsToAllShops,
   fanOutNewCatalogSku,
   syncCatalogSkuToShopSkus
-} from '../lib/catalog-fanout';
-import { inferQuantityMode } from '../lib/quantity';
+} from '../lib/catalog-fanout.js';
+import { inferQuantityMode } from '../lib/quantity.js';
 
 /**
  * 总部商品库（catalog）只读接口，对应多店方案 P1。

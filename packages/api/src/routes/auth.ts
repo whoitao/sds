@@ -8,14 +8,14 @@ import {
   findCustomerSession,
   tokenFromHeader,
   type CustomerSessionRow
-} from '../lib/customer-session';
-import { hashPassword } from '../lib/password';
+} from '../lib/customer-session.js';
+import { hashPassword } from '../lib/password.js';
 import {
   publicObjectUrl,
   readStorageConfig,
   StorageNotConfiguredError,
   uploadObject
-} from '../lib/storage';
+} from '../lib/storage.js';
 
 /**
  * 顾客端认证，对应 PRD 6.2 认证模块。

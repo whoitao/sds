@@ -10,8 +10,8 @@ import {
   productSkus,
   products
 } from '@sds/db';
-import { findCustomerSession, tokenFromHeader } from '../lib/customer-session';
-import { normalizeQuantity, quantityNumber, type QuantityMode } from '../lib/quantity';
+import { findCustomerSession, tokenFromHeader } from '../lib/customer-session.js';
+import { normalizeQuantity, quantityNumber, type QuantityMode } from '../lib/quantity.js';
 
 /**
  * 顾客购物车，绑定登录顾客（Bearer 会话）。

@@ -2,8 +2,8 @@ import { Hono } from 'hono';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { adminUsers, getDb } from '@sds/db';
-import { requireAdmin, type AdminEnv } from '../middleware/admin-auth';
-import { DISPLAY_DENSITIES, normalizePreferences, PAGE_SIZES } from '../lib/preferences';
+import { requireAdmin, type AdminEnv } from '../middleware/admin-auth.js';
+import { DISPLAY_DENSITIES, normalizePreferences, PAGE_SIZES } from '../lib/preferences.js';
 
 /** 后台界面偏好：主题与每页条数，按管理员账号持久化在 admin_users.preferences */
 export const adminPreferenceRoutes = new Hono<AdminEnv>();

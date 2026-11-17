@@ -3,7 +3,7 @@ import { sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb } from '@sds/db';
 import { nearbyShopQuerySchema } from '@sds/shared';
-import { shopMapHtml } from '../lib/shop-map';
+import { shopMapHtml } from '../lib/shop-map.js';
 
 export const publicShopRoutes = new Hono();
 

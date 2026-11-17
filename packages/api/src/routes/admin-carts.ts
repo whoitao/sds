@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 import { sql } from 'drizzle-orm';
 import { getDb } from '@sds/db';
-import { requireAdmin, type AdminEnv } from '../middleware/admin-auth';
-import { guardPermission } from '../lib/admin-access';
+import { requireAdmin, type AdminEnv } from '../middleware/admin-auth.js';
+import { guardPermission } from '../lib/admin-access.js';
 
 /**
  * 后台购物车管理（只读），对应迁移 0012。

@@ -2,9 +2,9 @@ import { Hono } from 'hono';
 import { and, desc, eq, ilike, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { adminRoles, adminUserRoles, adminUsers, addresses, customers, getDb, users, userRoleEnum } from '@sds/db';
-import { hashPassword } from '../lib/password';
-import { requireAdmin, type AdminEnv } from '../middleware/admin-auth';
-import { guardPermission } from '../lib/admin-access';
+import { hashPassword } from '../lib/password.js';
+import { requireAdmin, type AdminEnv } from '../middleware/admin-auth.js';
+import { guardPermission } from '../lib/admin-access.js';
 
 /**
  * 平台侧账号管理。

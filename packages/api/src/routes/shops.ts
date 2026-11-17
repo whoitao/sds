@@ -12,9 +12,9 @@ import {
   users
 } from '@sds/db';
 import type { BusinessHours } from '@sds/db';
-import { requireAdmin, type AdminEnv } from '../middleware/admin-auth';
-import { guardPermission } from '../lib/admin-access';
-import { fanOutCatalogProductsToShop } from '../lib/catalog-fanout';
+import { requireAdmin, type AdminEnv } from '../middleware/admin-auth.js';
+import { guardPermission } from '../lib/admin-access.js';
+import { fanOutCatalogProductsToShop } from '../lib/catalog-fanout.js';
 
 /** 平台侧店铺管理，对应 PRD 5.2 / 5.3 与 6.x 店铺模块 */
 export const shopRoutes = new Hono<AdminEnv>();

@@ -16,10 +16,10 @@ import {
   shops,
   stockMovements
 } from '@sds/db';
-import { requireAdmin, type AdminEnv } from '../middleware/admin-auth';
-import { guardPermission } from '../lib/admin-access';
-import { resolveCategoryScope } from '../lib/category-scope';
-import { inferQuantityMode } from '../lib/quantity';
+import { requireAdmin, type AdminEnv } from '../middleware/admin-auth.js';
+import { guardPermission } from '../lib/admin-access.js';
+import { resolveCategoryScope } from '../lib/category-scope.js';
+import { inferQuantityMode } from '../lib/quantity.js';
 
 /**
  * 平台侧商品管理，对应 PRD 5.4 categories / 5.5 products。

@@ -11,15 +11,15 @@ import {
   stockMovements,
   suppliers
 } from '@sds/db';
-import { requireAdmin, type AdminEnv } from '../middleware/admin-auth';
-import { guardPermission } from '../lib/admin-access';
+import { requireAdmin, type AdminEnv } from '../middleware/admin-auth.js';
+import { guardPermission } from '../lib/admin-access.js';
 import {
   addMoney,
   inferQuantityMode,
   normalizeQuantity,
   roundAmount,
   type QuantityMode
-} from '../lib/quantity';
+} from '../lib/quantity.js';
 
 /** 平台运营侧供应商、采购单与收货入库 */
 export const purchaseRoutes = new Hono<AdminEnv>();

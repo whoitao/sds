@@ -1,6 +1,6 @@
-import '../lib/load-env';
+import '../lib/load-env.js';
 import { adminUsers, closeDb, getDb } from '@sds/db';
-import { hashPassword } from '../lib/password';
+import { hashPassword } from '../lib/password.js';
 
 /**
  * 创建 / 重置平台管理员账号：

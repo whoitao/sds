@@ -10,10 +10,10 @@ import {
   type PaymentMethod
 } from '@sds/shared';
 import { customers, getDb, orderItems, orderPayments, orders, shops, users } from '@sds/db';
-import { requireAdmin, type AdminEnv } from '../middleware/admin-auth';
-import { guardPermission } from '../lib/admin-access';
-import { adjustCustomerStats, restoreOrderStock } from '../lib/order-settlement';
-import { refundPayment } from '../lib/payments';
+import { requireAdmin, type AdminEnv } from '../middleware/admin-auth.js';
+import { guardPermission } from '../lib/admin-access.js';
+import { adjustCustomerStats, restoreOrderStock } from '../lib/order-settlement.js';
+import { refundPayment } from '../lib/payments.js';
 
 /**
  * 后台订单管理：列表、详情、接单/配送/完成/取消、退款审核，对应 PRD 4.3 订单管理。

@@ -1,8 +1,8 @@
 import type { Context } from 'hono';
 import { eq, inArray } from 'drizzle-orm';
 import { adminPermissions, adminRolePermissions, adminRoles, adminUserRoles, getDb } from '@sds/db';
-import type { AdminEnv } from '../middleware/admin-auth';
-import { evaluateCondition, type AbacContext } from './abac';
+import type { AdminEnv } from '../middleware/admin-auth.js';
+import { evaluateCondition, type AbacContext } from './abac.js';
 
 export type AdminRoleBrief = { id: string; code: string; name: string };
 

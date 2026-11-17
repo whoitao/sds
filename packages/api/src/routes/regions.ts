@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { loadRegions } from '../lib/regions';
+import { loadRegions } from '../lib/regions.js';
 
 /**
  * 行政区划字典（公开接口，无需登录）。

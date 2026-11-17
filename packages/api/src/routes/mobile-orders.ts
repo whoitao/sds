@@ -24,10 +24,10 @@ import {
   shops,
   stockMovements
 } from '@sds/db';
-import { findCustomerSession, tokenFromHeader } from '../lib/customer-session';
-import { quantityNumber } from '../lib/quantity';
-import { adjustCustomerStats, restoreOrderStock } from '../lib/order-settlement';
-import { chargePayment, PAYMENT_PROVIDER } from '../lib/payments';
+import { findCustomerSession, tokenFromHeader } from '../lib/customer-session.js';
+import { quantityNumber } from '../lib/quantity.js';
+import { adjustCustomerStats, restoreOrderStock } from '../lib/order-settlement.js';
+import { chargePayment, PAYMENT_PROVIDER } from '../lib/payments.js';
 
 /**
  * 顾客下单与支付，对应 PRD 6 章订单流程。

@@ -3,8 +3,8 @@ import { and, desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { addresses, getDb } from '@sds/db';
 import { resolveRegionPath } from '@sds/shared';
-import { findCustomerSession, tokenFromHeader } from '../lib/customer-session';
-import { loadRegions } from '../lib/regions';
+import { findCustomerSession, tokenFromHeader } from '../lib/customer-session.js';
+import { loadRegions } from '../lib/regions.js';
 
 /**
  * 顾客收货地址（Bearer 顾客会话）。

@@ -1,12 +1,12 @@
 import { Hono } from 'hono';
-import { requireAdmin, type AdminEnv } from '../middleware/admin-auth';
-import { guardPermission } from '../lib/admin-access';
+import { requireAdmin, type AdminEnv } from '../middleware/admin-auth.js';
+import { guardPermission } from '../lib/admin-access.js';
 import {
   publicObjectUrl,
   readStorageConfig,
   StorageNotConfiguredError,
   uploadObject
-} from '../lib/storage';
+} from '../lib/storage.js';
 
 /** 管理端图片上传：表单 multipart，字段名 file，可选 dir（默认 shops） */
 export const uploadRoutes = new Hono<AdminEnv>();
