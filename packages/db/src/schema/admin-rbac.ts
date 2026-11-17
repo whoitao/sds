@@ -9,7 +9,7 @@ import {
   uniqueIndex,
   index
 } from 'drizzle-orm/pg-core';
-import { adminUsers } from './admin-users';
+import { adminUsers } from './admin-users.ts';
 
 /**
  * 后台管理员权限模型（ABAC）。

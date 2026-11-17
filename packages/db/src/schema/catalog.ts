@@ -11,8 +11,8 @@ import {
   timestamp,
   index
 } from 'drizzle-orm/pg-core';
-import { productStockTypeEnum } from './enums';
-import { shops } from './shops';
+import { productStockTypeEnum } from './enums.ts';
+import { shops } from './shops.ts';
 
 /**
  * 总部标准分类树，对应多店方案 P1（SQL 迁移 0008）。

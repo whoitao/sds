@@ -9,16 +9,16 @@ import {
   uuid,
   varchar
 } from 'drizzle-orm/pg-core';
-import { addresses, customers } from './customers';
+import { addresses, customers } from './customers.ts';
 import {
   fulfillmentTypeEnum,
   orderStatusEnum,
   paymentMethodEnum,
   paymentRecordStatusEnum,
   quantityModeEnum
-} from './enums';
-import { productSkus } from './skus';
-import { shops } from './shops';
+} from './enums.ts';
+import { productSkus } from './skus.ts';
+import { shops } from './shops.ts';
 
 /**
  * 顾客订单，对应迁移 0017。

@@ -10,11 +10,11 @@ import {
   uuid,
   varchar
 } from 'drizzle-orm/pg-core';
-import { adminUsers } from './admin-users';
-import { stockMovementTypeEnum } from './enums';
-import { productSkus } from './skus';
-import { shops } from './shops';
-import { users } from './users';
+import { adminUsers } from './admin-users.ts';
+import { stockMovementTypeEnum } from './enums.ts';
+import { productSkus } from './skus.ts';
+import { shops } from './shops.ts';
+import { users } from './users.ts';
 
 /**
  * SKU 库存流水：库存数量的唯一事实来源。

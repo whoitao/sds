@@ -11,9 +11,9 @@ import {
   timestamp,
   index
 } from 'drizzle-orm/pg-core';
-import { shops } from './shops';
-import { catalogProducts } from './catalog';
-import { productStockTypeEnum } from './enums';
+import { shops } from './shops.ts';
+import { catalogProducts } from './catalog.ts';
+import { productStockTypeEnum } from './enums.ts';
 
 /**
  * 商品分类表，对应 PRD 5.4。固定两级：

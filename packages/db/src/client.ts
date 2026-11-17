@@ -1,5 +1,5 @@
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import type * as schema from './schema';
+import type * as schema from './schema/index.ts';
 
 type Database = NodePgDatabase<typeof schema>;
 
@@ -21,12 +21,12 @@ export async function getDb(): Promise<Database> {
 
   let pgModule: typeof import('pg');
   let ormModule: typeof import('drizzle-orm/node-postgres');
-  let schemaModule: typeof import('./schema');
+  let schemaModule: typeof import('./schema/index.ts');
   try {
     [pgModule, ormModule, schemaModule] = await Promise.all([
       import('pg'),
       import('drizzle-orm/node-postgres'),
-      import('./schema')
+      import('./schema/index.ts')
     ]);
   } catch {
     throw new Error('数据库驱动未安装：请先执行 pnpm install');

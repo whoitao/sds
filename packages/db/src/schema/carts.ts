@@ -8,10 +8,10 @@ import {
   index,
   uniqueIndex
 } from 'drizzle-orm/pg-core';
-import { shops } from './shops';
-import { customers } from './customers';
-import { products } from './products';
-import { productSkus } from './skus';
+import { shops } from './shops.ts';
+import { customers } from './customers.ts';
+import { products } from './products.ts';
+import { productSkus } from './skus.ts';
 
 /**
  * 购物车，对应迁移 0012。

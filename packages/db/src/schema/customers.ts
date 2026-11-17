@@ -11,7 +11,7 @@ import {
   uniqueIndex,
   index
 } from 'drizzle-orm/pg-core';
-import { users } from './users';
+import { users } from './users.ts';
 
 /**
  * 顾客资料，对应 PRD 5.10。

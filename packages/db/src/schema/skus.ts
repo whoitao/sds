@@ -11,10 +11,10 @@ import {
   uuid,
   varchar
 } from 'drizzle-orm/pg-core';
-import { catalogProducts } from './catalog';
-import { productStockTypeEnum, quantityModeEnum } from './enums';
-import { products } from './products';
-import { shops } from './shops';
+import { catalogProducts } from './catalog.ts';
+import { productStockTypeEnum, quantityModeEnum } from './enums.ts';
+import { products } from './products.ts';
+import { shops } from './shops.ts';
 
 /**
  * 总部规格（SKU）：不持有库存，只定义规格/条码/单位/建议价/追踪策略/数量模式。

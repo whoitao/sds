@@ -11,7 +11,7 @@ import {
   uniqueIndex,
   index
 } from 'drizzle-orm/pg-core';
-import { users } from './users';
+import { users } from './users.ts';
 
 /** 营业时间：{"mon": {"open": "07:00", "close": "20:00"}, ...} */
 export type BusinessHours = Record<string, { open: string; close: string }>;

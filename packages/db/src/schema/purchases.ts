@@ -9,10 +9,10 @@ import {
   uuid,
   varchar
 } from 'drizzle-orm/pg-core';
-import { adminUsers } from './admin-users';
-import { purchaseOrderStatusEnum, quantityModeEnum } from './enums';
-import { productSkus } from './skus';
-import { shops } from './shops';
+import { adminUsers } from './admin-users.ts';
+import { purchaseOrderStatusEnum, quantityModeEnum } from './enums.ts';
+import { productSkus } from './skus.ts';
+import { shops } from './shops.ts';
 
 /** 门店供应商：平台运营按门店维护；不做供应商端登录/账期/结算。 */
 export const suppliers = pgTable(
