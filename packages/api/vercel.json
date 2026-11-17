@@ -2,10 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
     "src/app.ts": {
-      "includeFiles": [
-        "../shared/src/**/*",
-        "../db/src/**/*"
-      ]
+      "includeFiles": "../{shared,db}/src/**/*"
     }
   }
 }
