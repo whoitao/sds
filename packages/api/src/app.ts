@@ -86,3 +86,5 @@ app.onError((err, c) => {
 });
 
 registerHealthRoutes(app);
+
+export default app;

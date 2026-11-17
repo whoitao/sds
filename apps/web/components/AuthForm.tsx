@@ -219,7 +219,7 @@ export default function AuthForm({ mode, next }: { mode: Mode; next?: string }) 
             </Link>
           </div>
 
-          <label htmlFor={fieldId('phone')} className="mt-1 text-[18px] font-bold text-ink">
+          <label htmlFor={fieldId('phone')} className="sr-only">
             手机号
           </label>
           <input
@@ -236,16 +236,16 @@ export default function AuthForm({ mode, next }: { mode: Mode; next?: string }) 
             }}
             placeholder="请输入手机号"
             aria-invalid={Boolean(errors.phone)}
-            className={`${INPUT_BASE} placeholder:font-normal placeholder:text-ink-3 ${
+            className={`${INPUT_BASE} mt-1 placeholder:font-normal placeholder:text-ink-3 ${
               errors.phone ? 'border-danger' : 'border-line'
             }`}
           />
           {errors.phone ? <p className="text-[15px] text-danger">{errors.phone}</p> : null}
 
-          <label htmlFor={fieldId('code')} className="text-[18px] font-bold text-ink">
+          <label htmlFor={fieldId('code')} className="sr-only">
             验证码
           </label>
-          <div className="grid grid-cols-[1fr_130px] gap-3 sm:grid-cols-[1fr_170px]">
+          <div className="grid gap-3 sm:grid-cols-[1fr_170px]">
             <input
               id={fieldId('code')}
               name="code"
@@ -282,7 +282,7 @@ export default function AuthForm({ mode, next }: { mode: Mode; next?: string }) 
 
           {!isLoginVariant ? (
             <>
-              <label htmlFor={fieldId('name')} className="text-[18px] font-bold text-ink">
+              <label htmlFor={fieldId('name')} className="sr-only">
                 姓名
               </label>
               <input
