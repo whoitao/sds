@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- 与 docs/design/web-customer-mockup.html 一致的品牌方块「捎」 -->
+  <rect width="32" height="32" rx="9.6" fill="#4C9A6A"/>
+  <rect x="0.5" y="0.5" width="31" height="31" rx="9.1" fill="none" stroke="#FFFFFF" stroke-opacity="0.22"/>
+  <text x="16" y="23" font-family="-apple-system, BlinkMacSystemFont, PingFang SC, Microsoft YaHei, sans-serif" font-size="19" font-weight="700" fill="#FFFFFF" text-anchor="middle">捎</text>
+</svg>

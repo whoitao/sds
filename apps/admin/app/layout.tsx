@@ -33,7 +33,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <style dangerouslySetInnerHTML={{ __html: adminBrandCss() }} />
         {/* antd 6 样式运行时注入，用官方的 Next Registry 把 SSR 样式内联进 HTML，避免刷新时无样式闪一帧 */}
         <AntdRegistry>
-          <Providers>{children}</Providers>
+          <Providers resolvedTheme={htmlTheme}>{children}</Providers>
         </AntdRegistry>
       </body>
     </html>

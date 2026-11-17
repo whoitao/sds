@@ -1,6 +1,8 @@
 import { colors, fontSize } from './tokens';
 
 export * from './tokens';
+export { Price, formatAmount, resolvePriceColor } from './Price';
+export type { PriceProps, PriceColor } from './Price';
 
 export interface HelloCardProps {
   title: string;

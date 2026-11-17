@@ -17,12 +17,16 @@ import {
   Space,
   Switch,
   Table,
+  Tabs,
   Tag,
   Tooltip,
-  TreeSelect
+  TreeSelect,
+  Upload
 } from 'antd';
 import type { TableColumnsType } from 'antd';
 import {
+  ArrowDownOutlined,
+  ArrowUpOutlined,
   CheckCircleOutlined,
   DeleteOutlined,
   EditOutlined,
@@ -30,11 +34,13 @@ import {
   SearchOutlined,
   StopOutlined,
   TagsOutlined,
-  UndoOutlined
+  UndoOutlined,
+  UploadOutlined
 } from '@ant-design/icons';
 import { adminColors as colors } from '../../../lib/theme';
-import { getAdminTableProps } from '../../../lib/table';
+import { ADMIN_FILTER_FIELD_WIDTH, getAdminTableProps } from '../../../lib/table';
 import { useAdminSettings } from '../../../components/AdminSettingsProvider';
+import { TabProgress } from '../../../components/TabProgress';
 
 interface CatalogCategoryRow {
   id: string;
@@ -42,10 +48,17 @@ interface CatalogCategoryRow {
   level: number;
   name: string;
   sortOrder: number;
+  iconUrl: string | null;
   isActive: boolean;
   productCount: number;
   childCount: number;
 }
+
+type CatalogCategoryTreeRow = CatalogCategoryRow & {
+  canMoveUp: boolean;
+  canMoveDown: boolean;
+  children?: CatalogCategoryTreeRow[];
+};
 
 interface CatalogRow {
   id: string;
@@ -139,6 +152,102 @@ function formatTime(value: string | null) {
   return value ? new Date(value).toLocaleString('zh-CN') : '—';
 }
 
+/** 分类图标：可粘贴图片地址，也可复用 /api/admin/uploads 上传（dir=catalog-categories） */
+function CategoryIconField({
+  value,
+  onChange
+}: {
+  value?: string | null;
+  onChange?: (url: string | null) => void;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+      {value ? (
+        <img
+          src={value}
+          alt="分类图标"
+          style={{
+            width: 48,
+            height: 48,
+            objectFit: 'cover',
+            borderRadius: 8,
+            border: `1px solid ${colors.border}`
+          }}
+        />
+      ) : (
+        <div
+          style={{
+            width: 48,
+            height: 48,
+            borderRadius: 8,
+            border: `1px dashed ${colors.border}`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 11,
+            color: colors.textTertiary
+          }}
+        >
+          无
+        </div>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, minWidth: 0 }}>
+        <Input
+          value={value ?? ''}
+          placeholder="https://…"
+          onChange={(event) => onChange?.(event.target.value || null)}
+        />
+        <Space size={8}>
+          <Upload
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            maxCount={1}
+            showUploadList={false}
+            customRequest={async ({ file, onSuccess, onError }) => {
+              setUploading(true);
+              setUploadError('');
+              try {
+                const data = new FormData();
+                data.append('file', file as File);
+                data.append('dir', 'catalog-categories');
+                const response = await fetch('/api/admin/uploads', { method: 'POST', body: data });
+                const payload = await response.json();
+                if (!response.ok || !payload?.url) {
+                  const message = payload?.message ?? '上传失败';
+                  setUploadError(message);
+                  onError?.(new Error(message));
+                  return;
+                }
+                onChange?.(payload.url);
+                onSuccess?.(payload);
+              } catch {
+                setUploadError('上传失败');
+                onError?.(new Error('上传失败'));
+              } finally {
+                setUploading(false);
+              }
+            }}
+          >
+            <Button size="small" icon={<UploadOutlined />} loading={uploading}>
+              上传图标
+            </Button>
+          </Upload>
+          {value ? (
+            <Button size="small" variant="text" color="danger" onClick={() => onChange?.(null)}>
+              移除
+            </Button>
+          ) : null}
+        </Space>
+        {uploadError ? (
+          <span style={{ fontSize: 12, color: colors.danger }}>{uploadError}</span>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 export default function CatalogPage() {
   const { pageSize } = useAdminSettings();
   const [mounted, setMounted] = useState(false);
@@ -146,6 +255,14 @@ export default function CatalogPage() {
   const [notice, setNotice] = useState('');
 
   const [categories, setCategories] = useState<CatalogCategoryRow[]>([]);
+  const [categoryLoading, setCategoryLoading] = useState(false);
+  const [tab, setTab] = useState<'products' | 'categories'>('products');
+  const [expandedCategoryKeys, setExpandedCategoryKeys] = useState<Key[]>([]);
+  const [categoryModalOpen, setCategoryModalOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<CatalogCategoryRow | null>(null);
+  const [categoryParent, setCategoryParent] = useState<CatalogCategoryRow | null>(null);
+  const [categoryForm] = Form.useForm();
+  const [categorySubmitting, setCategorySubmitting] = useState(false);
   const [rows, setRows] = useState<CatalogRow[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -193,6 +310,7 @@ export default function CatalogPage() {
   }, []);
 
   const loadCategories = useCallback(async () => {
+    setCategoryLoading(true);
     try {
       const response = await fetch('/api/admin/catalog/categories', { cache: 'no-store' });
       const payload = await response.json();
@@ -203,6 +321,8 @@ export default function CatalogPage() {
       setCategories(payload.items ?? []);
     } catch {
       setError('接口不可用');
+    } finally {
+      setCategoryLoading(false);
     }
   }, []);
 
@@ -262,6 +382,144 @@ export default function CatalogPage() {
     }
     return meta;
   }, [categories]);
+
+  const categoryTreeRows = useMemo<CatalogCategoryTreeRow[]>(() => {
+    const roots = categories.filter((item) => item.parentId === null);
+    return roots.map((root, rootIndex) => {
+      const children = categories.filter((item) => item.parentId === root.id);
+      return {
+        ...root,
+        canMoveUp: rootIndex > 0,
+        canMoveDown: rootIndex < roots.length - 1,
+        children:
+          children.length > 0
+            ? children.map((child, childIndex) => ({
+                ...child,
+                canMoveUp: childIndex > 0,
+                canMoveDown: childIndex < children.length - 1
+              }))
+            : undefined
+      };
+    });
+  }, [categories]);
+
+  function openCreateCategory(parent: CatalogCategoryRow | null) {
+    setEditingCategory(null);
+    setCategoryParent(parent);
+    categoryForm.resetFields();
+    categoryForm.setFieldsValue({ isActive: true, iconUrl: '' });
+    setCategoryModalOpen(true);
+  }
+
+  function openEditCategory(row: CatalogCategoryRow) {
+    setEditingCategory(row);
+    setCategoryParent(null);
+    categoryForm.setFieldsValue({
+      name: row.name,
+      iconUrl: row.iconUrl ?? '',
+      isActive: row.isActive
+    });
+    setCategoryModalOpen(true);
+  }
+
+  async function submitCategory() {
+    const values = await categoryForm.validateFields();
+    setCategorySubmitting(true);
+    setError('');
+    setNotice('');
+    try {
+      const response = await fetch(
+        editingCategory
+          ? `/api/admin/catalog/categories/${editingCategory.id}`
+          : '/api/admin/catalog/categories',
+        {
+          method: editingCategory ? 'PATCH' : 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            name: values.name,
+            iconUrl: values.iconUrl || null,
+            isActive: values.isActive,
+            ...(editingCategory ? {} : { parentId: categoryParent?.id ?? null })
+          })
+        }
+      );
+      const payload = await response.json();
+      if (!response.ok) {
+        setError(payload?.message ?? '保存失败');
+        return;
+      }
+      setCategoryModalOpen(false);
+      setNotice(editingCategory ? '分类已更新' : '分类已创建');
+      await loadCategories();
+      if (!editingCategory && categoryParent) {
+        setExpandedCategoryKeys((keys) =>
+          keys.includes(categoryParent.id) ? keys : [...keys, categoryParent.id]
+        );
+      }
+    } catch {
+      setError('保存失败');
+    } finally {
+      setCategorySubmitting(false);
+    }
+  }
+
+  async function toggleCategoryActive(row: CatalogCategoryRow, checked: boolean) {
+    setError('');
+    try {
+      const response = await fetch(`/api/admin/catalog/categories/${row.id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ isActive: checked })
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        setError(payload?.message ?? '状态更新失败');
+        return;
+      }
+      setNotice(checked ? `已启用「${row.name}」` : `已停用「${row.name}」，顾客端不再显示`);
+      await loadCategories();
+    } catch {
+      setError('操作失败');
+    }
+  }
+
+  async function moveCategory(row: CatalogCategoryRow, direction: 'up' | 'down') {
+    setError('');
+    try {
+      const response = await fetch(`/api/admin/catalog/categories/${row.id}/move`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ direction })
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        setError(payload?.message ?? '排序失败');
+        return;
+      }
+      await loadCategories();
+    } catch {
+      setError('排序失败');
+    }
+  }
+
+  async function deleteCategory(row: CatalogCategoryRow) {
+    setError('');
+    try {
+      const response = await fetch(`/api/admin/catalog/categories/${row.id}`, {
+        method: 'DELETE'
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        setError(payload?.message ?? '删除失败');
+        return;
+      }
+      setNotice(`已删除「${row.name}」，原分类下的商品已变为未分类`);
+      await loadCategories();
+      void load();
+    } catch {
+      setError('删除失败');
+    }
+  }
 
   function openCreate() {
     setEditing(null);
@@ -623,6 +881,137 @@ export default function CatalogPage() {
 
   const draftSelected = rows.filter((row) => selectedKeys.includes(row.id) && row.status === 'draft');
 
+  const categoryColumns: TableColumnsType<CatalogCategoryTreeRow> = [
+    {
+      title: '分类名称',
+      dataIndex: 'name',
+      render: (value: string, row) => (
+        <Space size={6}>
+          {row.iconUrl ? (
+            <img
+              src={row.iconUrl}
+              alt=""
+              width={22}
+              height={22}
+              style={{ objectFit: 'cover', borderRadius: 4 }}
+            />
+          ) : null}
+          <span>{value}</span>
+          {row.level === 1 ? <Tag>一级</Tag> : <Tag color="blue">二级</Tag>}
+          {row.isActive ? null : <Tag color="default">已停用</Tag>}
+        </Space>
+      )
+    },
+    {
+      title: '商品数',
+      dataIndex: 'productCount',
+      width: 100,
+      align: 'right',
+      render: (value: number) => (value > 0 ? `${value} 个` : '—')
+    },
+    {
+      title: '子分类',
+      dataIndex: 'childCount',
+      width: 90,
+      render: (value: number, row) =>
+        row.level === 1 ? (value > 0 ? `${value} 个` : '—') : '—'
+    },
+    {
+      title: '排序',
+      key: 'sort',
+      width: 110,
+      render: (_, row) => (
+        <Space size={2}>
+          <Tooltip title="上移">
+            <Button
+              size="small"
+              variant="text"
+              icon={<ArrowUpOutlined />}
+              aria-label="上移"
+              disabled={!row.canMoveUp}
+              onClick={() => void moveCategory(row, 'up')}
+            />
+          </Tooltip>
+          <Tooltip title="下移">
+            <Button
+              size="small"
+              variant="text"
+              icon={<ArrowDownOutlined />}
+              aria-label="下移"
+              disabled={!row.canMoveDown}
+              onClick={() => void moveCategory(row, 'down')}
+            />
+          </Tooltip>
+        </Space>
+      )
+    },
+    {
+      title: '启用',
+      dataIndex: 'isActive',
+      width: 90,
+      render: (value: boolean, row) => (
+        <Switch
+          size="small"
+          checked={value}
+          onChange={(checked) => void toggleCategoryActive(row, checked)}
+        />
+      )
+    },
+    {
+      title: '操作',
+      key: 'action',
+      width: 180,
+      render: (_, row) => (
+        <Space size={2}>
+          {row.level === 1 ? (
+            <Tooltip title="新增二级分类">
+              <Button
+                variant="text"
+                color="primary"
+                size="small"
+                icon={<PlusOutlined />}
+                aria-label="新增二级分类"
+                onClick={() => openCreateCategory(row)}
+              />
+            </Tooltip>
+          ) : null}
+          <Tooltip title="编辑">
+            <Button
+              variant="text"
+              color="primary"
+              size="small"
+              icon={<EditOutlined />}
+              aria-label="编辑"
+              onClick={() => openEditCategory(row)}
+            />
+          </Tooltip>
+          <Tooltip title={row.childCount > 0 ? '请先删除该分类下的子分类' : '删除'}>
+            <span>
+              <Popconfirm
+                title={`删除分类「${row.name}」？`}
+                description="分类下的商品将变为未分类，门店侧也不再显示该分类"
+                okText="删除"
+                okButtonProps={{ danger: true }}
+                cancelText="取消"
+                disabled={row.childCount > 0}
+                onConfirm={() => void deleteCategory(row)}
+              >
+                <Button
+                  variant="text"
+                  color="danger"
+                  size="small"
+                  icon={<DeleteOutlined />}
+                  aria-label="删除"
+                  disabled={row.childCount > 0}
+                />
+              </Popconfirm>
+            </span>
+          </Tooltip>
+        </Space>
+      )
+    }
+  ];
+
   const columns: TableColumnsType<CatalogRow> = [
     {
       title: '商品名称',
@@ -778,109 +1167,134 @@ export default function CatalogPage() {
   return (
     <div>
       <div style={{ background: colors.surface, minHeight: '100vh' }}>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 12,
-            height: 44,
-            padding: '0 12px',
-            borderBottom: `1px solid ${colors.border}`
-          }}
-        >
-          <Space size={12}>
-            <span style={{ fontSize: 14, fontWeight: 600, color: colors.text }}>总部商品库</span>
-            <span style={{ fontSize: 12, color: colors.textTertiary }}>
-              共享字段总部维护，门店只改价格与上下架
-            </span>
-          </Space>
+        <div className="admin-page-bar">
+          <div
+            style={{
+              position: 'relative',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 20,
+              height: '100%',
+              minWidth: 0
+            }}
+          >
+            <Tabs
+              activeKey={tab}
+              onChange={(key) => {
+                setTab(key as 'products' | 'categories');
+                setError('');
+                setNotice('');
+              }}
+              tabBarStyle={{ margin: 0 }}
+              items={[
+                { key: 'products', label: '商品管理' },
+                { key: 'categories', label: '分类管理' }
+              ]}
+            />
+            <TabProgress activeKey={tab} />
+          </div>
           <Space size={8}>
-            <Button danger icon={<DeleteOutlined />} onClick={() => void openCleanup()}>
-              清理测试数据
-            </Button>
-            <Button
-              icon={<CheckCircleOutlined />}
-              disabled={draftSelected.length === 0}
-              onClick={() => setPublishPrompt({ ids: draftSelected.map((row) => row.id), shopCount: 0 })}
-            >
-              {`批量发布${draftSelected.length > 0 ? `（${draftSelected.length}）` : ''}`}
-            </Button>
-            <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
-              新建商品
-            </Button>
+            {tab === 'products' ? (
+              <>
+                <Button danger icon={<DeleteOutlined />} onClick={() => void openCleanup()}>
+                  清理测试数据
+                </Button>
+                <Button
+                  icon={<CheckCircleOutlined />}
+                  disabled={draftSelected.length === 0}
+                  onClick={() =>
+                    setPublishPrompt({ ids: draftSelected.map((row) => row.id), shopCount: 0 })
+                  }
+                >
+                  {`批量发布${draftSelected.length > 0 ? `（${draftSelected.length}）` : ''}`}
+                </Button>
+                <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
+                  新建商品
+                </Button>
+              </>
+            ) : (
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => openCreateCategory(null)}
+              >
+                新增一级分类
+              </Button>
+            )}
           </Space>
         </div>
 
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            padding: '12px 12px 8px',
-            flexWrap: 'wrap'
-          }}
-        >
-          <Space.Compact>
-            <Input
-              allowClear
-              value={searchText}
-              placeholder="按商品名称搜索…"
-              style={{ width: 280 }}
-              onChange={(event) => {
-                const value = event.target.value;
-                setSearchText(value);
-                if (!value) {
-                  setKeyword('');
+        {tab === 'products' ? (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              padding: '12px 12px 8px',
+              flexWrap: 'wrap'
+            }}
+          >
+            <Space.Compact style={{ width: ADMIN_FILTER_FIELD_WIDTH }}>
+              <Input
+                allowClear
+                value={searchText}
+                placeholder="按商品名称搜索…"
+                style={{ flex: 1, minWidth: 0 }}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setSearchText(value);
+                  if (!value) {
+                    setKeyword('');
+                    setPage(1);
+                  }
+                }}
+                onPressEnter={() => {
+                  setKeyword(searchText.trim());
                   setPage(1);
-                }
-              }}
-              onPressEnter={() => {
-                setKeyword(searchText.trim());
+                }}
+              />
+              <Button
+                icon={<SearchOutlined />}
+                style={{ background: colors.subtle, borderColor: colors.border, color: colors.textSecondary }}
+                onClick={() => {
+                  setKeyword(searchText.trim());
+                  setPage(1);
+                }}
+              />
+            </Space.Compact>
+
+            <TreeSelect
+              allowClear
+              showSearch
+              treeDefaultExpandAll
+              treeNodeFilterProp="title"
+              placeholder="全部分类"
+              style={{ width: ADMIN_FILTER_FIELD_WIDTH }}
+              value={categoryFilter}
+              onChange={(value?: string) => {
+                setCategoryFilter(value);
                 setPage(1);
               }}
+              treeData={tree}
             />
-            <Button
-              icon={<SearchOutlined />}
-              style={{ background: colors.subtle, borderColor: colors.border, color: colors.textSecondary }}
-              onClick={() => {
-                setKeyword(searchText.trim());
+
+            <Select
+              allowClear
+              placeholder="全部状态"
+              style={{ width: ADMIN_FILTER_FIELD_WIDTH }}
+              value={statusFilter}
+              onChange={(value) => {
+                setStatusFilter(value);
                 setPage(1);
               }}
+              options={[
+                { value: 'draft', label: '草稿' },
+                { value: 'published', label: '已发布' },
+                { value: 'archived', label: '已归档' }
+              ]}
             />
-          </Space.Compact>
-
-          <TreeSelect
-            allowClear
-            showSearch
-            treeDefaultExpandAll
-            treeNodeFilterProp="title"
-            placeholder="全部分类"
-            style={{ width: 200 }}
-            value={categoryFilter}
-            onChange={(value?: string) => {
-              setCategoryFilter(value);
-              setPage(1);
-            }}
-            treeData={tree}
-          />
-
-          <Select
-            allowClear
-            placeholder="全部状态"
-            style={{ width: 120 }}
-            value={statusFilter}
-            onChange={(value) => {
-              setStatusFilter(value);
-              setPage(1);
-            }}
-            options={[
-              { value: 'draft', label: '草稿' },
-              { value: 'published', label: '已发布' },
-              { value: 'archived', label: '已归档' }
-            ]}
-          />
-        </div>
+          </div>
+        ) : null}
 
         {error ? (
           <div style={{ padding: '0 12px 8px', fontSize: 13, color: colors.danger }}>{error}</div>
@@ -889,33 +1303,93 @@ export default function CatalogPage() {
           <div style={{ padding: '0 12px 8px', fontSize: 13, color: colors.textSecondary }}>{notice}</div>
         ) : null}
 
-        <Table<CatalogRow>
-          rowKey="id"
-          loading={loading}
-          {...getAdminTableProps(columns)}
-          dataSource={rows}
-          rowSelection={{
-            selectedRowKeys: selectedKeys,
-            onChange: (keys) => setSelectedKeys(keys)
-          }}
-          scroll={{ x: 'max-content' }}
-          pagination={{
-            current: page,
-            pageSize,
-            total,
-            showSizeChanger: false,
-            showTotal: (count) => `共 ${count} 条`,
-            style: { margin: '12px' },
-            onChange: setPage
-          }}
-          locale={{
-            emptyText: <Empty description="总部商品库为空，点右上角新建；保存后发布即可全店可见" />
-          }}
-        />
+        {tab === 'products' ? (
+          <Table<CatalogRow>
+            rowKey="id"
+            loading={loading}
+            {...getAdminTableProps(columns)}
+            dataSource={rows}
+            rowSelection={{
+              selectedRowKeys: selectedKeys,
+              onChange: (keys) => setSelectedKeys(keys)
+            }}
+            scroll={{ x: 'max-content' }}
+            pagination={{
+              current: page,
+              pageSize,
+              total,
+              showSizeChanger: false,
+              showTotal: (count) => `共 ${count} 条`,
+              onChange: setPage
+            }}
+            locale={{
+              emptyText: <Empty description="总部商品库为空，点右上角新建；保存后发布即可全店可见" />
+            }}
+          />
+        ) : (
+          <Table<CatalogCategoryTreeRow>
+            rowKey="id"
+            loading={categoryLoading}
+            {...getAdminTableProps(categoryColumns)}
+            dataSource={categoryTreeRows}
+            pagination={false}
+            expandable={{
+              expandedRowKeys: expandedCategoryKeys,
+              onExpandedRowsChange: (keys) => setExpandedCategoryKeys([...keys]),
+              indentSize: 20
+            }}
+            locale={{
+              emptyText: <Empty description="还没有分类，点右上角「新增一级分类」开始" />
+            }}
+          />
+        )}
       </div>
 
       {mounted ? (
         <>
+          <Modal
+            open={categoryModalOpen}
+            title={
+              editingCategory
+                ? '编辑分类'
+                : categoryParent
+                  ? `新增二级分类 · ${categoryParent.name}`
+                  : '新增一级分类'
+            }
+            okText="保存"
+            cancelText="取消"
+            confirmLoading={categorySubmitting}
+            onOk={() => void submitCategory()}
+            onCancel={() => setCategoryModalOpen(false)}
+            forceRender
+          >
+            <Form form={categoryForm} layout="vertical" style={{ marginTop: 12 }}>
+              <Form.Item
+                name="name"
+                label="分类名称"
+                rules={[{ required: true, message: '请输入分类名称' }]}
+              >
+                <Input maxLength={50} placeholder="如：蔬菜 / 叶菜类" />
+              </Form.Item>
+              <Form.Item
+                name="iconUrl"
+                label="分类图标"
+                rules={[{ type: 'url', message: '请输入合法 URL' }]}
+                extra="可粘贴图片地址，或上传一张（JPG / PNG / WebP / GIF，≤5MB）"
+              >
+                <CategoryIconField />
+              </Form.Item>
+              <Form.Item
+                name="isActive"
+                label="启用"
+                valuePropName="checked"
+                extra="停用后顾客端与筛选不再显示该分类"
+              >
+                <Switch />
+              </Form.Item>
+            </Form>
+          </Modal>
+
           <Modal
             open={modalOpen}
             title={editing ? '编辑总部商品' : '新建总部商品'}
@@ -975,7 +1449,7 @@ export default function CatalogPage() {
             open={skuModalOpen}
             title={skuProduct ? `规格管理 · ${skuProduct.name}` : '规格管理'}
             onCancel={() => setSkuModalOpen(false)}
-            width={920}
+            width={1120}
             footer={[
               <Button key="close" onClick={() => setSkuModalOpen(false)}>
                 关闭
@@ -1040,7 +1514,7 @@ export default function CatalogPage() {
                   <div>
                     <div style={{ fontSize: 12, marginBottom: 4 }}>规格名称</div>
                     <Input
-                      style={{ width: 160 }}
+                      style={{ width: 120 }}
                       value={skuDraft.specName}
                       onChange={(event) => updateSkuDraft({ specName: event.target.value })}
                     />
@@ -1048,7 +1522,7 @@ export default function CatalogPage() {
                   <div>
                     <div style={{ fontSize: 12, marginBottom: 4 }}>条码</div>
                     <Input
-                      style={{ width: 150 }}
+                      style={{ width: 130 }}
                       value={skuDraft.barcode}
                       onChange={(event) => updateSkuDraft({ barcode: event.target.value })}
                     />
@@ -1056,7 +1530,7 @@ export default function CatalogPage() {
                   <div>
                     <div style={{ fontSize: 12, marginBottom: 4 }}>单位</div>
                     <Input
-                      style={{ width: 90 }}
+                      style={{ width: 80 }}
                       value={skuDraft.unit}
                       onChange={(event) => updateSkuDraft({ unit: event.target.value })}
                     />
@@ -1064,7 +1538,7 @@ export default function CatalogPage() {
                   <div>
                     <div style={{ fontSize: 12, marginBottom: 4 }}>建议价</div>
                     <Input
-                      style={{ width: 120 }}
+                      style={{ width: 100 }}
                       value={skuDraft.defaultPrice}
                       onChange={(event) => updateSkuDraft({ defaultPrice: event.target.value })}
                     />
@@ -1072,7 +1546,7 @@ export default function CatalogPage() {
                   <div>
                     <div style={{ fontSize: 12, marginBottom: 4 }}>库存追踪</div>
                     <Select
-                      style={{ width: 110 }}
+                      style={{ width: 100 }}
                       value={skuDraft.stockType}
                       onChange={(value) => updateSkuDraft({ stockType: value })}
                       options={[
@@ -1084,7 +1558,7 @@ export default function CatalogPage() {
                   <div>
                     <div style={{ fontSize: 12, marginBottom: 4 }}>数量模式</div>
                     <Select
-                      style={{ width: 120 }}
+                      style={{ width: 100 }}
                       value={skuDraft.quantityMode}
                       onChange={(value) => updateSkuDraft({ quantityMode: value })}
                       options={[
@@ -1096,7 +1570,7 @@ export default function CatalogPage() {
                   <div>
                     <div style={{ fontSize: 12, marginBottom: 4 }}>排序</div>
                     <InputNumber
-                      style={{ width: 90 }}
+                      style={{ width: 72 }}
                       min={0}
                       max={9999}
                       precision={0}

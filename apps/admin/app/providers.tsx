@@ -7,7 +7,7 @@ import {
   useAdminSettings,
   type ThemePreference
 } from '../components/AdminSettingsProvider';
-import { adminBrand } from '../lib/theme';
+import { adminBrand, type ResolvedTheme } from '../lib/theme';
 import type { DisplayDensity } from '../lib/display';
 
 const themeToken = {
@@ -78,15 +78,33 @@ const tableDensityTokens: Record<
   DisplayDensity,
   { cellPaddingBlock: number; cellPaddingBlockMD: number; cellPaddingBlockSM: number }
 > = {
-  compact: { cellPaddingBlock: 8, cellPaddingBlockMD: 6, cellPaddingBlockSM: 4 },
-  standard: { cellPaddingBlock: 12, cellPaddingBlockMD: 8, cellPaddingBlockSM: 6 },
-  relaxed: { cellPaddingBlock: 16, cellPaddingBlockMD: 10, cellPaddingBlockSM: 8 }
+  compact: { cellPaddingBlock: 6, cellPaddingBlockMD: 4, cellPaddingBlockSM: 2 },
+  standard: { cellPaddingBlock: 10, cellPaddingBlockMD: 6, cellPaddingBlockSM: 4 },
+  relaxed: { cellPaddingBlock: 14, cellPaddingBlockMD: 8, cellPaddingBlockSM: 6 }
 };
 
-/** 根级 antd 配置：登录等不走控制台主题的页面也保持紧凑规格与品牌主色 */
-export function Providers({ children }: { children: React.ReactNode }) {
+/** 根级 antd 配置：登录等页面也跟随服务端解析出的明暗主题与品牌主色 */
+export function Providers({
+  resolvedTheme = 'light',
+  children
+}: {
+  resolvedTheme?: ResolvedTheme;
+  children: React.ReactNode;
+}) {
   return (
-    <ConfigProvider locale={zhCN} theme={{ algorithm: antdTheme.compactAlgorithm, token: themeToken }}>
+    <ConfigProvider
+      locale={zhCN}
+      theme={{
+        algorithm:
+          resolvedTheme === 'dark'
+            ? [antdTheme.darkAlgorithm, antdTheme.compactAlgorithm]
+            : antdTheme.compactAlgorithm,
+        token: {
+          ...themeToken,
+          colorPrimary: resolvedTheme === 'dark' ? adminBrand.primaryDark : adminBrand.primary
+        }
+      }}
+    >
       {children}
     </ConfigProvider>
   );
@@ -109,7 +127,10 @@ function ConsoleThemedApp({ children }: { children: React.ReactNode }) {
           colorPrimary: resolvedTheme === 'dark' ? adminBrand.primaryDark : adminBrand.primary
         },
         components: {
-          Table: tableDensityTokens[displayDensity]
+          Table: {
+            ...tableDensityTokens[displayDensity],
+            rowHoverBg: 'var(--admin-subtle)'
+          }
         }
       }}
     >

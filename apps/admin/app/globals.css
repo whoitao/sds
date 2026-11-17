@@ -67,6 +67,23 @@ body {
   letter-spacing: 0.04em;
 }
 
+/* 长表格的分页吸附可视区域底部；滚动到表格末尾后在 wrapper 边界内自然归位。 */
+.ant-table-wrapper .ant-spin-container > ul.ant-table-pagination.ant-pagination {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  margin: 0;
+  padding: 12px 0;
+  border-top: 1px solid var(--admin-border);
+  background: var(--admin-surface);
+}
+
+/* 表格行内文字统一使用单元格字体与字号；important 用于覆盖旧 render 中的内联字号。 */
+.ant-table-tbody > tr > td :where(div, span, p, a, button, input, textarea) {
+  font-family: inherit;
+  font-size: inherit !important;
+}
+
 /* 账号菜单：参照 sharp admin 的 Dropdown 规格（容器 4px 内边距、10px 圆角、
    轻阴影；条目 36px 高、8px 圆角、hover 用中性浅底；危险项只染红文字）。
    选中态仍用内联的品牌浅绿，内联优先级高于这里的 hover。 */
@@ -117,6 +134,50 @@ body {
   background: var(--admin-subtle);
 }
 
+/* 列表页顶部工具行：统一与侧边栏品牌条（折叠按钮那一行）同高，
+   高度跟随「展示效果」档位，页面不再各自写死 height。
+   带 Tabs 的页面让标签撑满这一行，文字与激活下划线垂直居中、压住底边。 */
+.admin-page-bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+
+  height: var(--admin-brand-bar-height);
+  padding: 0 12px;
+
+  border-bottom: 1px solid var(--admin-border);
+  background: var(--admin-surface);
+}
+
+.admin-page-bar .ant-tabs,
+.admin-page-bar .ant-tabs-nav,
+.admin-page-bar .ant-tabs-nav-wrap,
+.admin-page-bar .ant-tabs-nav-list {
+  height: 100%;
+}
+
+.admin-page-bar .ant-tabs-tab {
+  align-items: center;
+  height: 100%;
+}
+
+/* 右上角控件较多时（如采购管理的门店下拉 + 刷新 + 新建）：
+   宽度不够就整组换到下一行，不把下拉和按钮挤到不可用；
+   宽屏下仍与品牌条同高（这里用 content-box，行高减去上下内边距才是 46）。 */
+.admin-page-bar--wrap {
+  flex-wrap: wrap;
+  row-gap: 8px;
+
+  height: auto;
+  min-height: calc(var(--admin-brand-bar-height) - 12px);
+  padding: 6px 12px;
+}
+
 /* 标签切换进度条：与 sharp admin 顶栏 route-progress 一致，
    主色细条在标签栏底部循环滑过，挂载在 position: relative 的标签栏容器上 */
 .tab-progress {
@@ -158,5 +219,48 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .tab-progress > span {
     animation-duration: 2.4s;
+  }
+}
+
+.admin-login {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: var(--admin-page) url('/media/admin-login-harvest-poster.jpg') center / cover no-repeat;
+}
+
+.admin-login-video,
+.admin-login-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.admin-login-video {
+  object-fit: cover;
+}
+
+.admin-login-overlay {
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.admin-login .ant-input-affix-wrapper input {
+  background: transparent !important;
+}
+
+.admin-login .ant-input-affix-wrapper input:-webkit-autofill,
+.admin-login .ant-input-affix-wrapper input:-webkit-autofill:hover,
+.admin-login .ant-input-affix-wrapper input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #fff;
+  caret-color: #fff;
+  -webkit-box-shadow: 0 0 0 1000px transparent inset;
+  transition: background-color 9999s ease-in-out 0s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-login-video {
+    display: none;
   }
 }

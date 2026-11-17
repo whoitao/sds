@@ -108,7 +108,7 @@ export default function AuthScreen({ onSuccess }: { onSuccess: (session: AuthSes
         >
           <View style={styles.brand}>
             <View style={styles.logo}>
-              <Text style={styles.logoText}>S</Text>
+              <Text style={styles.logoText}>捎</Text>
             </View>
             <Text style={styles.brandName}>捎点啥</Text>
             <Text style={styles.brandSlogan}>买菜不费劲，送到家门口</Text>
@@ -259,13 +259,13 @@ const styles = StyleSheet.create({
   },
   logoText: {
     fontSize: 34,
-    fontWeight: '700',
+    fontWeight: '800',
     color: colors.white
   },
   brandName: {
     fontSize: 30,
-    fontWeight: '700',
-    color: colors.ink
+    fontWeight: '800',
+    color: colors.greenDeep
   },
   brandSlogan: {
     fontSize: fontSize.body,

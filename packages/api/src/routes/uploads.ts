@@ -45,9 +45,12 @@ function resolveDir(value: unknown): string {
 }
 
 uploadRoutes.post('/', async (c) => {
-  // 目前只有店铺需要上传；后续商品图接入时可扩展为 shops.write / products.write 任一
+  // 店铺封面 / 总部分类图标共用上传入口：shops.write 或 catalog.write 任一即可
   const denied = await guardPermission(c, 'shops.write');
-  if (denied) return denied;
+  if (denied) {
+    const catalogDenied = await guardPermission(c, 'catalog.write');
+    if (catalogDenied) return denied;
+  }
 
   const body = await c.req.parseBody().catch(() => null);
   const file = body?.file;

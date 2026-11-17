@@ -155,7 +155,9 @@ export function AdminSidebar({ displayName }: { displayName: string }) {
     gap: 'var(--admin-nav-item-gap)',
     height: 'var(--admin-nav-item-height)',
     margin: '2px 12px',
-    padding: collapsed ? 0 : '0 var(--admin-nav-item-padding)',
+    padding: collapsed
+      ? 0
+      : '0 var(--admin-nav-item-padding) 0 calc(var(--admin-nav-item-padding) + 4px)',
     justifyContent: collapsed ? 'center' : 'flex-start',
     borderRadius: 8,
     background: active ? palette.accentLight : 'transparent',
@@ -278,7 +280,7 @@ export function AdminSidebar({ displayName }: { displayName: string }) {
           display: 'flex',
           alignItems: 'center',
           gap: 8,
-          padding: collapsed ? '0 12px' : '0 20px',
+          padding: collapsed ? '0 12px' : '0 calc(var(--admin-nav-item-padding) + 16px)',
           height: 'var(--admin-brand-bar-height)',
           borderBottom: `1px solid ${palette.border}`,
           justifyContent: collapsed ? 'center' : 'space-between'
@@ -291,25 +293,25 @@ export function AdminSidebar({ displayName }: { displayName: string }) {
               style={{
                 width: 24,
                 height: 24,
-                borderRadius: 6,
+                borderRadius: 7,
                 background: palette.primary,
                 color: '#fff',
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: 14,
-                fontWeight: 700,
+                fontSize: 13,
+                fontWeight: 800,
                 lineHeight: 1,
                 flex: 'none'
               }}
             >
-              S
+              捎
             </span>
             <span
               style={{
                 fontSize: 'var(--admin-brand-font-size)',
-                fontWeight: 700,
-                color: palette.text,
+                fontWeight: 800,
+                color: palette.primaryStrong,
                 whiteSpace: 'nowrap'
               }}
             >
@@ -353,7 +355,9 @@ export function AdminSidebar({ displayName }: { displayName: string }) {
         ref={accountRef}
         style={{
           position: 'relative',
-          padding: 12,
+          height: 53,
+          boxSizing: 'border-box',
+          padding: '6px 12px',
           borderTop: `1px solid ${palette.border}`,
           background: palette.surface
         }}
@@ -573,7 +577,7 @@ export function AdminSidebar({ displayName }: { displayName: string }) {
               alignItems: 'center',
               justifyContent: collapsed ? 'center' : 'flex-start',
               gap: 10,
-              padding: collapsed ? '10px 0' : '10px 12px',
+              padding: collapsed ? '6px 0' : '6px 12px',
               border: 'none',
               background: 'transparent',
               cursor: 'pointer',

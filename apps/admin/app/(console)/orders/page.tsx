@@ -20,7 +20,7 @@ import type { TableColumnsType } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import { ORDER_STATUS_LABELS, type OrderStatus } from '@sds/shared';
 import { useAdminSettings } from '../../../components/AdminSettingsProvider';
-import { getAdminTableProps } from '../../../lib/table';
+import { ADMIN_FILTER_FIELD_WIDTH, getAdminTableProps } from '../../../lib/table';
 
 interface ShopOption {
   id: string;
@@ -352,7 +352,7 @@ export default function OrdersPage() {
     {
       title: '顾客',
       key: 'customer',
-      width: 170,
+      width: 150,
       render: (_, row) => (
         <div>
           <div>{row.customerName}</div>
@@ -363,7 +363,7 @@ export default function OrdersPage() {
     {
       title: '商品',
       key: 'items',
-      width: 280,
+      width: 220,
       render: (_, row) => (
         <div>
           <div
@@ -497,12 +497,23 @@ export default function OrdersPage() {
   ];
 
   return (
-    <div style={{ padding: 24 }}>
+    <div style={{ background: 'var(--admin-surface)', minHeight: '100vh' }}>
+      <div className="admin-page-bar">
+        <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--admin-text)' }}>订单管理</span>
+      </div>
       {contextHolder}
-      <Space style={{ marginBottom: 16 }} wrap>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          padding: '12px 12px 8px',
+          flexWrap: 'wrap'
+        }}
+      >
         <Select
           allowClear
-          style={{ width: 220 }}
+          style={{ width: ADMIN_FILTER_FIELD_WIDTH }}
           placeholder="全部门店"
           value={shopId}
           onChange={(value) => {
@@ -513,7 +524,7 @@ export default function OrdersPage() {
         />
         <Select
           allowClear
-          style={{ width: 150 }}
+          style={{ width: ADMIN_FILTER_FIELD_WIDTH }}
           placeholder="全部状态"
           value={status}
           onChange={(value) => {
@@ -527,7 +538,7 @@ export default function OrdersPage() {
         />
         <Input.Search
           allowClear
-          style={{ width: 280 }}
+          style={{ width: ADMIN_FILTER_FIELD_WIDTH }}
           placeholder="订单号 / 顾客姓名 / 手机号"
           value={keywordInput}
           onChange={(event) => setKeywordInput(event.target.value)}
@@ -539,14 +550,14 @@ export default function OrdersPage() {
         <Button icon={<ReloadOutlined />} onClick={() => void loadOrders()}>
           刷新
         </Button>
-      </Space>
+      </div>
 
       {error ? (
         <Alert
           type="error"
           showIcon
           title={error}
-          style={{ marginBottom: 16 }}
+          style={{ margin: '0 12px 8px' }}
           closable
           onClose={() => setError('')}
         />
@@ -554,7 +565,6 @@ export default function OrdersPage() {
 
       <Table
         rowKey="id"
-        size="middle"
         loading={loading}
         {...getAdminTableProps(columns)}
         dataSource={rows}
@@ -562,8 +572,9 @@ export default function OrdersPage() {
           current: page,
           pageSize,
           total,
-          showSizeChanger: true,
-          onChange: (nextPage) => setPage(nextPage)
+          showSizeChanger: false,
+          showTotal: (count) => `共 ${count} 条`,
+          onChange: setPage
         }}
       />
 

@@ -20,6 +20,8 @@ export const users = pgTable(
     phone: varchar('phone', { length: 11 }).notNull(),
     name: varchar('name', { length: 50 }),
     avatarUrl: text('avatar_url'),
+    /** 顾客「重置密码」落库的哈希，格式见 packages/api/src/lib/password.ts */
+    passwordHash: text('password_hash'),
     role: userRoleEnum('role').notNull().default('customer'),
     isActive: boolean('is_active').notNull().default(true),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

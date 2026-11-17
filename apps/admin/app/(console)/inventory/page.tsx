@@ -15,7 +15,7 @@ import {
 } from 'antd';
 import type { TableColumnsType } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
-import { getAdminTableProps } from '../../../lib/table';
+import { ADMIN_FILTER_FIELD_WIDTH, getAdminTableProps } from '../../../lib/table';
 
 interface ShopOption {
   id: string;
@@ -385,7 +385,7 @@ export default function InventoryPage() {
     {
       title: '安全库存',
       key: 'threshold',
-      width: 130,
+      width: 110,
       render: (_, row) =>
         row.stockType === 'untracked'
           ? '—'
@@ -394,7 +394,7 @@ export default function InventoryPage() {
     {
       title: '状态',
       key: 'status',
-      width: 110,
+      width: 80,
       render: (_, row) => (
         <Tag color={row.isAvailable ? 'success' : 'default'}>
           {row.isAvailable ? '上架' : '下架'}
@@ -479,51 +479,54 @@ export default function InventoryPage() {
   if (!mounted) return null;
 
   return (
-    <div style={{ padding: 24 }}>
-      <Space style={{ marginBottom: 16 }} wrap>
-        <Select
-          style={{ width: 220 }}
-          placeholder="选择门店"
-          value={shopId}
-          onChange={(value) => {
-            setShopId(value);
-            setPage(1);
-            setMovementPage(1);
-          }}
-          options={shops.map((shop) => ({ value: shop.id, label: shop.name }))}
-        />
-        <Input.Search
-          allowClear
-          style={{ width: 260 }}
-          placeholder="商品名 / 规格 / 条码"
-          value={searchText}
-          onChange={(event) => setSearchText(event.target.value)}
-          onSearch={(value) => {
-            setKeyword(value);
-            setPage(1);
-          }}
-        />
-        <Space>
-          <span>仅看低库存</span>
-          <Switch
-            checked={lowStockOnly}
-            onChange={(checked) => {
-              setLowStockOnly(checked);
+    <div style={{ background: 'var(--admin-surface)', minHeight: '100vh' }}>
+      <div className="admin-page-bar">
+        <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--admin-text)' }}>库存管理</span>
+        <Space size={12} wrap>
+          <Select
+            style={{ width: ADMIN_FILTER_FIELD_WIDTH }}
+            placeholder="选择门店"
+            value={shopId}
+            onChange={(value) => {
+              setShopId(value);
+              setPage(1);
+              setMovementPage(1);
+            }}
+            options={shops.map((shop) => ({ value: shop.id, label: shop.name }))}
+          />
+          <Input.Search
+            allowClear
+            style={{ width: ADMIN_FILTER_FIELD_WIDTH }}
+            placeholder="商品名 / 规格 / 条码"
+            value={searchText}
+            onChange={(event) => setSearchText(event.target.value)}
+            onSearch={(value) => {
+              setKeyword(value);
               setPage(1);
             }}
           />
+          <Space>
+            <span style={{ fontSize: 12 }}>仅看低库存</span>
+            <Switch
+              checked={lowStockOnly}
+              onChange={(checked) => {
+                setLowStockOnly(checked);
+                setPage(1);
+              }}
+            />
+          </Space>
+          <Button icon={<ReloadOutlined />} onClick={() => void loadInventory()}>
+            刷新
+          </Button>
         </Space>
-        <Button icon={<ReloadOutlined />} onClick={() => void loadInventory()}>
-          刷新
-        </Button>
-      </Space>
+      </div>
 
       {error ? (
         <Alert
           type="error"
           showIcon
           title={error}
-          style={{ marginBottom: 16 }}
+          style={{ margin: '0 12px 8px' }}
           closable
           onClose={() => setError('')}
         />
@@ -532,6 +535,7 @@ export default function InventoryPage() {
       <Tabs
         activeKey={tab}
         onChange={setTab}
+        tabBarStyle={{ padding: '0 12px' }}
         items={[
           {
             key: 'stock',
@@ -539,7 +543,6 @@ export default function InventoryPage() {
             children: (
               <Table
                 rowKey="skuId"
-                size="middle"
                 loading={loading}
                 {...getAdminTableProps(columns)}
                 dataSource={rows}
@@ -547,7 +550,8 @@ export default function InventoryPage() {
                   current: page,
                   pageSize,
                   total,
-                  showSizeChanger: true,
+                  showSizeChanger: false,
+                  showTotal: (count) => `共 ${count} 条`,
                   onChange: (nextPage, nextPageSize) => {
                     setPage(nextPage);
                     setPageSize(nextPageSize);
@@ -562,7 +566,6 @@ export default function InventoryPage() {
             children: (
               <Table
                 rowKey="skuId"
-                size="middle"
                 loading={alertsLoading}
                 {...getAdminTableProps(columns)}
                 dataSource={alerts}
@@ -576,7 +579,6 @@ export default function InventoryPage() {
             children: (
               <Table
                 rowKey="id"
-                size="middle"
                 loading={movementLoading}
                 {...getAdminTableProps(movementColumns)}
                 dataSource={movements}
@@ -584,6 +586,8 @@ export default function InventoryPage() {
                   current: movementPage,
                   pageSize: 20,
                   total: movementTotal,
+                  showSizeChanger: false,
+                  showTotal: (count) => `共 ${count} 条`,
                   onChange: setMovementPage
                 }}
               />

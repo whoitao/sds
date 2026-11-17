@@ -1,0 +1,1383 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>捎点啥 sds · 顾客 Web 端效果图 v0.2</title>
+<style>
+:root {
+  --paper: #F7F6F1; --card: #FFFFFF; --card-soft: #FCFBF6; --segment: #F1F1EC;
+  --ink: #1E2A22; --ink-2: #55655A; --ink-3: #8A9690; --line: #E3E7DF;
+  --green: #4C9A6A; --green-600: #3F8659; --green-deep: #2F6B47; --green-800: #285C3D;
+  --green-50: #E8F3EC; --green-100: #CFE5D7; --green-200: #BFD9C8; --green-300: #A6CDB4;
+  --amber: #C9852B; --amber-soft: #FBF1DF; --amber-ink: #8A5A14;
+  --info: #4A7FB5; --info-soft: #E9F0F8;
+  --danger: #B4534A; --danger-soft: #FBECEA;
+  --wine: #8E2F3D;
+  --thumb-from: #DCEBDD; --thumb-to: #C3DEC9; --thumb-muted: #EEEDE7; --thumb-muted-2: #E2E1DA;
+  --map: #EDF0E8;
+  --shadow: 0 1px 2px rgba(40,60,45,.05), 0 6px 18px rgba(40,60,45,.06);
+  --shadow-auth: 0 12px 40px rgba(30,42,34,.10);
+  --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: #E9E8E1; color: var(--ink); font-family: var(--sans); -webkit-font-smoothing: antialiased; }
+a { color: inherit; text-decoration: none; }
+h1, h2, h3, p { margin: 0; }
+.doc { padding: 40px 0 80px; }
+.doc-head { width: 1440px; margin: 0 auto 28px; }
+.doc-head .eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 1.4px; color: var(--green-deep); }
+.doc-head h1 { margin: 6px 0 8px; font-size: 28px; }
+.doc-head p { margin: 0; color: var(--ink-2); font-size: 15px; line-height: 1.7; max-width: 1000px; }
+.label { width: 1440px; margin: 36px auto 10px; font-size: 14px; color: var(--ink-2); }
+.label b { font-family: var(--mono); color: var(--green-deep); margin-right: 8px; }
+.notes { width: 1440px; margin: 12px auto 0; font-size: 13px; line-height: 1.75; color: var(--ink-2); }
+.notes code { font-family: var(--mono); font-size: 12px; color: var(--green-deep); background: rgba(47,107,71,.07); padding: 1px 4px; border-radius: 4px; }
+
+/* ── 画板：1440×900 浏览器视口（38 地址栏 + 862 页面） ── */
+.frame { width: 1440px; height: 900px; margin: 0 auto; background: var(--paper); border-radius: 14px; overflow: hidden;
+  box-shadow: 0 20px 60px rgba(30,42,34,.18); display: flex; flex-direction: column; position: relative; }
+.chrome { height: 38px; background: #ECEBE5; display: flex; align-items: center; gap: 8px; padding: 0 16px; flex: none; }
+.chrome i { width: 12px; height: 12px; border-radius: 50%; background: #D5D3CB; display: block; }
+.chrome .url { margin-left: 18px; flex: 1; max-width: 520px; height: 24px; border-radius: 8px; background: #fff; font-size: 12px;
+  color: var(--ink-3); display: flex; align-items: center; padding: 0 12px; font-family: var(--mono); }
+
+/* ── 顶栏：logo · 门店药丸 · 搜索 · 购物车 · 用户 ── */
+.top { height: 85px; background: var(--card); border-bottom: 1px solid var(--line); display: flex; align-items: center;
+  gap: 18px; padding: 0 168px; flex: none; }
+.logo { display: flex; align-items: center; gap: 10px; font-size: 26px; font-weight: 800; color: var(--green-deep);
+  letter-spacing: 1px; flex: none; white-space: nowrap; }
+.logo .mark { width: 40px; height: 40px; border-radius: 12px; background: var(--green); color: #fff; display: grid;
+  place-items: center; font-size: 22px; font-weight: 800; }
+.shoppill { height: 52px; border-radius: 999px; border: 1.5px solid var(--green-100); background: var(--green-50);
+  color: var(--green-deep); display: flex; align-items: center; gap: 8px; padding: 0 18px 0 8px;
+  font-size: 18px; font-weight: 700; max-width: 310px; flex: none; }
+.shoppill .dot { width: 36px; height: 36px; border-radius: 50%; background: #fff; color: var(--green-deep);
+  display: grid; place-items: center; flex: none; }
+.shoppill .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shoppill.empty { border-color: var(--line); background: var(--card-soft); color: var(--ink-2); font-weight: 600; }
+.shoppill.empty .dot { background: var(--card); }
+.search { width: 124px; height: 54px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--card-soft);
+  display: flex; align-items: center; gap: 12px; padding: 0 18px; font-size: 18px; color: var(--ink-3); flex: none; }
+.cartlink { margin-left: auto; height: 52px; border-radius: 12px; display: flex; align-items: center; gap: 8px;
+  padding: 0 8px; font-size: 18px; font-weight: 600; color: var(--ink); flex: none; }
+.badge { height: 20px; min-width: 20px; padding: 0 4px; border-radius: 999px; background: var(--green); color: #fff;
+  font-size: 12px; font-weight: 700; display: grid; place-items: center; font-variant-numeric: tabular-nums; }
+.avatar-btn { height: 54px; padding: 0 16px 0 8px; border-radius: 999px; border: 1.5px solid var(--green-200);
+  background: var(--green-50); display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 700;
+  color: var(--green-deep); flex: none; white-space: nowrap; }
+.av { width: 36px; height: 36px; border-radius: 50%; background: var(--green-600); color: #fff; display: grid;
+  place-items: center; font-size: 17px; font-weight: 800; flex: none; }
+.avatar-btn.open { border-color: var(--green); box-shadow: 0 0 0 4px rgba(76,154,106,.15); }
+.avatar-btn.open svg.chev { transform: rotate(180deg); }
+.loginbtn { height: 54px; padding: 0 22px; border-radius: 999px; background: var(--green-deep); color: #fff;
+  font-size: 19px; font-weight: 700; display: flex; align-items: center; gap: 8px; flex: none; }
+svg.ic { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+/* 用户下拉：右缘与顶栏内容区齐平（1272），距用户药丸 12px */
+.menu { position: absolute; right: 168px; top: 119px; width: 296px; background: var(--card); border-radius: 18px; z-index: 8;
+  box-shadow: 0 16px 40px rgba(30,42,34,.16); overflow: hidden; }
+.menu .who { display: flex; align-items: center; gap: 12px; padding: 16px; border-bottom: 1px solid var(--line); }
+.menu .who .av { width: 48px; height: 48px; font-size: 21px; }
+.menu .who b { display: block; font-size: 20px; }
+.menu .who small { display: block; margin-top: 2px; font-size: 15px; color: var(--ink-3); }
+.menu .mitems { padding: 8px; }
+.menu .mi { height: 52px; margin: 0; border-radius: 12px; display: flex; align-items: center; gap: 12px;
+  padding: 0 12px; font-size: 17px; color: var(--ink); }
+.menu .mi + .mi { margin-top: 2px; }
+.menu .mi .r { margin-left: auto; color: var(--ink-3); font-size: 14px; }
+.menu .mi.on { background: var(--green-50); color: var(--green-deep); font-weight: 700; }
+.menu .sep { height: 1px; background: var(--line); margin: 8px; }
+.menu .mi.out { color: var(--danger); }
+
+/* ── 内容区：1104 宽（1440 − 168×2），高度 700 封顶、顶部停靠；超长在区块内滚动 ── */
+.page { height: 700px; padding: 0 168px 24px; flex: none; overflow: hidden; }
+.foot { height: 71px; margin-top: auto; flex: none; border-top: 1px solid var(--line); background: var(--card);
+  display: flex; align-items: center; justify-content: space-between; padding: 0 168px; color: var(--ink-2); font-size: 18px; }
+.foot a { font-size: 15px; font-weight: 600; }
+.footlinks { display: flex; align-items: center; gap: 20px; white-space: nowrap; }
+
+/* 金额：Price 组件（默认酒红，顾客端金额统一改 ink，次要信息 ink-3） */
+.money { font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--ink); }
+.money em { font-style: normal; font-size: .72em; font-weight: inherit; margin-right: 2px; }
+.money.soft { color: var(--ink-3); font-weight: 600; }
+.price { display: inline-flex; align-items: baseline; gap: 4px; white-space: nowrap; }
+.price small { font-size: 12px; color: var(--ink-3); font-weight: 400; }
+
+/* 通用标签 */
+.tag { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: 6px;
+  font-size: 13px; font-weight: 700; white-space: nowrap; }
+.tag.open { background: var(--green-50); color: var(--green-deep); }
+.tag.open::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
+.tag.rest { background: var(--segment); color: var(--ink-2); }
+.tag.done { background: var(--card-soft); color: var(--ink-2); }
+.tag.gray { background: var(--segment); color: var(--ink-3); }
+.tag.sold { background: var(--danger-soft); color: var(--danger); }
+.thumb { background: linear-gradient(135deg, var(--thumb-from), var(--thumb-to)); color: var(--green-deep);
+  display: grid; place-items: center; font-weight: 800; }
+.thumb.off { background: linear-gradient(135deg, var(--thumb-muted), var(--thumb-muted-2)); color: var(--ink-3); }
+
+/* ── W1/W2 首页 · 关于（真实实现为占位内容） ── */
+.simple { padding-top: 20px; display: flex; flex-direction: column; gap: 24px; }
+.simple h1 { font-size: 24px; line-height: 1.6; font-weight: 600; }
+.simple p { font-size: 18px; line-height: 1.8; color: var(--ink-2); }
+.simple a { font-size: 18px; color: var(--green-deep); text-decoration: underline; text-underline-offset: 4px; }
+
+/* ── W3 附近的店：≥1024 两栏 500 / 1fr ── */
+.shops { padding-top: 20px; display: grid; grid-template-columns: minmax(0, 500px) minmax(0, 1fr); gap: 24px; }
+.shops-list { display: flex; flex-direction: column; gap: 16px; min-height: 0; height: 100%; }
+.shops-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex: none; }
+.shops-head h2 { font-size: 28px; font-weight: 800; }
+.filter { display: flex; gap: 8px; flex: none; }
+.fpill { height: 44px; padding: 0 18px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--card);
+  display: flex; align-items: center; font-size: 17px; color: var(--ink-2); white-space: nowrap; }
+.fpill.on { background: var(--green-deep); border-color: var(--green-deep); color: #fff; font-weight: 700; }
+.fpill.soft.on { background: var(--green-50); border-color: var(--green); color: var(--green-deep); }
+.locate { display: flex; align-items: center; gap: 10px; border-radius: 12px; background: var(--info-soft);
+  padding: 10px 14px; font-size: 16px; color: var(--ink-2); flex: none; }
+.locate b { color: var(--info); font-weight: 700; }
+.locate .r { margin-left: auto; font-weight: 700; color: var(--info); white-space: nowrap; }
+.shoplist { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 14px; }
+.shopcard { display: grid; grid-template-columns: 84px minmax(0, 1fr) auto; gap: 14px; align-items: start;
+  background: var(--card); border: 2px solid transparent; border-radius: 16px; padding: 14px 20px;
+  box-shadow: var(--shadow); flex: none; }
+.shopcard.cur { border-color: var(--green); }
+.shopcard .cover { width: 84px; height: 84px; border-radius: 14px; font-size: 30px; }
+.shopcard h3 { font-size: 18px; font-weight: 700; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; line-height: 1.4; }
+.curtag { font-size: 12px; padding: 2px 6px; border-radius: 6px; background: var(--green-50); color: var(--green-deep); font-weight: 700; }
+.shopmeta { margin-top: 6px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 14px; color: var(--ink-2); }
+.shopaddr { margin-top: 4px; font-size: 13px; color: var(--ink-3); }
+.shopbtn { height: 44px; padding: 0 20px; border-radius: 999px; display: flex; align-items: center; justify-content: center;
+  font-size: 15px; font-weight: 700; white-space: nowrap; align-self: center; }
+.shopbtn.ghost { background: var(--green-50); border: 1.5px solid var(--green-200); color: var(--green-deep); }
+.shopbtn.primary { background: var(--green-deep); color: #fff; }
+.shopbtn.off { background: var(--segment); color: var(--ink-3); }
+.shopnote { font-size: 14px; line-height: 1.6; color: var(--ink-3); flex: none; }
+.map { position: relative; height: 100%; min-height: 0; border-radius: 20px; overflow: hidden;
+  background: var(--map); box-shadow: var(--shadow); }
+.map svg.roads { position: absolute; inset: 0; width: 100%; height: 100%; }
+.pin { position: absolute; transform: translate(-50%, -100%); display: flex; align-items: center; gap: 6px;
+  padding: 7px 12px; border-radius: 999px; background: var(--card); box-shadow: 0 4px 12px rgba(30,42,34,.18);
+  font-size: 14px; font-weight: 700; white-space: nowrap; color: var(--ink); }
+.pin.sel { background: var(--green-deep); color: #fff; }
+.pin.me { background: var(--info); color: #fff; transform: translate(-50%, -50%); }
+.mapcard { position: absolute; left: 16px; right: 16px; bottom: 16px; display: flex; align-items: center;
+  flex-wrap: wrap; gap: 12px; background: var(--card); border-radius: 18px; padding: 16px 20px;
+  box-shadow: 0 10px 30px rgba(30,42,34,.18); }
+.mapcard .cover { width: 60px; height: 60px; border-radius: 14px; font-size: 24px; }
+.mapcard .who { min-width: 0; }
+.mapcard h3 { font-size: 20px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mapcard .meta { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: 15px; color: var(--ink-2); }
+.mc-btns { display: flex; gap: 8px; margin-left: auto; flex: none; }
+.mcbtn { height: 52px; padding: 0 20px; border-radius: 999px; display: flex; align-items: center; justify-content: center;
+  font-size: 16px; font-weight: 700; white-space: nowrap; }
+.mcbtn.ghost { border: 1.5px solid var(--green-200); color: var(--green-deep); background: var(--card); }
+.mcbtn.primary { background: var(--green-deep); color: #fff; }
+
+/* ── 步骤条：上下各 12px，1 进店选菜 / 2 购物车结算 / 3 下单完成 ── */
+.steps { display: flex; align-items: center; gap: 12px; flex: none; }
+.steps li { display: flex; align-items: center; gap: 8px; list-style: none; flex: 1; min-width: 0;
+  font-size: 15px; font-weight: 700; color: var(--ink-3); }
+.steps li:last-child { flex: none; }
+.steps li i { width: 28px; height: 28px; border-radius: 50%; background: var(--segment); color: var(--ink-3);
+  display: grid; place-items: center; font-style: normal; font-size: 14px; flex: none; }
+.steps li.done { color: var(--ink); }
+.steps li.done i { background: var(--green); color: #fff; }
+.steps li.on { color: var(--green-deep); }
+.steps li.on i { background: var(--green-deep); color: #fff; }
+.steps .bar { flex: 1; min-width: 8px; height: 2px; border-radius: 2px; background: var(--line); }
+.steps .bar.done { background: var(--green-300); }
+
+/* ── W4 进店选菜：类别 176 / 商品 / 购物车 300 ── */
+.menupage { padding-top: 12px; height: 100%; display: flex; flex-direction: column; gap: 12px; }
+.desk { display: flex; flex: 1; min-height: 0; background: var(--card); border-radius: 20px;
+  box-shadow: var(--shadow); overflow: hidden; }
+.cats { width: 176px; flex: none; border-right: 1px solid var(--line); padding: 14px; display: flex;
+  flex-direction: column; gap: 4px; overflow: hidden; }
+.cat { position: relative; height: 62px; border-radius: 12px; padding: 0 10px; display: flex; align-items: center;
+  gap: 10px; font-size: 17px; color: var(--ink); flex: none; }
+.cat i { width: 42px; height: 42px; border-radius: 13px; background: var(--green-50); color: var(--green-deep);
+  display: grid; place-items: center; font-style: normal; font-size: 18px; font-weight: 800; flex: none; }
+.cat.on { background: var(--green-50); color: var(--green-deep); font-weight: 700; }
+.cat.on i { background: var(--green); color: #fff; }
+.cat.on::before { content: ""; position: absolute; left: -14px; top: 50%; transform: translateY(-50%);
+  width: 4px; height: 28px; border-radius: 0 4px 4px 0; background: var(--green); }
+.pmain { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+.phead { height: 62px; flex: none; display: flex; align-items: center; gap: 10px; padding: 0 20px;
+  border-bottom: 1px solid var(--line); margin-top: 14px; }
+.phead h1 { font-size: 20px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.phead .cnt { font-size: 14px; color: var(--ink-2); }
+.phead .addr { margin-left: auto; font-size: 14px; color: var(--ink-3); white-space: nowrap; }
+.subcats { flex: none; display: flex; align-items: center; gap: 6px; padding: 8px 20px;
+  border-bottom: 1px solid var(--line); font-size: 14px; overflow: hidden; }
+.subcat { height: 32px; padding: 0 12px; border-radius: 999px; color: var(--ink-2); display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.subcat em { font-style: normal; font-size: 12px; color: var(--ink-3); }
+.subcat.on { background: var(--green-50); color: var(--green-deep); font-weight: 700; }
+.subcat.on em { color: var(--green-deep); }
+.plist { flex: 1; min-height: 0; overflow: hidden; }
+.prow { display: flex; align-items: center; gap: 16px; padding: 6px 20px; border-bottom: 1px solid var(--line); }
+.prow .cover { width: 64px; height: 64px; border-radius: 14px; font-size: 22px; flex: none; }
+.pinfo { flex: 1; min-width: 0; }
+.pinfo h3 { font-size: 18px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pinfo small { display: block; margin-top: 4px; font-size: 13px; color: var(--ink-3); }
+.pprice { flex: none; min-width: 84px; text-align: right; }
+.pprice .money { font-size: 20px; }
+.pprice .unit { display: block; margin-top: 2px; font-size: 12px; color: var(--ink-3); }
+.pctl { width: 120px; flex: none; display: flex; justify-content: flex-end; align-items: center; }
+.addbtn { width: 36px; height: 36px; border-radius: 50%; background: var(--green); color: #fff; display: grid; place-items: center; }
+.stepper { display: flex; align-items: center; height: 36px; border-radius: 999px; background: var(--green-50); }
+.stepper span { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; font-size: 18px; color: var(--green-deep); }
+.stepper span.minus { background: var(--card); border: 1px solid var(--green-100); }
+.stepper span.plus { background: var(--green); color: #fff; }
+.stepper b { min-width: 44px; text-align: center; font-size: 16px; font-variant-numeric: tabular-nums; }
+.prow.sold .pinfo h3 { color: var(--ink-3); }
+.prow.sold .pinfo small { color: var(--ink-3); }
+.prow.sold .pprice .money { color: var(--ink-3); text-decoration: line-through; }
+.pcart { width: 300px; flex: none; border-left: 1px solid var(--line); padding: 16px; display: flex;
+  flex-direction: column; gap: 10px; min-height: 0; }
+.pcart h2 { font-size: 19px; font-weight: 800; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.pcart h2 small { font-size: 14px; font-weight: 400; color: var(--ink-3); }
+.clines { list-style: none; margin: 0; padding: 0; }
+.cline { padding: 10px 0; border-top: 1px dashed var(--line); }
+.cline:first-child { border-top: 0; padding-top: 0; }
+.cline .row { display: flex; align-items: center; gap: 10px; }
+.cline .cover { width: 44px; height: 44px; border-radius: 12px; font-size: 16px; flex: none; }
+.cline .nm { flex: 1; min-width: 0; font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cline .sub { margin-top: 6px; padding-left: 54px; display: flex; align-items: center; gap: 8px; }
+.cline .sub .unit { font-size: 12px; color: var(--ink-3); flex: 1; min-width: 0; }
+.stepper.sm { height: 32px; }
+.stepper.sm span { width: 32px; height: 32px; font-size: 16px; }
+.stepper.sm b { min-width: 32px; font-size: 14px; }
+.ctip { border-radius: 12px; border: 1px solid var(--line); background: var(--card-soft); color: var(--ink-2); font-size: 13px; line-height: 1.55; padding: 8px 12px; }
+.csum { margin-top: auto; border-top: 1px solid var(--line); padding-top: 12px; display: flex; align-items: baseline; justify-content: space-between; }
+.csum span { font-size: 14px; color: var(--ink-2); }
+.csum .money { font-size: 26px; }
+.ccta { height: 52px; border-radius: 999px; background: var(--green-deep); color: #fff; font-size: 19px; font-weight: 700;
+  display: grid; place-items: center; }
+.chint { font-size: 12px; line-height: 1.5; color: var(--ink-3); text-align: center; }
+
+/* ── W5 结算：左分组 + 右侧 400 ── */
+.co { padding-top: 12px; height: 100%; display: flex; flex-direction: column; gap: 12px; }
+.co-grid { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 16px; align-items: start; }
+.co-left { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+.gcard { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 20px; box-shadow: var(--shadow); }
+.gcard.dim { background: var(--card-soft); }
+.ghead { display: flex; align-items: flex-start; gap: 10px; }
+.gchk { width: 24px; height: 24px; border-radius: 50%; background: var(--green); color: #fff; display: grid;
+  place-items: center; margin-top: 1px; flex: none; }
+.gchk.empty { background: var(--card); border: 1.5px solid var(--line); }
+.gtitle { font-size: 17px; font-weight: 700; line-height: 1.5; }
+.gsub { margin-top: 2px; font-size: 14px; color: var(--ink-3); }
+.gright { margin-left: auto; font-size: 14px; font-weight: 700; color: var(--ink-3); white-space: nowrap; }
+.gright.on { color: var(--ink); }
+.gitems { list-style: none; margin: 12px 0 0; padding: 0; }
+.gitem { display: flex; align-items: center; gap: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.gitem:first-child { border-top: 0; padding-top: 0; }
+.ichk { width: 20px; height: 20px; border-radius: 50%; background: var(--green); color: #fff; display: grid;
+  place-items: center; flex: none; }
+.ichk.empty { background: var(--card); border: 1.5px solid var(--line); }
+.ichk.no { background: var(--segment); border: 1.5px solid var(--line); color: var(--ink-3); }
+.ithumb { width: 48px; height: 48px; border-radius: 10px; font-size: 17px; flex: none; }
+.iname { flex: 1; min-width: 0; }
+.iname b { font-size: 16px; font-weight: 700; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.iname small { display: block; margin-top: 2px; font-size: 13px; color: var(--ink-3); }
+.iqty { flex: none; font-size: 17px; font-weight: 700; }
+.iamt { width: 76px; text-align: right; flex: none; }
+.gwarn { margin: 12px -20px -20px; padding: 10px 20px; border-radius: 0 0 18px 18px;
+  background: var(--amber-soft); color: var(--amber-ink); font-size: 13px; line-height: 1.55; }
+.aside { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 20px; box-shadow: var(--shadow); }
+.aside h2 { font-size: 19px; font-weight: 800; }
+.choices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+.choice { min-height: 66px; border: 1.5px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+.choice.on { border-color: var(--green); background: rgba(232,243,236,.7); }
+.choice .row { display: flex; align-items: center; gap: 8px; }
+.rd { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--line); display: grid; place-items: center; flex: none; }
+.choice.on .rd { background: var(--green-600); border-color: var(--green-600); }
+.rd i { width: 6px; height: 6px; border-radius: 50%; background: #fff; }
+.choice b { font-size: 15px; }
+.choice small { display: block; margin-top: 4px; padding-left: 24px; font-size: 12px; line-height: 1.45; color: var(--ink-3); }
+.addrbox { margin-top: 10px; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px;
+  display: flex; align-items: flex-start; gap: 10px; }
+.addrbox .who { flex: 1; min-width: 0; }
+.addrbox b { font-size: 14px; }
+.addrbox .phone { margin-left: 6px; font-size: 13px; color: var(--ink-3); }
+.addrbox p { margin-top: 4px; font-size: 13px; line-height: 1.55; color: var(--ink-2); }
+.addrbox .chg { font-size: 14px; font-weight: 700; color: var(--green-deep); white-space: nowrap; flex: none; }
+.amberline { margin-top: 10px; display: flex; gap: 8px; border-radius: 10px; background: var(--amber-soft);
+  color: var(--amber-ink); font-size: 12px; line-height: 1.5; padding: 8px 10px; }
+.total { margin-top: 16px; border-top: 1px dashed var(--line); padding-top: 16px;
+  display: flex; align-items: baseline; justify-content: space-between; }
+.total span { font-size: 15px; color: var(--ink-2); }
+.total .money { font-size: 28px; }
+.cta { margin-top: 12px; height: 52px; border-radius: 999px; background: var(--green-deep); color: #fff;
+  font-size: 18px; font-weight: 700; display: grid; place-items: center; }
+.cohint { margin-top: 8px; text-align: center; font-size: 12px; line-height: 1.5; color: var(--ink-3); }
+
+/* ── 账户中心：左导航 190 + 右内容 ── */
+.acct { height: 100%; padding-top: 20px; display: flex; gap: 24px; min-height: 0; }
+.side { width: 190px; flex: none; align-self: flex-start; border: 1px solid var(--line); background: var(--card);
+  border-radius: 18px; padding: 12px; display: flex; flex-direction: column; gap: 4px; }
+.side a { position: relative; height: 54px; border-radius: 12px; padding: 0 12px; display: flex; align-items: center;
+  gap: 10px; font-size: 17px; color: var(--ink); }
+.side a.on { background: var(--green-50); color: var(--green-deep); font-weight: 700; }
+.side a.on::before { content: ""; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+  width: 4px; height: 28px; border-radius: 999px; background: var(--green); }
+.apanel { flex: 1; min-width: 0; height: 100%; display: flex; flex-direction: column; gap: 20px; min-height: 0; }
+
+/* W6 我的订单：筛选行 + 行式订单 + 列表内滚动 */
+.filters { display: flex; align-items: center; gap: 12px; flex: none; }
+.fnav { flex: 1; display: flex; gap: 6px; border: 1px solid var(--line); background: var(--card);
+  border-radius: 18px; padding: 8px; min-width: 0; }
+.fnav a { height: 40px; padding: 0 16px; border-radius: 999px; display: flex; align-items: center; gap: 6px;
+  font-size: 15px; white-space: nowrap; color: var(--ink-2); }
+.fnav a em { font-style: normal; font-size: 13px; color: var(--ink-3); }
+.fnav a.on { background: var(--green-50); color: var(--green-deep); font-weight: 700; }
+.fnav a.on em { color: var(--green-deep); }
+.cont { height: 40px; padding: 0 16px; border-radius: 999px; border: 1.5px solid var(--green-200);
+  color: var(--green-deep); font-size: 15px; font-weight: 700; display: flex; align-items: center; flex: none; }
+.olist { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; gap: 12px; }
+.ocard { flex: none; border: 1px solid var(--line); border-radius: 18px; padding: 20px; background: var(--card); box-shadow: var(--shadow); }
+.oline { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ono { font-size: 15px; font-weight: 700; }
+.ono span { font-size: 12px; font-weight: 400; color: var(--ink-3); margin-right: 4px; }
+.oshop { font-size: 17px; font-weight: 700; }
+.odate { margin-left: auto; font-size: 13px; color: var(--ink-3); }
+.osum { margin-top: 12px; font-size: 15px; line-height: 1.5; color: var(--ink-2); }
+.ofoot { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line);
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.ofoot small { font-size: 13px; color: var(--ink-3); }
+.ofoot .tot { display: flex; align-items: baseline; gap: 6px; font-size: 13px; color: var(--ink-2); }
+.ofoot .tot .money { font-size: 18px; }
+.ofoot .tot .money em { font-size: 1em; }
+.afoot { flex: none; font-size: 13px; line-height: 1.6; color: var(--ink-3); }
+
+/* W7 订单详情 */
+.odetail { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; gap: 16px; }
+.dcard { border: 1px solid var(--line); border-radius: 20px; background: var(--card); padding: 20px; box-shadow: var(--shadow); }
+.dhead { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.dhead .tag { height: 28px; padding: 0 10px; border-radius: 8px; font-size: 14px; }
+.dshop { font-size: 20px; font-weight: 800; }
+.dtime { margin-left: auto; font-size: 13px; line-height: 28px; color: var(--ink-3); white-space: nowrap; }
+.dmeta { margin-top: 12px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--ink-2); }
+.dh2 { font-size: 18px; font-weight: 800; }
+.ditems { margin-top: 12px; display: flex; flex-direction: column; gap: 12px; }
+.ditem { display: flex; align-items: flex-start; gap: 12px; }
+.ditem .cover { width: 48px; height: 48px; border-radius: 12px; font-size: 17px; flex: none; }
+.ditem .nm { flex: 1; min-width: 0; }
+.ditem .nm b { display: block; font-size: 15px; font-weight: 700; }
+.ditem .nm small { display: block; margin-top: 3px; font-size: 13px; color: var(--ink-3); }
+.ditem .qty { margin-top: 3px; font-size: 14px; color: var(--ink-2); }
+.ditem .amt { flex: none; }
+.ditem .amt .money em { font-size: 1em; }
+.dtot { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 12px; display: flex;
+  align-items: baseline; justify-content: space-between; }
+.dtot span { font-size: 15px; color: var(--ink-2); }
+.dtot .money { font-size: 22px; }
+.dtot .money em { font-size: 1em; }
+.field { display: flex; gap: 10px; margin-top: 6px; font-size: 15px; line-height: 1.6; }
+.field .k { flex: none; color: var(--ink-3); }
+.field .v { color: var(--ink); }
+
+/* W8 收货地址 */
+.ablist { border: 1px solid var(--line); border-radius: 18px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
+.arow { display: flex; align-items: center; gap: 20px; padding: 20px; border-top: 1px solid var(--line); }
+.arow:first-child { border-top: 0; }
+.apin { width: 36px; height: 36px; border-radius: 12px; background: var(--green-50); color: var(--green-deep);
+  display: grid; place-items: center; flex: none; align-self: flex-start; margin-top: 2px; }
+.who-line { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.who-line b { font-size: 17px; font-weight: 700; }
+.who-line .phone { font-size: 15px; color: var(--ink-2); }
+.abadge { font-size: 13px; font-weight: 700; color: var(--green-deep); background: var(--green-50); padding: 2px 10px; border-radius: 999px; }
+.aaddr { margin-top: 4px; font-size: 15px; line-height: 1.55; color: var(--ink-2); }
+.aremark { margin-top: 2px; font-size: 14px; color: var(--ink-3); }
+.abtns { margin-left: auto; display: flex; align-items: center; gap: 6px; flex: none; }
+.abtn { height: 36px; padding: 0 12px; border-radius: 8px; display: flex; align-items: center;
+  font-size: 16px; font-weight: 600; color: var(--green-deep); }
+.abtn.gray { color: var(--ink-2); }
+.abtn.red { color: var(--danger); }
+.abtn.sep { margin-left: 6px; }
+.abtns .pfx { width: 1px; height: 18px; background: var(--line); }
+.addwrap { display: flex; margin-top: 4px; }
+.addbtn2 { height: 52px; padding: 0 22px; border-radius: 999px; background: var(--green-deep); color: #fff;
+  font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.overlay { position: absolute; inset: 0; z-index: 20; background: rgba(20,28,22,.5); display: flex;
+  align-items: center; justify-content: center; }
+.modal { width: 420px; background: var(--card); border-radius: 18px; padding: 24px; box-shadow: 0 24px 60px rgba(20,28,22,.25); }
+.modal h2 { font-size: 19px; font-weight: 800; line-height: 1.5; }
+.modal .mwho { margin-top: 12px; font-size: 15px; font-weight: 700; }
+.modal .maddr { margin-top: 4px; font-size: 14px; line-height: 1.6; color: var(--ink-2); }
+.modal .mhint { margin-top: 12px; font-size: 13px; color: var(--ink-3); }
+.mbtns { display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px; }
+.mbtn { height: 44px; padding: 0 20px; border-radius: 999px; border: 1.5px solid var(--line);
+  font-size: 16px; font-weight: 600; color: var(--ink-2); display: flex; align-items: center; }
+.mbtn.danger { background: var(--danger); border-color: var(--danger); color: #fff; font-weight: 700; }
+
+/* W9 设置 */
+.scard { border: 1px solid var(--line); border-radius: 20px; background: var(--card); padding: 20px; box-shadow: var(--shadow); }
+.sh2 { font-size: 19px; font-weight: 800; }
+.ssub { margin-top: 4px; font-size: 14px; line-height: 1.55; color: var(--ink-3); }
+.tgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 14px; }
+.theme { min-height: 76px; border: 1.5px solid var(--line); border-radius: 12px; padding: 12px 14px;
+  display: flex; align-items: flex-start; gap: 12px; }
+.theme.on { border-color: var(--green); background: rgba(232,243,236,.7); }
+.ticon { width: 36px; height: 36px; border-radius: 10px; background: var(--green-50); color: var(--green-deep);
+  display: grid; place-items: center; flex: none; align-self: center; }
+.theme.on .ticon { background: var(--green); color: #fff; }
+.tbody { flex: 1; min-width: 0; }
+.trow { display: flex; align-items: center; gap: 8px; }
+.trow b { font-size: 16px; }
+.tradio { margin-left: auto; width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--line);
+  display: grid; place-items: center; flex: none; }
+.theme.on .tradio { background: var(--green-600); border-color: var(--green-600); }
+.tradio i { width: 6px; height: 6px; border-radius: 50%; background: #fff; }
+.tsub { display: block; margin-top: 3px; font-size: 12px; line-height: 1.5; color: var(--ink-3); }
+.entry { min-height: 54px; margin-top: 8px; border: 1px solid var(--line); border-radius: 12px; padding: 0 16px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 16px; font-weight: 700; }
+.entry .chev { font-size: 18px; color: var(--ink-3); }
+.entry + .entry { margin-top: 8px; }
+
+/* W10 个人信息 */
+.pstack { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 12px; }
+.pcard2 { border: 1px solid var(--line); border-radius: 20px; background: var(--card); padding: 20px; box-shadow: var(--shadow); }
+.pcard2 h2 { font-size: 17px; font-weight: 700; }
+.phint { margin-top: 4px; font-size: 14px; line-height: 1.55; color: var(--ink-3); }
+.avatar-row { margin-top: 14px; display: flex; align-items: center; gap: 16px; }
+.avatar80 { width: 80px; height: 80px; border-radius: 50%; background: var(--green-50); color: var(--green-deep);
+  display: grid; place-items: center; font-size: 28px; font-weight: 700; flex: none; }
+.pbtns { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.pbtn { height: 48px; padding: 0 20px; border-radius: 12px; background: var(--green-deep); color: #fff;
+  font-size: 16px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+.pbtn.ghost { background: transparent; border: 1.5px solid var(--line); color: var(--ink-2); }
+.prow2 { margin-top: 12px; display: flex; align-items: center; gap: 12px; }
+.pinput { flex: 1; min-width: 0; height: 48px; border-radius: 12px; border: 1.5px solid var(--line);
+  background: var(--card-soft); padding: 0 14px; font-size: 16px; color: var(--ink); display: flex; align-items: center; }
+.pinput.ph { color: var(--ink-3); }
+.pcode { margin-top: 10px; display: flex; gap: 12px; align-items: center; }
+.pcode .pinput { flex: 1; }
+.codebtn2 { height: 48px; width: 148px; flex: none; border-radius: 12px; border: 1.5px solid var(--green-200);
+  background: var(--green-50); color: var(--green-deep); font-size: 16px; font-weight: 700;
+  display: grid; place-items: center; }
+.pwgrid { margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.pwgrid .pinput { width: 100%; }
+.pcard2 .pbtn { margin-top: 12px; }
+.pcard2 .pbtn.inline { margin-top: 0; flex: none; }
+
+/* ── W0 登录 / 注册 ── */
+.authpage { height: 100%; display: grid; grid-template-columns: 520px minmax(0, 1fr); gap: 56px; align-items: start; }
+.auth-side { align-self: center; display: flex; flex-direction: column; gap: 22px; }
+.auth-side h1 { font-size: 44px; font-weight: 800; letter-spacing: 2px; color: var(--green-deep); }
+.auth-side .slogan { margin: -8px 0 6px; font-size: 24px; line-height: 1.5; font-weight: 600; color: var(--ink); }
+.perk { display: flex; align-items: center; gap: 16px; border-radius: 16px; background: var(--card);
+  padding: 16px 18px; box-shadow: var(--shadow); }
+.perk i { width: 52px; height: 52px; border-radius: 14px; background: var(--green-50); color: var(--green-deep);
+  display: grid; place-items: center; flex: none; font-size: 22px; font-weight: 800; font-style: normal; }
+.perk b { display: block; font-size: 20px; }
+.perk span { font-size: 16px; color: var(--ink-2); }
+.auth-card { width: 100%; max-width: 540px; height: 690px; justify-self: center; background: var(--card); border-radius: 24px;
+  box-shadow: var(--shadow-auth); padding: 28px 34px 26px; display: flex; flex-direction: column; }
+.auth-form { flex: 1; display: flex; flex-direction: column; gap: 12px; }
+.auth-form .devnote { margin-top: auto; }
+.segment { display: grid; grid-template-columns: 1fr 1fr; background: var(--segment); border-radius: 16px; padding: 5px; }
+.segment span { height: 54px; border-radius: 12px; display: grid; place-items: center; font-size: 21px;
+  color: var(--ink-2); font-weight: 600; }
+.segment span.on { background: var(--card); color: var(--green-deep); font-weight: 800; box-shadow: 0 2px 6px rgba(30,42,34,.08); }
+.flabel { margin-top: 4px; font-size: 18px; font-weight: 700; }
+.input { height: 60px; border-radius: 14px; border: 1.5px solid var(--line); background: var(--card-soft);
+  display: flex; align-items: center; padding: 0 18px; font-size: 21px; color: var(--ink-3); }
+.input.filled { background: var(--card-soft); color: var(--ink); }
+.input.focus { border: 2px solid var(--green); background: var(--card); box-shadow: 0 0 0 4px rgba(76,154,106,.15); }
+.coderow { display: grid; grid-template-columns: 1fr 170px; gap: 12px; }
+.codebtn { height: 60px; border-radius: 14px; border: 1.5px solid var(--green-200); background: var(--green-50);
+  color: var(--green-deep); display: grid; place-items: center; font-size: 18px; font-weight: 700; }
+.codebtn.wait { background: var(--segment); border-color: var(--line); color: var(--ink-3); }
+.okline { font-size: 16px; line-height: 1.5; color: var(--green-deep); background: var(--green-50); border-radius: 10px; padding: 8px 12px; }
+.devnote { display: flex; gap: 10px; align-items: flex-start; font-size: 15px; line-height: 1.6; color: var(--amber-ink);
+  background: var(--amber-soft); border-radius: 12px; padding: 10px 14px; }
+.agree { font-size: 15px; text-align: center; color: var(--ink-3); }
+.agree b { font-weight: 600; color: var(--green-deep); }
+.switchline { font-size: 17px; text-align: center; color: var(--ink-2); }
+.switchline b { color: var(--green-deep); }
+.authbtn { margin-top: 8px; height: 62px; border-radius: 14px; background: var(--green-deep); color: #fff;
+  font-size: 21px; font-weight: 700; display: grid; place-items: center; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-shop" viewBox="0 0 24 24"><path d="M4 9l1.5-5h13L20 9"/><path d="M4 9h16v2a3 3 0 0 1-5.3 1.9A3 3 0 0 1 12 14a3 3 0 0 1-2.7-1.1A3 3 0 0 1 4 11z"/><path d="M5 13v7h14v-7"/></symbol>
+  <symbol id="i-big" viewBox="0 0 24 24"><path d="M3 18L7.5 6l4.5 12M4.6 14h5.8M15 18l2.8-7 2.7 7M15.9 16h3.8"/></symbol>
+  <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></symbol>
+  <symbol id="i-tool" viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.5-2.5z"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></symbol>
+  <symbol id="i-cart" viewBox="0 0 24 24"><circle cx="9" cy="20" r="1"/><circle cx="19" cy="20" r="1"/><path d="M3 3h2l2.4 11.2a2 2 0 0 0 2 1.6h8.9a2 2 0 0 0 2-1.6L22 7H6"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s7-5.2 7-11a7 7 0 1 0-14 0c0 5.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 0 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 0 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 0 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 0 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
+  <symbol id="i-out" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></symbol>
+  <symbol id="i-loc" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="7"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.5"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.8A8.5 8.5 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></symbol>
+  <symbol id="i-auto" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor" stroke="none"/></symbol>
+</svg>
+
+<div class="doc">
+  <div class="doc-head">
+    <div class="eyebrow">SDS · CUSTOMER WEB / MOCKUP v0.2</div>
+    <h1>捎点啥 · 顾客 Web 端效果图</h1>
+    <p>与当前 web 实现逐页对齐：桌面视口 1440×900。内容区固定 1104 宽（<code>max-w-6xl</code> 1152 − 左右各 24 内边距，1440 下 X 168–1272），高度 700 封顶并顶部停靠，桌面无页面级纵向滚动；超长内容在自身区块内滚动。≥1024 起为桌面布局，附近的店保持左右两栏。</p>
+  </div>
+
+  <!-- ═══════════ W0-a 登录 ═══════════ -->
+  <div class="label"><b>W0-a</b>登录 · 手机号 + 验证码（未登录态顶栏：门店药丸为「选一家店」）</div>
+  <div class="frame">
+    <div class="chrome"><i></i><i></i><i></i><div class="url">shaodiansha.com/login?next=%2Fcheckout</div></div>
+    <header class="top">
+      <a class="logo"><span class="mark">捎</span>捎点啥</a>
+      <a class="shoppill empty"><span class="dot"><svg class="ic"><use href="#i-shop"/></svg></span><span class="nm">选一家店</span><svg class="ic"><use href="#i-down"/></svg></a>
+      <div class="search"><svg class="ic" style="color:var(--ink-3)"><use href="#i-search"/></svg>搜菜</div>
+      <a class="cartlink"><svg class="ic"><use href="#i-cart"/></svg>购物车</a>
+      <a class="loginbtn"><svg class="ic"><use href="#i-user"/></svg>登录 / 注册</a>
+    </header>
+    <div class="page">
+      <div class="authpage">
+        <div class="auth-side">
+          <h1>捎点啥</h1>
+          <div class="slogan">买菜不费劲，送到家门口</div>
+          <div class="perk"><i><svg class="ic" style="width:26px;height:26px"><use href="#i-shop"/></svg></i><div><b>就在家附近的店</b><span>挑好菜，店里送上门，也能自己去拿</span></div></div>
+          <div class="perk"><i><svg class="ic" style="width:26px;height:26px"><use href="#i-big"/></svg></i><div><b>字大、按钮大</b><span>每一步只问一件事，不怕点错</span></div></div>
+          <div class="perk"><i><svg class="ic" style="width:26px;height:26px"><use href="#i-heart"/></svg></i><div><b>不会用也不要紧</b><span>可以让家人帮忙，或到店里找店员</span></div></div>
+        </div>
+        <div class="auth-card">
+          <div class="auth-form">
+            <div class="segment"><span class="on">登录</span><span>注册</span></div>
+            <div class="flabel">手机号</div>
+            <div class="input filled">138 1234 6621</div>
+            <div class="flabel">验证码</div>
+            <div class="coderow">
+              <div class="input focus">请输入 6 位验证码</div>
+              <div class="codebtn">获取验证码</div>
+            </div>
+            <div class="authbtn">登录</div>
+            <p class="switchline">第一次使用？点上面的「<b>注册</b>」</p>
+            <div class="devnote"><svg class="ic" style="width:20px;height:20px;color:var(--amber)"><use href="#i-tool"/></svg>
+              <span>现在是开发体验版：验证码固定为 123456，不会真的发短信；正式上线后会改成短信验证码。</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <footer class="foot"><span>捎点啥 · 顾客端</span><span class="footlinks"><a href="/help">帮助</a><a href="/about">关于</a></span></footer>
+  </div>
+  <div class="notes">顶栏高 85（含 1px 下边框），内容区 1104；左侧说明垂直居中，登录卡顶部停靠，高 690（与隐藏的注册卡同高，真实页面一致），开发提示贴底。1440 下卡宽 528，真实页面因滚动条预留约 513，最大 540。输入 60 高、圆角 14，主按钮 62 高。</div>
+
+  <!-- ═══════════ W0-b 注册 ═══════════ -->
+  <div class="label"><b>W0-b</b>注册 · 手机号 + 验证码 + 姓名（默认态：发送后按钮 60 秒倒计时）</div>
+  <div class="frame">
+    <div class="chrome"><i></i><i></i><i></i><div class="url">shaodiansha.com/login?mode=register</div></div>
+    <header class="top">
+      <a class="logo"><span class="mark">捎</span>捎点啥</a>
+      <a class="shoppill empty"><span class="dot"><svg class="ic"><use href="#i-shop"/></svg></span><span class="nm">选一家店</span><svg class="ic"><use href="#i-down"/></svg></a>
+      <div class="search"><svg class="ic" style="color:var(--ink-3)"><use href="#i-search"/></svg>搜菜</div>
+      <a class="cartlink"><svg class="ic"><use href="#i-cart"/></svg>购物车</a>
+      <a class="loginbtn"><svg class="ic"><use href="#i-user"/></svg>登录 / 注册</a>
+    </header>
+    <div class="page">
+      <div class="authpage">
+        <div class="auth-side">
+          <h1>欢迎来捎点啥</h1>
+          <div class="slogan">填三样就能用，以后用手机号登录</div>
+          <div class="perk"><i>1</i><div><b>手机号</b><span>店里有事会打这个电话找您</span></div></div>
+          <div class="perk"><i>2</i><div><b>验证码</b><span>点「获取验证码」，把收到的 6 位数填进去</span></div></div>
+          <div class="perk"><i>3</i><div><b>姓名</b><span>送菜时店员这样称呼您</span></div></div>
+        </div>
+        <div class="auth-card">
+          <div class="auth-form">
+            <div class="segment"><span>登录</span><span class="on">注册</span></div>
+            <div class="flabel">手机号</div>
+            <div class="input">请输入手机号</div>
+            <div class="flabel">验证码</div>
+            <div class="coderow">
+              <div class="input">请输入 6 位验证码</div>
+              <div class="codebtn">获取验证码</div>
+            </div>
+            <div class="flabel">姓名</div>
+            <div class="input">请输入姓名</div>
+            <div class="authbtn">注册并登录</div>
+            <p class="agree">注册即表示同意 <b>《用户协议》</b> 和 <b>《隐私政策》</b></p>
+            <p class="switchline">已经注册过？点上面的「<b>登录</b>」</p>
+            <div class="devnote"><svg class="ic" style="width:20px;height:20px;color:var(--amber)"><use href="#i-tool"/></svg>
+              <span>现在是开发体验版：验证码固定为 123456，不会真的发短信；正式上线后会改成短信验证码。</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <footer class="foot"><span>捎点啥 · 顾客端</span><span class="footlinks"><a href="/help">帮助</a><a href="/about">关于</a></span></footer>
+  </div>
+  <div class="notes">注册卡比登录多「姓名」与协议行，与登录卡同高 690（登录卡被隐藏的注册卡撑高，开发提示贴底）。发送验证码后按钮进入 60 秒倒计时并置灰，同时出现绿色提示「验证码已发送。开发环境验证码固定为 123456（临时方案）」，卡片随内容变高并在内容区内部滚动。左侧说明为 1/2/3 编号。</div>
+
+  <!-- ═══════════ W1 首页 ═══════════ -->
+  <div class="label"><b>W1</b>首页 · 目前为占位内容（顶栏：门店药丸贴内容宽度、搜索药丸、购物车常显带角标、用户药丸）</div>
+  <div class="frame">
+    <div class="chrome"><i></i><i></i><i></i><div class="url">shaodiansha.com/</div></div>
+    <header class="top">
+      <a class="logo"><span class="mark">捎</span>捎点啥</a>
+      <a class="shoppill"><span class="dot"><svg class="ic"><use href="#i-shop"/></svg></span><span class="nm">阳光生鲜 · 文三路店</span><svg class="ic"><use href="#i-down"/></svg></a>
+      <div class="search"><svg class="ic" style="color:var(--ink-3)"><use href="#i-search"/></svg>搜菜</div>
+      <a class="cartlink"><svg class="ic"><use href="#i-cart"/></svg>购物车<b class="badge">5</b></a>
+      <a class="avatar-btn"><span class="av">张</span>张桂英<svg class="ic chev" style="width:20px;height:20px"><use href="#i-down"/></svg></a>
+    </header>
+    <div class="page">
+      <div class="simple">
+        <h1>首页</h1>
+        <p>这里是首页占位内容，后续再补充业务模块。</p>
+        <a href="#">前往关于我们</a>
+      </div>
+    </div>
+    <footer class="foot"><span>捎点啥 · 顾客端</span><span class="footlinks"><a href="/help">帮助</a><a href="/about">关于</a></span></footer>
+  </div>
+  <div class="notes">顶栏顺序：logo → 门店药丸（<code>max-w-[310px]</code>、<code>rounded-full</code>、h52）→ 搜索（xl 起显示，宽 124）→ <code>ml-auto</code> 购物车（角标品牌绿）→ 用户药丸。顶栏没有「我的订单」入口。</div>
+
+  <!-- ═══════════ W2 关于 ═══════════ -->
+  <div class="label"><b>W2</b>关于我们 · 占位内容</div>
+  <div class="frame">
+    <div class="chrome"><i></i><i></i><i></i><div class="url">shaodiansha.com/about</div></div>
+    <header class="top">
+      <a class="logo"><span class="mark">捎</span>捎点啥</a>
+      <a class="shoppill"><span class="dot"><svg class="ic"><use href="#i-shop"/></svg></span><span class="nm">阳光生鲜 · 文三路店</span><svg class="ic"><use href="#i-down"/></svg></a>
+      <div class="search"><svg class="ic" style="color:var(--ink-3)"><use href="#i-search"/></svg>搜菜</div>
+      <a class="cartlink"><svg class="ic"><use href="#i-cart"/></svg>购物车<b class="badge">5</b></a>
+      <a class="avatar-btn"><span class="av">张</span>张桂英<svg class="ic chev" style="width:20px;height:20px"><use href="#i-down"/></svg></a>
+    </header>
+    <div class="page">
+      <div class="simple">
+        <h1>关于我们</h1>
+        <p>关于页占位内容，用于验证页面切换与公共布局复用。</p>
+        <a href="#">返回首页</a>
+      </div>
+    </div>
+    <footer class="foot"><span>捎点啥 · 顾客端</span><span class="footlinks"><a href="/help">帮助</a><a href="/about">关于</a></span></footer>
+  </div>
+  <div class="notes">footer 右侧入口是「帮助」和「关于」，分别指向 <code>/help</code> 与 <code>/about</code>，同一行、间距 20；左侧文案「捎点啥 · 顾客端」。</div>
+
+  <!-- ═══════════ W3 附近的店 ═══════════ -->
+  <div class="label"><b>W3</b>附近的店 · ≥1024 两栏（列表 500 / 地图 1fr）、筛选药丸、定位提示、地图信息卡</div>
+  <div class="frame">
+    <div class="chrome"><i></i><i></i><i></i><div class="url">shaodiansha.com/shops</div></div>
+    <header class="top">
+      <a class="logo"><span class="mark">捎</span>捎点啥</a>
+      <a class="shoppill"><span class="dot"><svg class="ic"><use href="#i-shop"/></svg></span><span class="nm">阳光生鲜 · 文三路店</span><svg class="ic"><use href="#i-down"/></svg></a>
+      <div class="search"><svg class="ic" style="color:var(--ink-3)"><use href="#i-search"/></svg>搜菜</div>
+      <a class="cartlink"><svg class="ic"><use href="#i-cart"/></svg>购物车<b class="badge">5</b></a>
+      <a class="avatar-btn"><span class="av">张</span>张桂英<svg class="ic chev" style="width:20px;height:20px"><use href="#i-down"/></svg></a>
+    </header>
+    <div class="page shops">
+      <section class="shops-list">
+        <div class="shops-head">
+          <h2>附近的店</h2>
+          <div class="filter">
+            <button class="fpill on">3 公里内</button>
+            <button class="fpill soft">只看营业中</button>
+          </div>
+        </div>
+        <div class="locate"><svg class="ic" style="color:var(--info)"><use href="#i-loc"/></svg>
+          <span>按 <b>当前位置</b> 附近找的店</span><span class="r">重新定位</span></div>
+        <div class="shoplist">
+          <article class="shopcard cur">
+            <div class="cover thumb">鲜</div>
+            <div>
+              <h3>阳光生鲜 · 文三路店<span class="curtag">当前门店</span></h3>
+              <div class="shopmeta"><span class="tag open">营业中</span><span>07:00–20:00</span></div>
+              <p class="shopaddr">直线 320 米 · 文三路 478 号 · 阳光小区北门旁</p>
+            </div>
+            <button class="shopbtn ghost">去买菜</button>
+          </article>
+          <article class="shopcard">
+            <div class="cover thumb">邻</div>
+            <div>
+              <h3>邻里菜篮 · 学院路店</h3>
+              <div class="shopmeta"><span class="tag open">营业中</span><span>06:30–19:30</span></div>
+              <p class="shopaddr">直线 860 米 · 学院路 112 号 · 学院新村 6 幢 1 层</p>
+            </div>
+            <button class="shopbtn primary">选他</button>
+          </article>
+          <article class="shopcard">
+            <div class="cover thumb off">福</div>
+            <div>
+              <h3>福满多超市</h3>
+              <div class="shopmeta"><span class="tag rest">休息中</span><span>今天不接单</span></div>
+              <p class="shopaddr">直线 1.2 公里 · 古翠路 88 号 · 古荡小区西门</p>
+            </div>
+            <button class="shopbtn off">休息中</button>
+          </article>
+          <article class="shopcard">
+            <div class="cover thumb">菜</div>
+            <div>
+              <h3>菜篮子 · 教工路店</h3>
+              <div class="shopmeta"><span class="tag open">营业中</span><span>07:30–20:30</span></div>
+              <p class="shopaddr">直线 1.8 公里 · 教工路 65 号 · 沿街商铺</p>
+            </div>
+            <button class="shopbtn primary">选他</button>
+          </article>
+        </div>
+        <p class="shopnote">距离是直线距离，仅供参考；实际能不能送，以店里接单为准。</p>
+      </section>
+      <section class="map">
+        <svg class="roads" viewBox="0 0 580 656" preserveAspectRatio="xMidYMid slice">
+          <rect width="580" height="656" fill="#EDF0E8"/>
+          <rect x="372" y="48" width="180" height="132" rx="16" fill="#DCE9D6"/>
+          <rect x="46" y="430" width="160" height="160" rx="16" fill="#DCE9D6"/>
+          <path d="M0 470 C 140 450, 260 512, 580 420" stroke="#CFE0EA" stroke-width="30" fill="none"/>
+          <g stroke="#FFF" stroke-width="18" stroke-linecap="round">
+            <path d="M0 218 H580"/><path d="M0 356 H580"/><path d="M210 0 V656"/><path d="M420 0 V656"/><path d="M60 0 L 300 656"/>
+          </g>
+          <g stroke="#FFF" stroke-width="8">
+            <path d="M0 108 H580"/><path d="M0 556 H580"/><path d="M120 0 V656"/><path d="M520 0 V656"/>
+          </g>
+          <g font-size="14" fill="#9AA39C" font-family="PingFang SC, sans-serif">
+            <text x="16" y="210">文三路</text><text x="16" y="348">学院路</text>
+            <text x="222" y="26">教工路</text><text x="432" y="26">古翠路</text>
+          </g>
+        </svg>
+        <div class="pin me" style="left:170px;top:300px">我的位置</div>
+        <div class="pin sel" style="left:310px;top:222px">阳光生鲜 · 文三路店</div>
+        <div class="pin" style="left:448px;top:372px">邻里菜篮 · 学院路店</div>
+        <div class="pin" style="left:112px;top:168px">福满多超市</div>
+        <div class="mapcard">
+          <div class="cover thumb">鲜</div>
+          <div class="who">
+            <h3>阳光生鲜 · 文三路店</h3>
+            <div class="meta"><span class="tag open">营业中</span><span>直线 320 米</span></div>
+          </div>
+          <div class="mc-btns">
+            <button class="mcbtn ghost"><svg class="ic" style="width:20px;height:20px"><use href="#i-phone"/></svg>打电话</button>
+            <button class="mcbtn primary">去买菜</button>
+          </div>
+        </div>
+      </section>
+    </div>
+    <footer class="foot"><span>捎点啥 · 顾客端</span><span class="footlinks"><a href="/help">帮助</a><a href="/about">关于</a></span></footer>
+  </div>
+  <div class="notes">内容高 656（700 − 20 顶部留白 − 24 底部内边距），列表自身滚动；地图铺满右栏，信息卡距边 16。列表列宽 <code>minmax(0,500px)</code>，地图 <code>minmax(0,1fr)</code>，间距 24。</div>
+
+  <!-- ═══════════ W4 进店选菜 ═══════════ -->
+  <div class="label"><b>W4</b>进店选菜 · 三栏（类别 176 / 商品 / 购物车 300）、行式商品、售罄、步骤条第 1 步</div>
+  <div class="frame">
+    <div class="chrome"><i></i><i></i><i></i><div class="url">shaodiansha.com/shops/47c758b6-c770-4f2c-b96c-35e59142e084</div></div>
+    <header class="top">
+      <a class="logo"><span class="mark">捎</span>捎点啥</a>
+      <a class="shoppill"><span class="dot"><svg class="ic"><use href="#i-shop"/></svg></span><span class="nm">阳光生鲜 · 文三路店</span><svg class="ic"><use href="#i-down"/></svg></a>
+      <div class="search"><svg class="ic" style="color:var(--ink-3)"><use href="#i-search"/></svg>搜菜</div>
+      <a class="cartlink"><svg class="ic"><use href="#i-cart"/></svg>购物车<b class="badge">5</b></a>
+      <a class="avatar-btn"><span class="av">张</span>张桂英<svg class="ic chev" style="width:20px;height:20px"><use href="#i-down"/></svg></a>
+    </header>
+    <div class="page">
+      <div class="menupage">
+        <ol class="steps" style="margin:0;padding:0">
+          <li class="on"><i>1</i>挑好菜<span class="bar done"></span></li>
+          <li><i>2</i>怎么拿、怎么付<span class="bar"></span></li>
+          <li><i>3</i>下单好了</li>
+        </ol>
+        <div class="desk">
+          <nav class="cats">
+            <div class="cat on"><i>全</i>全部</div>
+            <div class="cat"><i>蔬</i>蔬菜</div>
+            <div class="cat"><i style="background:var(--segment);color:var(--ink-2)">肉</i></div>
+            <div class="cat"><i style="background:var(--segment);color:var(--ink-2)">蛋</i></div>
+            <div class="cat"><i style="background:var(--segment);color:var(--ink-2)">奶</i></div>
+            <div class="cat"><i style="background:var(--segment);color:var(--ink-2)">豆</i></div>
+            <div class="cat"><i style="background:var(--segment);color:var(--ink-2)">米</i></div>
+          </nav>
+          <div class="pmain">
+            <div class="phead">
+              <h1>阳光生鲜 · 文三路店</h1>
+              <span class="tag open">营业中</span>
+              <span class="cnt">36 样菜</span>
+              <span class="addr">文三路 478 号</span>
+            </div>
+            <div class="subcats">
+              <span class="subcat on">全部 <em>36</em></span>
+              <span class="subcat">叶子菜 <em>12</em></span>
+              <span class="subcat">瓜果茄 <em>9</em></span>
+              <span class="subcat">根茎类 <em>8</em></span>
+              <span class="subcat">菌菇 <em>7</em></span>
+            </div>
+            <div class="plist">
+              <div class="prow">
+                <div class="cover thumb">柿</div>
+                <div class="pinfo"><h3>西红柿</h3><small>约 500 克 · 沙瓤</small></div>
+                <div class="pprice"><span class="money"><em>¥</em>4.80</span><span class="unit">/ 斤</span></div>
+                <div class="pctl"><div class="stepper"><span class="minus"><svg class="ic" style="width:16px;height:16px"><use href="#i-minus"/></svg></span><b>2</b><span class="plus"><svg class="ic" style="width:16px;height:16px"><use href="#i-plus"/></svg></span></div></div>
+              </div>
+              <div class="prow">
+                <div class="cover thumb">青</div>
+                <div class="pinfo"><h3>上海青</h3><small>约 500 克 · 本地</small></div>
+                <div class="pprice"><span class="money"><em>¥</em>3.50</span><span class="unit">/ 斤</span></div>
+                <div class="pctl"><span class="addbtn"><svg class="ic" style="width:18px;height:18px"><use href="#i-plus"/></svg></span></div>
+              </div>
+              <div class="prow">
+                <div class="cover thumb">瓜</div>
+                <div class="pinfo"><h3>黄瓜</h3><small>约 500 克 · 带刺</small></div>
+                <div class="pprice"><span class="money"><em>¥</em>3.90</span><span class="unit">/ 斤</span></div>
+                <div class="pctl"><div class="stepper"><span class="minus"><svg class="ic" style="width:16px;height:16px"><use href="#i-minus"/></svg></span><b>1</b><span class="plus"><svg class="ic" style="width:16px;height:16px"><use href="#i-plus"/></svg></span></div></div>
+              </div>
+              <div class="prow">
+                <div class="cover thumb">土</div>
+                <div class="pinfo"><h3>土豆</h3><small>约 500 克 · 黄心</small></div>
+                <div class="pprice"><span class="money"><em>¥</em>5.20</span><span class="unit">/ 斤</span></div>
+                <div class="pctl"><span class="addbtn"><svg class="ic" style="width:18px;height:18px"><use href="#i-plus"/></svg></span></div>
+              </div>
+              <div class="prow">
+                <div class="cover thumb">菇</div>
+                <div class="pinfo"><h3>香菇</h3><small>约 250 克 · 鲜</small></div>
+                <div class="pprice"><span class="money"><em>¥</em>6.80</span><span class="unit">/ 斤</span></div>
+                <div class="pctl"><span class="addbtn"><svg class="ic" style="width:18px;height:18px"><use href="#i-plus"/></svg></span></div>
+              </div>
+              <div class="prow sold">
+                <div class="cover thumb off">茄</div>
+                <div class="pinfo"><h3>长茄子</h3><small>今天卖完了</small></div>
+                <div class="pprice"><span class="money"><em>¥</em>4.50</span><span class="unit">/ 斤</span></div>
+                <div class="pctl"><span class="tag gray" style="height:36px;padding:0 10px;border-radius:6px">卖完了</span></div>
+              </div>
+              <div class="prow">
+                <div class="cover thumb">生</div>
+                <div class="pinfo"><h3>生菜</h3><small>约 400 克 · 脆</small></div>
+                <div class="pprice"><span class="money"><em>¥</em>3.20</span><span class="unit">/ 斤</span></div>
+                <div class="pctl"><span class="addbtn"><svg class="ic" style="width:18px;height:18px"><use href="#i-plus"/></svg></span></div>
+              </div>
+            </div>
+          </div>
+          <aside class="pcart">
+            <h2>阳光生鲜的菜 <small>3 样</small></h2>
+            <ul class="clines">
+              <li class="cline">
+                <div class="row"><div class="cover thumb">柿</div><span class="nm">西红柿</span><span class="money" style="font-size:15px"><em>¥</em>9.60</span></div>
+                <div class="sub"><span class="unit">¥4.80 / 斤</span><div class="stepper sm"><span class="minus"><svg class="ic" style="width:14px;height:14px"><use href="#i-minus"/></svg></span><b>2</b><span class="plus"><svg class="ic" style="width:14px;height:14px"><use href="#i-plus"/></svg></span></div></div>
+              </li>
+              <li class="cline">
+                <div class="row"><div class="cover thumb">瓜</div><span class="nm">黄瓜</span><span class="money" style="font-size:15px"><em>¥</em>3.90</span></div>
+                <div class="sub"><span class="unit">¥3.90 / 斤</span><div class="stepper sm"><span class="minus"><svg class="ic" style="width:14px;height:14px"><use href="#i-minus"/></svg></span><b>1</b><span class="plus"><svg class="ic" style="width:14px;height:14px"><use href="#i-plus"/></svg></span></div></div>
+              </li>
+              <li class="cline">
+                <div class="row"><div class="cover thumb">蛋</div><span class="nm">土鸡蛋（10 个）</span><span class="money" style="font-size:15px"><em>¥</em>18.00</span></div>
+                <div class="sub"><span class="unit">¥18.00 / 盒</span><div class="stepper sm"><span class="minus"><svg class="ic" style="width:14px;height:14px"><use href="#i-minus"/></svg></span><b>1</b><span class="plus"><svg class="ic" style="width:14px;height:14px"><use href="#i-plus"/></svg></span></div></div>
+              </li>
+            </ul>
+            <div class="ctip">购物车里还有 邻里菜篮 · 学院路店 的 2 样菜，结算时分开下单。</div>
+            <div class="csum"><span>这家店合计</span><span class="money"><em>¥</em>31.50</span></div>
+            <a class="ccta">去结算</a>
+            <p class="chint">结算时会按门店拆单，可以分两次下单。</p>
+          </aside>
+        </div>
+      </div>
+    </div>
+    <footer class="foot"><span>捎点啥 · 顾客端</span><span class="footlinks"><a href="/help">帮助</a><a href="/about">关于</a></span></footer>
+  </div>
+  <div class="notes">步骤条在内容区顶部、上下各 12px；类别栏 176、购物车 300，中间自适应。商品行高约 76，售罄行置灰、右侧为「已售罄」；有数量的商品显示减号/加号步进器，没有则显示圆形加号。</div>
+
+  <!-- ═══════════ W5 结算 ═══════════ -->
+  <div class="label"><b>W5</b>购物车 · 结算 · 分组勾选、售罄行、取菜与支付方式、提示行，步骤条第 2 步（右侧 400）</div>
+  <div class="frame">
+    <div class="chrome"><i></i><i></i><i></i><div class="url">shaodiansha.com/checkout</div></div>
+    <header class="top">
+      <a class="logo"><span class="mark">捎</span>捎点啥</a>
+      <a class="shoppill"><span class="dot"><svg class="ic"><use href="#i-shop"/></svg></span><span class="nm">阳光生鲜 · 文三路店</span><svg class="ic"><use href="#i-down"/></svg></a>
+      <div class="search"><svg class="ic" style="color:var(--ink-3)"><use href="#i-search"/></svg>搜菜</div>
+      <a class="cartlink"><svg class="ic"><use href="#i-cart"/></svg>购物车<b class="badge">5</b></a>
+      <a class="avatar-btn"><span class="av">张</span>张桂英<svg class="ic chev" style="width:20px;height:20px"><use href="#i-down"/></svg></a>
+    </header>
+    <div class="page">
+      <div class="co">
+        <ol class="steps" style="margin:0;padding:0">
+          <li class="done"><i><svg class="ic" style="width:15px;height:15px"><use href="#i-check"/></svg></i>挑好菜<span class="bar done"></span></li>
+          <li class="on"><i>2</i>怎么拿、怎么付<span class="bar"></span></li>
+          <li><i>3</i>下单好了</li>
+        </ol>
+        <div class="co-grid">
+          <div class="co-left">
+            <section class="gcard">
+              <div class="ghead">
+                <span class="gchk"><svg class="ic" style="width:14px;height:14px"><use href="#i-check"/></svg></span>
+                <div><div class="gtitle">阳光生鲜 · 文三路店</div><div class="gsub">已选 3 样</div></div>
+                <span class="gright on">本次结这家</span>
+              </div>
+              <ul class="gitems">
+                <li class="gitem">
+                  <span class="ichk"><svg class="ic" style="width:12px;height:12px"><use href="#i-check"/></svg></span>
+                  <div class="ithumb thumb">柿</div>
+                  <div class="iname"><b>西红柿</b><small>约 500 克 · ¥4.80/斤</small></div>
+                  <span class="iqty">×2</span>
+                  <span class="iamt money" style="font-size:16px"><em>¥</em>9.60</span>
+                </li>
+                <li class="gitem">
+                  <span class="ichk"><svg class="ic" style="width:12px;height:12px"><use href="#i-check"/></svg></span>
+                  <div class="ithumb thumb">瓜</div>
+                  <div class="iname"><b>黄瓜</b><small>约 500 克 · ¥3.90/斤</small></div>
+                  <span class="iqty">×1</span>
+                  <span class="iamt money" style="font-size:16px"><em>¥</em>3.90</span>
+                </li>
+                <li class="gitem">
+                  <span class="ichk no"><svg class="ic" style="width:12px;height:12px"><use href="#i-minus"/></svg></span>
+                  <div class="ithumb thumb off">茄</div>
+                  <div class="iname"><b style="color:var(--ink-3)">长茄子</b><small>今天卖完了，不能下单</small><span class="tag sold" style="height:20px;margin-top:4px">已售罄</span></div>
+                  <span class="iqty" style="color:var(--ink-3)">×1</span>
+                  <span class="iamt money soft" style="font-size:16px"><em>¥</em>4.50</span>
+                </li>
+                <li class="gitem">
+                  <span class="ichk"><svg class="ic" style="width:12px;height:12px"><use href="#i-check"/></svg></span>
+                  <div class="ithumb thumb">蛋</div>
+                  <div class="iname"><b>土鸡蛋（10 个）</b><small>¥18.00/盒</small></div>
+                  <span class="iqty">×1</span>
+                  <span class="iamt money" style="font-size:16px"><em>¥</em>18.00</span>
+                </li>
+              </ul>
+            </section>
+            <section class="gcard dim">
+              <div class="ghead">
+                <span class="gchk empty"></span>
+                <div><div class="gtitle">邻里菜篮 · 学院路店</div><div class="gsub">已选 0 样</div></div>
+                <span class="gright">下一单再结</span>
+              </div>
+              <ul class="gitems">
+                <li class="gitem">
+                  <span class="ichk empty"></span>
+                  <div class="ithumb thumb">奶</div>
+                  <div class="iname"><b>鲜牛奶（950ml）</b><small>¥6.50/瓶</small></div>
+                  <span class="iqty">×2</span>
+                  <span class="iamt money soft" style="font-size:16px"><em>¥</em>13.00</span>
+                </li>
+              </ul>
+              <div class="gwarn">不同店的菜不能合成一单，结完 阳光生鲜 · 文三路店 再来结这家。</div>
+            </section>
+          </div>
+          <aside class="aside">
+            <h2>怎么拿菜</h2>
+            <div class="choices">
+              <div class="choice on"><div class="row"><span class="rd"><i></i></span><b>送货到家</b></div><small>送到西湖区</small></div>
+              <div class="choice"><div class="row"><span class="rd"></span><b>我去店里拿</b></div><small>到店自提，做好通知你</small></div>
+            </div>
+            <div class="addrbox">
+              <svg class="ic" style="width:18px;height:18px;color:var(--green-deep);margin-top:2px"><use href="#i-pin"/></svg>
+              <div class="who">
+                <b>张桂英</b><span class="phone">138****6621</span>
+                <p>浙江省 杭州市 西湖区 文三路 478 号阳光小区 3 幢 2 单元 502</p>
+              </div>
+              <a class="chg">换地址</a>
+            </div>
+            <h2 style="margin-top:20px">怎么付钱</h2>
+            <div class="choices">
+              <div class="choice on"><div class="row"><span class="rd"><i></i></span><b>现在微信付</b></div><small>线上支付暂未开通</small></div>
+              <div class="choice"><div class="row"><span class="rd"></span><b>收到菜再付钱</b></div><small>收货/取货时付给店里</small></div>
+            </div>
+            <div class="amberline"><svg class="ic" style="width:16px;height:16px;margin-top:1px"><use href="#i-alert"/></svg><span>线上支付暂未开通：提交后订单会保留为待支付，本页不会扣款，请联系门店付款。</span></div>
+            <div class="total"><span>一共 3 样，合计</span><span class="money"><em>¥</em>31.50</span></div>
+            <a class="cta">确认下单，待支付</a>
+            <p class="cohint">提交后门店会确认备货；不同门店的菜需分开结算。</p>
+          </aside>
+        </div>
+      </div>
+    </div>
+    <footer class="foot"><span>捎点啥 · 顾客端</span><span class="footlinks"><a href="/help">帮助</a><a href="/about">关于</a></span></footer>
+  </div>
+  <div class="notes">左分组卡片：组头圆形勾选 24，组内商品行勾选 20；售罄行勾选框为横杠、名称与价格置灰。<code>lg:grid-cols-[minmax(0,1fr)_400px]</code>，卡片间距 16；支付方式选「微信」时出现琥珀提示行。</div>
+
+  <!-- ═══════════ W6 我的订单 ═══════════ -->
+  <div class="label"><b>W6</b>我的订单 · 账户中心左导航 + 筛选行 + 行式订单，列表自身滚动（用户下拉菜单展开）</div>
+  <div class="frame">
+    <div class="chrome"><i></i><i></i><i></i><div class="url">shaodiansha.com/orders</div></div>
+    <header class="top">
+      <a class="logo"><span class="mark">捎</span>捎点啥</a>
+      <a class="shoppill"><span class="dot"><svg class="ic"><use href="#i-shop"/></svg></span><span class="nm">阳光生鲜 · 文三路店</span><svg class="ic"><use href="#i-down"/></svg></a>
+      <div class="search"><svg class="ic" style="color:var(--ink-3)"><use href="#i-search"/></svg>搜菜</div>
+      <a class="cartlink"><svg class="ic"><use href="#i-cart"/></svg>购物车<b class="badge">2</b></a>
+      <a class="avatar-btn open"><span class="av">张</span>张桂英<svg class="ic chev" style="width:20px;height:20px"><use href="#i-down"/></svg></a>
+    </header>
+    <div class="menu">
+      <div class="who"><span class="av">张</span><div><b>张桂英</b><small>手机 138****6621</small></div></div>
+      <div class="mitems">
+        <a class="mi"><svg class="ic"><use href="#i-user"/></svg>个人信息</a>
+        <a class="mi"><svg class="ic"><use href="#i-list"/></svg>我的订单<span class="r">进行中 1</span></a>
+        <a class="mi"><svg class="ic"><use href="#i-pin"/></svg>收货地址<span class="r">2 个</span></a>
+        <a class="mi"><svg class="ic"><use href="#i-gear"/></svg>设置</a>
+        <div class="sep"></div>
+        <a class="mi out"><svg class="ic"><use href="#i-out"/></svg>退出登录</a>
+      </div>
+    </div>
+    <div class="page">
+      <div class="acct">
+        <nav class="side">
+          <a><svg class="ic"><use href="#i-user"/></svg>个人信息</a>
+          <a class="on"><svg class="ic"><use href="#i-list"/></svg>我的订单</a>
+          <a><svg class="ic"><use href="#i-pin"/></svg>收货地址</a>
+          <a><svg class="ic"><use href="#i-gear"/></svg>设置</a>
+        </nav>
+        <div class="apanel">
+          <div class="filters">
+            <div class="fnav">
+              <a class="on">全部 <em>5</em></a>
+              <a>进行中 <em>1</em></a>
+              <a>已完成 <em>4</em></a>
+              <a>已取消 <em>0</em></a>
+            </div>
+            <a class="cont">继续买菜</a>
+          </div>
+          <div class="olist">
+            <article class="ocard">
+              <div class="oline">
+                <span class="ono"><span>订单号</span>20261117092613</span>
+                <span class="tag open">备货中</span>
+                <span class="oshop">阳光生鲜 · 文三路店</span>
+                <span class="odate">2026-11-17 09:26</span>
+              </div>
+              <p class="osum">西红柿、黄瓜 等 3 种</p>
+              <div class="ofoot">
+                <small>送货到家 · 共 3 件</small>
+                <span class="tot">合计 <span class="money"><em>¥</em>31.50</span></span>
+              </div>
+            </article>
+            <article class="ocard">
+              <div class="oline">
+                <span class="ono"><span>订单号</span>20261114180207</span>
+                <span class="tag done">已完成</span>
+                <span class="oshop">阳光生鲜 · 文三路店</span>
+                <span class="odate">2026-11-14 18:02</span>
+              </div>
+              <p class="osum">上海青、五花肉 等 5 种</p>
+              <div class="ofoot">
+                <small>到店自提 · 共 5 件</small>
+                <span class="tot">合计 <span class="money"><em>¥</em>46.20</span></span>
+              </div>
+            </article>
+            <article class="ocard">
+              <div class="oline">
+                <span class="ono"><span>订单号</span>20261110103310</span>
+                <span class="tag done">已完成</span>
+                <span class="oshop">邻里菜篮 · 学院路店</span>
+                <span class="odate">2026-11-10 10:33</span>
+              </div>
+              <p class="osum">鲜牛奶、鸡蛋 等 2 种</p>
+              <div class="ofoot">
+                <small>送货到家 · 共 2 件</small>
+                <span class="tot">合计 <span class="money"><em>¥</em>19.50</span></span>
+              </div>
+            </article>
+            <article class="ocard">
+              <div class="oline">
+                <span class="ono"><span>订单号</span>20261108171842</span>
+                <span class="tag done">已完成</span>
+                <span class="oshop">阳光生鲜 · 文三路店</span>
+                <span class="odate">2026-11-08 17:18</span>
+              </div>
+              <p class="osum">土豆、香菇 等 4 种</p>
+              <div class="ofoot">
+                <small>送货到家 · 共 4 件</small>
+                <span class="tot">合计 <span class="money"><em>¥</em>38.40</span></span>
+              </div>
+            </article>
+            <article class="ocard">
+              <div class="oline">
+                <span class="ono"><span>订单号</span>20261103121005</span>
+                <span class="tag done">已完成</span>
+                <span class="oshop">邻里菜篮 · 学院路店</span>
+                <span class="odate">2026-11-03 12:10</span>
+              </div>
+              <p class="osum">上海青、鲜牛奶 等 3 种</p>
+              <div class="ofoot">
+                <small>到店自提 · 共 3 件</small>
+                <span class="tot">合计 <span class="money"><em>¥</em>24.80</span></span>
+              </div>
+            </article>
+          </div>
+          <p class="afoot">订单列表展示最近 50 笔订单；更早的订单如需查询，请联系门店。</p>
+        </div>
+      </div>
+    </div>
+    <footer class="foot"><span>捎点啥 · 顾客端</span><span class="footlinks"><a href="/help">帮助</a><a href="/about">关于</a></span></footer>
+  </div>
+  <div class="notes">左导航 190、条目 54 高；筛选行在列表外固定，订单列表 <code>lg:overflow-y-auto</code> 自身滚动。订单为整行卡片，金额右侧用 Price（ink）。下拉菜单顺序：个人信息 → 我的订单 → 收货地址 → 设置 → 退出登录。</div>
+
+  <!-- ═══════════ W7 订单详情 ═══════════ -->
+  <div class="label"><b>W7</b>订单详情 · 状态 / 门店 / 订单号、商品明细、送货到家、支付信息</div>
+  <div class="frame">
+    <div class="chrome"><i></i><i></i><i></i><div class="url">shaodiansha.com/orders/7986c90b-180f-454e-a1bf-cc3524abf7d5</div></div>
+    <header class="top">
+      <a class="logo"><span class="mark">捎</span>捎点啥</a>
+      <a class="shoppill"><span class="dot"><svg class="ic"><use href="#i-shop"/></svg></span><span class="nm">阳光生鲜 · 文三路店</span><svg class="ic"><use href="#i-down"/></svg></a>
+      <div class="search"><svg class="ic" style="color:var(--ink-3)"><use href="#i-search"/></svg>搜菜</div>
+      <a class="cartlink"><svg class="ic"><use href="#i-cart"/></svg>购物车<b class="badge">2</b></a>
+      <a class="avatar-btn"><span class="av">张</span>张桂英<svg class="ic chev" style="width:20px;height:20px"><use href="#i-down"/></svg></a>
+    </header>
+    <div class="page">
+      <div class="acct">
+        <nav class="side">
+          <a><svg class="ic"><use href="#i-user"/></svg>个人信息</a>
+          <a class="on"><svg class="ic"><use href="#i-list"/></svg>我的订单</a>
+          <a><svg class="ic"><use href="#i-pin"/></svg>收货地址</a>
+          <a><svg class="ic"><use href="#i-gear"/></svg>设置</a>
+        </nav>
+        <div class="apanel">
+          <div class="odetail">
+            <section class="dcard">
+              <div class="dhead">
+                <span class="tag open">备货中</span>
+                <span class="dshop">阳光生鲜 · 文三路店</span>
+                <span class="dtime">下单时间 2026-11-17 09:26</span>
+              </div>
+              <div class="dmeta"><span>订单号 20261117092613</span></div>
+            </section>
+            <section class="dcard">
+              <h2 class="dh2">商品明细</h2>
+              <div class="ditems">
+                <div class="ditem"><div class="cover thumb">柿</div><div class="nm"><b>西红柿</b><small>约 500 克 · ¥4.80/斤</small><div class="qty">×2</div></div><span class="amt money" style="font-size:16px"><em>¥</em>9.60</span></div>
+                <div class="ditem"><div class="cover thumb">瓜</div><div class="nm"><b>黄瓜</b><small>约 500 克 · ¥3.90/斤</small><div class="qty">×1</div></div><span class="amt money" style="font-size:16px"><em>¥</em>3.90</span></div>
+                <div class="ditem"><div class="cover thumb">蛋</div><div class="nm"><b>土鸡蛋（10 个）</b><small>¥18.00/盒</small><div class="qty">×1</div></div><span class="amt money" style="font-size:16px"><em>¥</em>18.00</span></div>
+              </div>
+              <div class="dtot"><span>共 3 件，合计</span><span class="money"><em>¥</em>31.50</span></div>
+            </section>
+            <section class="dcard">
+              <h2 class="dh2">送货到家</h2>
+              <div class="field"><span class="k">联系人</span><span class="v">张桂英 · 13812346621</span></div>
+              <div class="field"><span class="k">收货地址</span><span class="v">浙江省 杭州市 西湖区 文三路 478 号阳光小区 3 幢 2 单元 502</span></div>
+            </section>
+            <section class="dcard">
+              <h2 class="dh2">支付信息</h2>
+              <div class="field"><span class="k">支付方式</span><span class="v">货到付款</span></div>
+              <div class="field"><span class="k">支付状态</span><span class="v">货到付款，收货或取货时付给门店</span></div>
+            </section>
+            <p class="afoot">订单信息以门店确认为准，有疑问请直接联系门店或客服。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <footer class="foot"><span>捎点啥 · 顾客端</span><span class="footlinks"><a href="/help">帮助</a><a href="/about">关于</a></span></footer>
+  </div>
+  <div class="notes">详情内容超高时由外层主内容区滚动（<code>lg:overflow-y-auto</code>），下方还有支付信息与说明；卡片 20 内边距、圆角 20，商品行缩略图 48。</div>
+
+  <!-- ═══════════ W8 收货地址 ═══════════ -->
+  <div class="label"><b>W8</b>收货地址 · 行式列表、默认标记、整行操作区、新增地址</div>
+  <div class="frame">
+    <div class="chrome"><i></i><i></i><i></i><div class="url">shaodiansha.com/addresses</div></div>
+    <header class="top">
+      <a class="logo"><span class="mark">捎</span>捎点啥</a>
+      <a class="shoppill"><span class="dot"><svg class="ic"><use href="#i-shop"/></svg></span><span class="nm">阳光生鲜 · 文三路店</span><svg class="ic"><use href="#i-down"/></svg></a>
+      <div class="search"><svg class="ic" style="color:var(--ink-3)"><use href="#i-search"/></svg>搜菜</div>
+      <a class="cartlink"><svg class="ic"><use href="#i-cart"/></svg>购物车<b class="badge">2</b></a>
+      <a class="avatar-btn"><span class="av">张</span>张桂英<svg class="ic chev" style="width:20px;height:20px"><use href="#i-down"/></svg></a>
+    </header>
+    <div class="page">
+      <div class="acct">
+        <nav class="side">
+          <a><svg class="ic"><use href="#i-user"/></svg>个人信息</a>
+          <a><svg class="ic"><use href="#i-list"/></svg>我的订单</a>
+          <a class="on"><svg class="ic"><use href="#i-pin"/></svg>收货地址</a>
+          <a><svg class="ic"><use href="#i-gear"/></svg>设置</a>
+        </nav>
+        <div class="apanel">
+          <div class="ablist">
+            <div class="arow">
+              <span class="apin"><svg class="ic" style="width:20px;height:20px"><use href="#i-pin"/></svg></span>
+              <div style="flex:1;min-width:0">
+                <div class="who-line"><b>张桂英</b><span class="phone">13812346621</span><span class="abadge">默认</span></div>
+                <p class="aaddr">浙江省 杭州市 西湖区 文三路 478 号阳光小区 3 幢 2 单元 502</p>
+                <p class="aremark">备注：放门口，不用敲门</p>
+              </div>
+              <div class="abtns"><a class="abtn">编辑</a><a class="abtn red">删除</a></div>
+            </div>
+            <div class="arow">
+              <span class="apin"><svg class="ic" style="width:20px;height:20px"><use href="#i-pin"/></svg></span>
+              <div style="flex:1;min-width:0">
+                <div class="who-line"><b>李建国</b><span class="phone">13905718888</span></div>
+                <p class="aaddr">浙江省 杭州市 拱墅区 学院路 112 号 6 幢 1 单元 301</p>
+              </div>
+              <div class="abtns"><a class="abtn">编辑</a><a class="abtn gray">设为默认</a><a class="abtn red">删除</a></div>
+            </div>
+          </div>
+          <div class="addwrap"><a class="addbtn2"><svg class="ic" style="width:20px;height:20px"><use href="#i-plus"/></svg>新增地址</a></div>
+        </div>
+      </div>
+    </div>
+    <footer class="foot"><span>捎点啥 · 顾客端</span><span class="footlinks"><a href="/help">帮助</a><a href="/about">关于</a></span></footer>
+  </div>
+  <div class="notes">地址为整行列表（不是卡片网格），行间 1px 分隔；默认地址有绿色胶囊标记，操作区在行右侧，删除为危险色文字。</div>
+
+  <!-- ═══════════ W8-b 删除确认 ═══════════ -->
+  <div class="label"><b>W8-b</b>收货地址 · 删除确认（全屏蒙层 + 居中弹窗）</div>
+  <div class="frame">
+    <div class="chrome"><i></i><i></i><i></i><div class="url">shaodiansha.com/addresses</div></div>
+    <header class="top">
+      <a class="logo"><span class="mark">捎</span>捎点啥</a>
+      <a class="shoppill"><span class="dot"><svg class="ic"><use href="#i-shop"/></svg></span><span class="nm">阳光生鲜 · 文三路店</span><svg class="ic"><use href="#i-down"/></svg></a>
+      <div class="search"><svg class="ic" style="color:var(--ink-3)"><use href="#i-search"/></svg>搜菜</div>
+      <a class="cartlink"><svg class="ic"><use href="#i-cart"/></svg>购物车<b class="badge">2</b></a>
+      <a class="avatar-btn"><span class="av">张</span>张桂英<svg class="ic chev" style="width:20px;height:20px"><use href="#i-down"/></svg></a>
+    </header>
+    <div class="page">
+      <div class="acct">
+        <nav class="side">
+          <a><svg class="ic"><use href="#i-user"/></svg>个人信息</a>
+          <a><svg class="ic"><use href="#i-list"/></svg>我的订单</a>
+          <a class="on"><svg class="ic"><use href="#i-pin"/></svg>收货地址</a>
+          <a><svg class="ic"><use href="#i-gear"/></svg>设置</a>
+        </nav>
+        <div class="apanel">
+          <div class="ablist">
+            <div class="arow">
+              <span class="apin"><svg class="ic" style="width:20px;height:20px"><use href="#i-pin"/></svg></span>
+              <div style="flex:1;min-width:0">
+                <div class="who-line"><b>张桂英</b><span class="phone">13812346621</span><span class="abadge">默认</span></div>
+                <p class="aaddr">浙江省 杭州市 西湖区 文三路 478 号阳光小区 3 幢 2 单元 502</p>
+                <p class="aremark">备注：放门口，不用敲门</p>
+              </div>
+              <div class="abtns"><a class="abtn">编辑</a><a class="abtn red">删除</a></div>
+            </div>
+            <div class="arow">
+              <span class="apin"><svg class="ic" style="width:20px;height:20px"><use href="#i-pin"/></svg></span>
+              <div style="flex:1;min-width:0">
+                <div class="who-line"><b>李建国</b><span class="phone">13905718888</span></div>
+                <p class="aaddr">浙江省 杭州市 拱墅区 学院路 112 号 6 幢 1 单元 301</p>
+              </div>
+              <div class="abtns"><a class="abtn">编辑</a><a class="abtn gray">设为默认</a><a class="abtn red">删除</a></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <footer class="foot"><span>捎点啥 · 顾客端</span><span class="footlinks"><a href="/help">帮助</a><a href="/about">关于</a></span></footer>
+    <div class="overlay">
+      <div class="modal">
+        <h2>删除这个地址？</h2>
+        <div class="mwho">李建国 · 13905718888</div>
+        <div class="maddr">浙江省 杭州市 拱墅区 学院路 112 号 6 幢 1 单元 301</div>
+        <div class="mhint">删除后不可恢复。</div>
+        <div class="mbtns"><button class="mbtn">取消</button><button class="mbtn danger">确认删除</button></div>
+      </div>
+    </div>
+  </div>
+  <div class="notes">蒙层覆盖整个视口（含顶栏），弹窗宽 420、圆角 18；危险操作按钮为实心危险色，取消为描边按钮。</div>
+
+  <!-- ═══════════ W9 设置 ═══════════ -->
+  <div class="label"><b>W9</b>设置 · 主题三卡（图标垂直居中）+ 常用入口</div>
+  <div class="frame">
+    <div class="chrome"><i></i><i></i><i></i><div class="url">shaodiansha.com/settings</div></div>
+    <header class="top">
+      <a class="logo"><span class="mark">捎</span>捎点啥</a>
+      <a class="shoppill"><span class="dot"><svg class="ic"><use href="#i-shop"/></svg></span><span class="nm">阳光生鲜 · 文三路店</span><svg class="ic"><use href="#i-down"/></svg></a>
+      <div class="search"><svg class="ic" style="color:var(--ink-3)"><use href="#i-search"/></svg>搜菜</div>
+      <a class="cartlink"><svg class="ic"><use href="#i-cart"/></svg>购物车<b class="badge">2</b></a>
+      <a class="avatar-btn"><span class="av">张</span>张桂英<svg class="ic chev" style="width:20px;height:20px"><use href="#i-down"/></svg></a>
+    </header>
+    <div class="page">
+      <div class="acct">
+        <nav class="side">
+          <a><svg class="ic"><use href="#i-user"/></svg>个人信息</a>
+          <a><svg class="ic"><use href="#i-list"/></svg>我的订单</a>
+          <a><svg class="ic"><use href="#i-pin"/></svg>收货地址</a>
+          <a class="on"><svg class="ic"><use href="#i-gear"/></svg>设置</a>
+        </nav>
+        <div class="apanel">
+          <section class="scard">
+            <h2 class="sh2">主题外观</h2>
+            <p class="ssub">选择后立即生效，并会记住你的选择。</p>
+            <div class="tgrid">
+              <div class="theme on">
+                <span class="ticon"><svg class="ic" style="width:20px;height:20px"><use href="#i-sun"/></svg></span>
+                <div class="tbody">
+                  <div class="trow"><b>浅色模式</b><span class="tradio"><i></i></span></div>
+                  <span class="tsub">明亮清爽，适合白天</span>
+                </div>
+              </div>
+              <div class="theme">
+                <span class="ticon"><svg class="ic" style="width:20px;height:20px"><use href="#i-moon"/></svg></span>
+                <div class="tbody">
+                  <div class="trow"><b>深色模式</b><span class="tradio"></span></div>
+                  <span class="tsub">低亮度护眼，适合夜间</span>
+                </div>
+              </div>
+              <div class="theme">
+                <span class="ticon"><svg class="ic" style="width:20px;height:20px"><use href="#i-auto"/></svg></span>
+                <div class="tbody">
+                  <div class="trow"><b>跟随系统</b><span class="tradio"></span></div>
+                  <span class="tsub">随设备的浅色 / 深色自动切换</span>
+                </div>
+              </div>
+            </div>
+          </section>
+          <section class="scard" style="margin-top:16px">
+            <h2 class="sh2">常用入口</h2>
+            <a class="entry">收货地址<span class="chev">›</span></a>
+            <a class="entry">去附近的店<span class="chev">›</span></a>
+          </section>
+        </div>
+      </div>
+    </div>
+    <footer class="foot"><span>捎点啥 · 顾客端</span><span class="footlinks"><a href="/help">帮助</a><a href="/about">关于</a></span></footer>
+  </div>
+  <div class="notes">主题卡高 76、三列等宽、间距 10；图标 36 方块 <code>self-center</code> 垂直居中，标题与单选圆点在首行，说明在下方。设置页无页面标题区。</div>
+
+  <!-- ═══════════ W10 个人信息 ═══════════ -->
+  <div class="label"><b>W10</b>个人信息 · 头像上传 / 用户名 / 重置密码（账户中心布局）</div>
+  <div class="frame">
+    <div class="chrome"><i></i><i></i><i></i><div class="url">shaodiansha.com/profile</div></div>
+    <header class="top">
+      <a class="logo"><span class="mark">捎</span>捎点啥</a>
+      <a class="shoppill"><span class="dot"><svg class="ic"><use href="#i-shop"/></svg></span><span class="nm">阳光生鲜 · 文三路店</span><svg class="ic"><use href="#i-down"/></svg></a>
+      <div class="search"><svg class="ic" style="color:var(--ink-3)"><use href="#i-search"/></svg>搜菜</div>
+      <a class="cartlink"><svg class="ic"><use href="#i-cart"/></svg>购物车<b class="badge">2</b></a>
+      <a class="avatar-btn"><span class="av">张</span>张桂英<svg class="ic chev" style="width:20px;height:20px"><use href="#i-down"/></svg></a>
+    </header>
+    <div class="page">
+      <div class="acct">
+        <nav class="side">
+          <a class="on"><svg class="ic"><use href="#i-user"/></svg>个人信息</a>
+          <a><svg class="ic"><use href="#i-list"/></svg>我的订单</a>
+          <a><svg class="ic"><use href="#i-pin"/></svg>收货地址</a>
+          <a><svg class="ic"><use href="#i-gear"/></svg>设置</a>
+        </nav>
+        <div class="apanel">
+          <div class="pstack">
+            <section class="pcard2">
+              <h2>头像</h2>
+              <p class="phint">支持 JPG / PNG / WebP / GIF，2MB 以内</p>
+              <div class="avatar-row">
+                <div class="avatar80">张</div>
+                <div class="pbtns">
+                  <a class="pbtn">更换头像</a>
+                </div>
+              </div>
+            </section>
+            <section class="pcard2">
+              <h2>用户名</h2>
+              <p class="phint">2–20 个字，不能包含空格；会显示在顶栏和订单里</p>
+              <div class="prow2">
+                <div class="pinput">张桂英</div>
+                <a class="pbtn inline">保存</a>
+              </div>
+            </section>
+            <section class="pcard2">
+              <h2>重置密码</h2>
+              <p class="phint">验证码会发到绑定的手机号 138****6621，请先获取验证码再设置新密码</p>
+              <div class="pcode">
+                <div class="pinput ph">6 位验证码</div>
+                <div class="codebtn2">获取验证码</div>
+              </div>
+              <div class="pwgrid">
+                <div class="pinput ph">新密码（8–32 位，字母 + 数字）</div>
+                <div class="pinput ph">再输一次新密码</div>
+              </div>
+              <a class="pbtn">重置密码</a>
+            </section>
+          </div>
+        </div>
+      </div>
+    </div>
+    <footer class="foot"><span>捎点啥 · 顾客端</span><span class="footlinks"><a href="/help">帮助</a><a href="/about">关于</a></span></footer>
+  </div>
+  <div class="notes">账户中心内容区 700 封顶，三张卡自上而下、区块内滚动；输入 48 高、圆角 12，保存/重置按钮 48 高、圆角 12（非药丸）。无页面标题区。</div>
+</div>
+</body>
+</html>

@@ -2,8 +2,99 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 主题 token：浅色为默认值，.dark 下整体替换。数值为 RGB 三元组，便于 Tailwind 透明度修饰符 */
+:root {
+  color-scheme: light;
+
+  --paper: 247 246 241;
+  --card: 255 255 255;
+  --card-soft: 252 251 246;
+
+  --ink: 30 42 34;
+  --ink-2: 85 101 90;
+  --ink-3: 138 150 144;
+
+  --line: 227 231 223;
+  --segment: 241 241 236;
+
+  --brand-50: 232 243 236;
+  --brand-100: 207 229 215;
+  --brand-200: 191 217 200;
+  --brand-300: 166 205 180;
+  --brand-500: 76 154 106;
+  --brand-600: 63 134 89;
+  --brand-700: 47 107 71;
+  --brand-800: 40 92 61;
+
+  --primary: 47 107 71;
+  --primary-hover: 40 92 61;
+
+  --amber: 201 133 43;
+  --amber-soft: 251 241 223;
+  --amber-ink: 138 90 20;
+
+  --info: 74 127 181;
+  --info-soft: 233 240 248;
+
+  --danger: 180 83 74;
+  --danger-soft: 251 236 234;
+
+  --thumb-from: 220 235 221;
+  --thumb-to: 195 222 201;
+  --thumb-muted-from: 238 237 231;
+  --thumb-muted-to: 226 225 218;
+  --map-bg: 237 240 232;
+}
+
+.dark {
+  color-scheme: dark;
+
+  --paper: 22 28 24;
+  --card: 31 39 34;
+  --card-soft: 36 46 40;
+
+  --ink: 237 243 238;
+  --ink-2: 180 196 185;
+  --ink-3: 133 150 138;
+
+  --line: 56 69 60;
+  --segment: 43 53 47;
+
+  --brand-50: 37 56 48;
+  --brand-100: 46 70 57;
+  --brand-200: 58 87 71;
+  --brand-300: 74 112 90;
+  --brand-500: 76 154 106;
+  --brand-600: 63 134 89;
+  --brand-700: 155 217 175;
+  --brand-800: 188 235 203;
+
+  --primary: 60 127 87;
+  --primary-hover: 71 149 95;
+
+  --amber: 217 160 82;
+  --amber-soft: 56 45 29;
+  --amber-ink: 235 201 142;
+
+  --info: 143 182 222;
+  --info-soft: 36 48 60;
+
+  --danger: 231 146 136;
+  --danger-soft: 58 37 35;
+
+  --thumb-from: 43 59 49;
+  --thumb-to: 52 74 59;
+  --thumb-muted-from: 46 53 49;
+  --thumb-muted-to: 56 65 59;
+  --map-bg: 36 44 39;
+}
+
+html {
+  background-color: rgb(var(--paper));
+}
+
 body {
   margin: 0;
-  background-color: #fdfcf9;
+  background-color: rgb(var(--paper));
   font-size: 18px;
 }

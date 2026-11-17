@@ -15,7 +15,7 @@ import {
 } from 'antd';
 import type { TableColumnsType } from 'antd';
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
-import { getAdminTableProps } from '../../../lib/table';
+import { ADMIN_FILTER_FIELD_WIDTH, getAdminTableProps } from '../../../lib/table';
 
 interface ShopOption {
   id: string;
@@ -724,38 +724,41 @@ export default function PurchasesPage() {
   if (!mounted) return null;
 
   return (
-    <div style={{ padding: 24 }}>
-      <Space style={{ marginBottom: 16 }} wrap>
-        <Select
-          style={{ width: 220 }}
-          placeholder="选择门店"
-          value={shopId}
-          onChange={(value) => {
-            setShopId(value);
-            setPurchasePage(1);
-          }}
-          options={shops.map((shop) => ({ value: shop.id, label: shop.name }))}
-        />
-        <Button icon={<ReloadOutlined />} onClick={() => void loadPurchases()}>
-          刷新
-        </Button>
-        {tab === 'purchases' ? (
-          <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
-            新建采购单
+    <div style={{ background: 'var(--admin-surface)', minHeight: '100vh' }}>
+      <div className="admin-page-bar admin-page-bar--wrap">
+        <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--admin-text)' }}>采购管理</span>
+        <Space size={8} wrap>
+          <Select
+            style={{ width: ADMIN_FILTER_FIELD_WIDTH }}
+            placeholder="选择门店"
+            value={shopId}
+            onChange={(value) => {
+              setShopId(value);
+              setPurchasePage(1);
+            }}
+            options={shops.map((shop) => ({ value: shop.id, label: shop.name }))}
+          />
+          <Button icon={<ReloadOutlined />} onClick={() => void loadPurchases()}>
+            刷新
           </Button>
-        ) : (
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => openSupplierModal()}>
-            新建供应商
-          </Button>
-        )}
-      </Space>
+          {tab === 'purchases' ? (
+            <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
+              新建采购单
+            </Button>
+          ) : (
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => openSupplierModal()}>
+              新建供应商
+            </Button>
+          )}
+        </Space>
+      </div>
 
       {error ? (
         <Alert
           type="error"
           showIcon
           title={error}
-          style={{ marginBottom: 16 }}
+          style={{ margin: '0 12px 8px' }}
           closable
           onClose={() => setError('')}
         />
@@ -764,6 +767,7 @@ export default function PurchasesPage() {
       <Tabs
         activeKey={tab}
         onChange={setTab}
+        tabBarStyle={{ padding: '0 12px' }}
         items={[
           {
             key: 'purchases',
@@ -771,7 +775,6 @@ export default function PurchasesPage() {
             children: (
               <Table
                 rowKey="id"
-                size="middle"
                 loading={purchaseLoading}
                 {...getAdminTableProps(purchaseColumns)}
                 dataSource={purchases}
@@ -779,6 +782,8 @@ export default function PurchasesPage() {
                   current: purchasePage,
                   pageSize: 20,
                   total: purchaseTotal,
+                  showSizeChanger: false,
+                  showTotal: (count) => `共 ${count} 条`,
                   onChange: setPurchasePage
                 }}
               />
@@ -790,7 +795,6 @@ export default function PurchasesPage() {
             children: (
               <Table
                 rowKey="id"
-                size="middle"
                 loading={supplierLoading}
                 {...getAdminTableProps(supplierColumns)}
                 dataSource={suppliers}

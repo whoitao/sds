@@ -5,3 +5,11 @@ export async function GET(request: NextRequest) {
   const search = request.nextUrl.searchParams.toString();
   return proxyToApi(`/api/admin/catalog/categories${search ? `?${search}` : ''}`);
 }
+
+export async function POST(request: NextRequest) {
+  return proxyToApi('/api/admin/catalog/categories', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: await request.text()
+  });
+}

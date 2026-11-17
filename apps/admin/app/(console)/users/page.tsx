@@ -13,7 +13,7 @@ import {
 } from '@ant-design/icons';
 import { ROLE_LABELS, type Role } from '@sds/shared';
 import { adminColors as colors } from '../../../lib/theme';
-import { getAdminTableProps } from '../../../lib/table';
+import { ADMIN_FILTER_FIELD_WIDTH, getAdminTableProps } from '../../../lib/table';
 import { AdminPermissionPanel } from '../../../components/AdminPermissionPanel';
 import { useAdminSettings } from '../../../components/AdminSettingsProvider';
 import { TabProgress } from '../../../components/TabProgress';
@@ -398,18 +398,7 @@ export default function UsersPage() {
           minHeight: '100vh'
         }}
       >
-        <div
-          style={{
-            position: 'relative',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 12,
-            height: 44,
-            padding: '0 12px',
-            borderBottom: `1px solid ${colors.border}`
-          }}
-        >
+        <div className="admin-page-bar">
           <Tabs
             activeKey={tab}
             onChange={(key) => {
@@ -447,12 +436,12 @@ export default function UsersPage() {
             flexWrap: 'wrap'
           }}
         >
-          <Space.Compact>
+          <Space.Compact style={{ width: ADMIN_FILTER_FIELD_WIDTH }}>
             <Input
               allowClear
               value={searchText}
               placeholder={tab === 'users' ? '按手机号搜索…' : '按账号搜索…'}
-              style={{ width: 320 }}
+              style={{ flex: 1, minWidth: 0 }}
               onChange={(event) => {
                 const value = event.target.value;
                 setSearchText(value);
@@ -479,7 +468,7 @@ export default function UsersPage() {
             <Select
               allowClear
               placeholder="全部角色"
-              style={{ width: 140 }}
+              style={{ width: ADMIN_FILTER_FIELD_WIDTH }}
               options={ROLE_OPTIONS}
               value={role}
               onChange={(value) => {
@@ -507,7 +496,6 @@ export default function UsersPage() {
               total,
               showSizeChanger: false,
               showTotal: (count) => `共 ${count} 条`,
-              style: { margin: '12px' },
               onChange: setPage
             }}
           />
@@ -524,7 +512,6 @@ export default function UsersPage() {
               total,
               showSizeChanger: false,
               showTotal: (count) => `共 ${count} 条`,
-              style: { margin: '12px' },
               onChange: setPage
             }}
           />

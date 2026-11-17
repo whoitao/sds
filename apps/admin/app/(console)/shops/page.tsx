@@ -16,7 +16,7 @@ import {
 } from '@ant-design/icons';
 import { adminColors as colors } from '../../../lib/theme';
 import { ImageCompressError, compressCoverImage } from '../../../lib/compress-image';
-import { getAdminTableProps } from '../../../lib/table';
+import { ADMIN_FILTER_FIELD_WIDTH, getAdminTableProps } from '../../../lib/table';
 import { useAdminSettings } from '../../../components/AdminSettingsProvider';
 
 interface ShopRow {
@@ -280,6 +280,9 @@ const AmapLocationPicker = dynamic(
   }
 );
 
+/** 新增门店时地图的默认落点：青岛市市南区南京路100号金华公寓（高德 GCJ-02 坐标） */
+const DEFAULT_NEW_SHOP_LOCATION = { longitude: 120.387585, latitude: 36.074702 };
+
 /** 把表单里的经纬度与地图组件互相打通：打开编辑时回显，选点后写回 */
 function ShopLocationField({ form }: { form: FormInstance }) {
   const longitude = Form.useWatch('longitude', form);
@@ -294,6 +297,8 @@ function ShopLocationField({ form }: { form: FormInstance }) {
   return (
     <AmapLocationPicker
       value={value}
+      // 清空经纬度时回到新增门店的默认地址，而不是天安门
+      defaultCenter={DEFAULT_NEW_SHOP_LOCATION}
       onChange={(next) => {
         const currentAddress = form.getFieldValue('address');
         form.setFieldsValue({
@@ -392,7 +397,15 @@ export default function ShopsPage() {
   function openCreate() {
     setEditing(null);
     form.resetFields();
-    form.setFieldsValue({ status: 'open', coverUrl: null, businessHours: null });
+    form.setFieldsValue({
+      status: 'open',
+      coverUrl: null,
+      businessHours: null,
+      // 新增时地图中心与标记默认落在总部地址，打开后仍可拖拽/搜索改点；
+      // 编辑已有门店时走 openEdit 里的真实坐标，不受影响
+      longitude: DEFAULT_NEW_SHOP_LOCATION.longitude,
+      latitude: DEFAULT_NEW_SHOP_LOCATION.latitude
+    });
     setFormOpen(true);
   }
 
@@ -646,17 +659,7 @@ export default function ShopsPage() {
           minHeight: '100vh'
         }}
       >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 12,
-            height: 44,
-            padding: '0 12px',
-            borderBottom: `1px solid ${colors.border}`
-          }}
-        >
+        <div className="admin-page-bar">
           <span style={{ fontSize: 14, fontWeight: 600, color: colors.text }}>店铺列表</span>
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
             新建店铺
@@ -672,12 +675,12 @@ export default function ShopsPage() {
             flexWrap: 'wrap'
           }}
         >
-          <Space.Compact>
+          <Space.Compact style={{ width: ADMIN_FILTER_FIELD_WIDTH }}>
             <Input
               allowClear
               value={searchText}
               placeholder="按店铺名称搜索…"
-              style={{ width: 320 }}
+              style={{ flex: 1, minWidth: 0 }}
               onChange={(event) => {
                 const value = event.target.value;
                 setSearchText(value);
@@ -703,7 +706,7 @@ export default function ShopsPage() {
           <Select
             allowClear
             placeholder="全部状态"
-            style={{ width: 140 }}
+            style={{ width: ADMIN_FILTER_FIELD_WIDTH }}
             value={status}
             onChange={(value) => {
               setStatus(value);
@@ -736,7 +739,6 @@ export default function ShopsPage() {
             total,
             showSizeChanger: false,
             showTotal: (count) => `共 ${count} 条`,
-            style: { margin: '12px' },
             onChange: setPage
           }}
         />

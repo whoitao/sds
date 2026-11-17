@@ -7,7 +7,7 @@ import { Button, Drawer, Empty, Input, Select, Space, Table, Tag } from 'antd';
 import type { TableColumnsType } from 'antd';
 import { EyeOutlined, SearchOutlined } from '@ant-design/icons';
 import { adminColors as colors } from '../../../lib/theme';
-import { getAdminTableProps } from '../../../lib/table';
+import { ADMIN_FILTER_FIELD_WIDTH, getAdminTableProps } from '../../../lib/table';
 import { useAdminSettings } from '../../../components/AdminSettingsProvider';
 
 interface ShopOption {
@@ -203,17 +203,7 @@ export default function CartsPage() {
 
   return (
     <div style={{ background: colors.surface, minHeight: '100vh' }}>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 12,
-          height: 44,
-          padding: '0 12px',
-          borderBottom: `1px solid ${colors.border}`
-        }}
-      >
+      <div className="admin-page-bar">
         <Space size={12}>
           <span style={{ fontSize: 14, fontWeight: 600, color: colors.text }}>购物车管理</span>
           <span style={{ fontSize: 12, color: colors.textTertiary }}>
@@ -237,7 +227,7 @@ export default function CartsPage() {
           showSearch
           optionFilterProp="label"
           placeholder="全部门店"
-          style={{ width: 200 }}
+          style={{ width: ADMIN_FILTER_FIELD_WIDTH }}
           value={shopId}
           onChange={(value) => {
             setShopId(value);
@@ -249,7 +239,7 @@ export default function CartsPage() {
           allowClear
           value={customerInput}
           placeholder="按顾客姓名或手机号搜索…"
-          style={{ width: 220 }}
+          style={{ width: ADMIN_FILTER_FIELD_WIDTH }}
           onChange={(event) => {
             const value = event.target.value;
             setCustomerInput(value);
@@ -264,7 +254,7 @@ export default function CartsPage() {
           allowClear
           value={productInput}
           placeholder="按商品名称搜索…"
-          style={{ width: 200 }}
+          style={{ width: ADMIN_FILTER_FIELD_WIDTH }}
           onChange={(event) => {
             const value = event.target.value;
             setProductInput(value);
@@ -300,7 +290,6 @@ export default function CartsPage() {
           total,
           showSizeChanger: false,
           showTotal: (count) => `共 ${count} 条`,
-          style: { margin: '12px' },
           onChange: setPage
         }}
         locale={{

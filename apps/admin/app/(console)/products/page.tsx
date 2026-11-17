@@ -33,7 +33,7 @@ import {
   TagsOutlined
 } from '@ant-design/icons';
 import { adminColors as colors } from '../../../lib/theme';
-import { getAdminTableProps } from '../../../lib/table';
+import { ADMIN_FILTER_FIELD_WIDTH, getAdminTableProps } from '../../../lib/table';
 import { useAdminSettings } from '../../../components/AdminSettingsProvider';
 import { TabProgress } from '../../../components/TabProgress';
 
@@ -771,10 +771,6 @@ export default function ProductsPage() {
     {
       title: '操作',
       key: 'action',
-      // 三个图标按钮在标准档下约 108px，这里给的宽度提示故意小于内容宽度：
-      // 表格是 table-layout: auto（scroll.x = max-content），列宽会收敛到
-      // 图标组实际宽度 + 单元格内边距，不再在右侧固定列里留下左侧大片空白
-      width: 80,
       align: 'right',
       fixed: 'right',
       render: (_: unknown, row) => (
@@ -825,17 +821,7 @@ export default function ProductsPage() {
 
   return (
     <div style={{ background: colors.surface, minHeight: '100vh' }}>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 12,
-          height: 44,
-          padding: '0 12px',
-          borderBottom: `1px solid ${colors.border}`
-        }}
-      >
+      <div className="admin-page-bar">
         <Space size={12}>
           <span style={{ fontSize: 14, fontWeight: 600, color: colors.text }}>商品管理</span>
           <span style={{ fontSize: 12, color: colors.textTertiary }}>
@@ -884,12 +870,12 @@ export default function ProductsPage() {
               flexWrap: 'wrap'
             }}
           >
-            <Space.Compact>
+            <Space.Compact style={{ width: ADMIN_FILTER_FIELD_WIDTH }}>
               <Input
                 allowClear
                 value={searchText}
                 placeholder={tab === 'products' ? '按商品名称搜索…' : '按分类名称搜索…'}
-                style={{ width: 280 }}
+                style={{ flex: 1, minWidth: 0 }}
                 onChange={(event) => {
                   const value = event.target.value;
                   setSearchText(value);
@@ -921,7 +907,7 @@ export default function ProductsPage() {
                   treeDefaultExpandAll
                   treeNodeFilterProp="title"
                   placeholder="全部分类"
-                  style={{ width: 200 }}
+                  style={{ width: ADMIN_FILTER_FIELD_WIDTH }}
                   value={categoryFilter}
                   onChange={(value?: string) => {
                     setCategoryFilter(value);
@@ -932,7 +918,7 @@ export default function ProductsPage() {
                 <Select
                   allowClear
                   placeholder="全部状态"
-                  style={{ width: 120 }}
+                  style={{ width: ADMIN_FILTER_FIELD_WIDTH }}
                   value={availability}
                   onChange={(value) => {
                     setAvailability(value);
@@ -969,7 +955,7 @@ export default function ProductsPage() {
               }}
               locale={{
                 emptyText: (
-                  <Empty description="总部尚未配置分类，请在「总部商品库」中创建商品时选择分类" />
+                  <Empty description="总部尚未配置分类，请到「总部商品库 → 分类管理」中添加" />
                 )
               }}
             />
@@ -986,7 +972,6 @@ export default function ProductsPage() {
                 total,
                 showSizeChanger: false,
                 showTotal: (count) => `共 ${count} 条`,
-                style: { margin: '12px' },
                 onChange: setPage
               }}
               locale={{
@@ -1095,7 +1080,7 @@ export default function ProductsPage() {
           open={skuModalOpen}
           title={skuProduct ? `规格管理 · ${skuProduct.name}` : '规格管理'}
           onCancel={() => setSkuModalOpen(false)}
-          width={920}
+          width={1120}
           footer={[
             <Button key="close" onClick={() => setSkuModalOpen(false)}>
               关闭
@@ -1157,7 +1142,7 @@ export default function ProductsPage() {
                 <div>
                   <div style={{ fontSize: 12, marginBottom: 4 }}>规格名称</div>
                   <Input
-                    style={{ width: 160 }}
+                    style={{ width: 120 }}
                     value={skuDraft.specName}
                     disabled={Boolean(editingSku?.catalogSkuId)}
                     onChange={(event) => updateSkuDraft({ specName: event.target.value })}
@@ -1166,7 +1151,7 @@ export default function ProductsPage() {
                 <div>
                   <div style={{ fontSize: 12, marginBottom: 4 }}>条码</div>
                   <Input
-                    style={{ width: 150 }}
+                    style={{ width: 130 }}
                     value={skuDraft.barcode}
                     disabled={Boolean(editingSku?.catalogSkuId)}
                     onChange={(event) => updateSkuDraft({ barcode: event.target.value })}
@@ -1175,7 +1160,7 @@ export default function ProductsPage() {
                 <div>
                   <div style={{ fontSize: 12, marginBottom: 4 }}>单位</div>
                   <Input
-                    style={{ width: 90 }}
+                    style={{ width: 80 }}
                     value={skuDraft.unit}
                     disabled={Boolean(editingSku?.catalogSkuId)}
                     onChange={(event) => updateSkuDraft({ unit: event.target.value })}
@@ -1184,7 +1169,7 @@ export default function ProductsPage() {
                 <div>
                   <div style={{ fontSize: 12, marginBottom: 4 }}>售价</div>
                   <Input
-                    style={{ width: 120 }}
+                    style={{ width: 100 }}
                     value={skuDraft.price}
                     placeholder={
                       editingSku?.catalogSkuId ? '留空跟随总部建议价' : '必填'
@@ -1195,7 +1180,7 @@ export default function ProductsPage() {
                 <div>
                   <div style={{ fontSize: 12, marginBottom: 4 }}>库存追踪</div>
                   <Select
-                    style={{ width: 110 }}
+                    style={{ width: 100 }}
                     value={skuDraft.stockType}
                     disabled={Boolean(editingSku?.catalogSkuId)}
                     onChange={(value) => updateSkuDraft({ stockType: value })}
@@ -1208,7 +1193,7 @@ export default function ProductsPage() {
                 <div>
                   <div style={{ fontSize: 12, marginBottom: 4 }}>数量模式</div>
                   <Select
-                    style={{ width: 120 }}
+                    style={{ width: 100 }}
                     value={skuDraft.quantityMode}
                     disabled={Boolean(editingSku?.catalogSkuId)}
                     onChange={(value) => updateSkuDraft({ quantityMode: value })}
@@ -1221,7 +1206,7 @@ export default function ProductsPage() {
                 <div>
                   <div style={{ fontSize: 12, marginBottom: 4 }}>排序</div>
                   <InputNumber
-                    style={{ width: 90 }}
+                    style={{ width: 72 }}
                     min={0}
                     max={9999}
                     precision={0}

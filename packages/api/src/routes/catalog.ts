@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { and, asc, desc, eq, ilike, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   catalogCategories,
@@ -40,6 +40,15 @@ function isUniqueViolation(error: unknown) {
     error !== null &&
     'code' in error &&
     (error as { code?: string }).code === '23505'
+  );
+}
+
+function isForeignKeyViolation(error: unknown) {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code?: string }).code === '23503'
   );
 }
 
@@ -99,6 +108,231 @@ catalogRoutes.get('/catalog/categories', async (c) => {
     .orderBy(asc(catalogCategories.level), asc(catalogCategories.sortOrder), asc(catalogCategories.createdAt));
 
   return c.json({ items: rows });
+});
+
+// ---------------------------------------------------------------- 总部分类写接口
+
+const catalogCategoryFields = {
+  name: z.string().trim().min(1, '分类名称必填').max(50),
+  parentId: z.uuid('父分类 ID 不合法').nullish(),
+  sortOrder: z.number().int().min(0).max(9999).optional(),
+  iconUrl: z.string().url('图标需为合法 URL').nullish(),
+  isActive: z.boolean().optional()
+};
+
+const createCatalogCategorySchema = z.object(catalogCategoryFields);
+
+const updateCatalogCategorySchema = z
+  .object({
+    name: catalogCategoryFields.name.optional(),
+    sortOrder: catalogCategoryFields.sortOrder,
+    iconUrl: catalogCategoryFields.iconUrl,
+    isActive: catalogCategoryFields.isActive
+  })
+  .refine((value) => Object.keys(value).length > 0, '至少需要一个字段');
+
+const moveCatalogCategorySchema = z.object({
+  direction: z.enum(['up', 'down'])
+});
+
+/** 同级排序条件：一级分类之间 parent_id 均为 NULL，需用 isNull 而不是 eq */
+function sameSiblingWhere(parentId: string | null) {
+  return parentId
+    ? eq(catalogCategories.parentId, parentId)
+    : isNull(catalogCategories.parentId);
+}
+
+catalogRoutes.post('/catalog/categories', async (c) => {
+  const denied = await guardPermission(c, 'catalog.write');
+  if (denied) return denied;
+
+  const parsed = createCatalogCategorySchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ code: 'INVALID_BODY', message: parsed.error.issues[0]?.message ?? '参数不合法' }, 400);
+  }
+
+  const { name, sortOrder, iconUrl, isActive } = parsed.data;
+  const parentId = parsed.data.parentId ?? null;
+  const db = await getDb();
+
+  if (parentId) {
+    const [parent] = await db
+      .select({ id: catalogCategories.id, level: catalogCategories.level })
+      .from(catalogCategories)
+      .where(eq(catalogCategories.id, parentId))
+      .limit(1);
+    if (!parent) return c.json({ code: 'CATEGORY_NOT_FOUND', message: '父分类不存在' }, 404);
+    if (parent.level !== 1) {
+      return c.json(
+        { code: 'CATEGORY_DEPTH_EXCEEDED', message: '分类最多两级，请选择一级分类作为父级' },
+        409
+      );
+    }
+  }
+
+  try {
+    const row = await db.transaction(async (tx) => {
+      // 未指定顺序时追加到同级末尾
+      let nextSortOrder = sortOrder;
+      if (nextSortOrder === undefined) {
+        const [maxRow] = await tx
+          .select({ value: sql<number>`coalesce(max(${catalogCategories.sortOrder}), -1)::int` })
+          .from(catalogCategories)
+          .where(sameSiblingWhere(parentId));
+        nextSortOrder = (maxRow?.value ?? -1) + 1;
+      }
+
+      const [inserted] = await tx
+        .insert(catalogCategories)
+        .values({
+          parentId,
+          level: parentId ? 2 : 1,
+          name,
+          sortOrder: nextSortOrder,
+          iconUrl: iconUrl ?? null,
+          isActive: isActive ?? true
+        })
+        .returning({ id: catalogCategories.id });
+      return inserted;
+    });
+
+    return c.json({ item: row }, 201);
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      return c.json({ code: 'CATEGORY_EXISTS', message: '同一父级下已有同名分类' }, 409);
+    }
+    if (isForeignKeyViolation(error)) {
+      return c.json({ code: 'CATEGORY_NOT_FOUND', message: '父分类不存在' }, 404);
+    }
+    throw error;
+  }
+});
+
+catalogRoutes.patch('/catalog/categories/:id', async (c) => {
+  const denied = await guardPermission(c, 'catalog.write');
+  if (denied) return denied;
+
+  const parsed = updateCatalogCategorySchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ code: 'INVALID_BODY', message: parsed.error.issues[0]?.message ?? '参数不合法' }, 400);
+  }
+
+  const db = await getDb();
+  const id = c.req.param('id');
+  const [current] = await db
+    .select({ id: catalogCategories.id })
+    .from(catalogCategories)
+    .where(eq(catalogCategories.id, id))
+    .limit(1);
+  if (!current) return c.json({ code: 'NOT_FOUND', message: '分类不存在' }, 404);
+
+  const { name, sortOrder, iconUrl, isActive } = parsed.data;
+  const updates = {
+    ...(name === undefined ? {} : { name }),
+    ...(sortOrder === undefined ? {} : { sortOrder }),
+    ...(iconUrl === undefined ? {} : { iconUrl }),
+    ...(isActive === undefined ? {} : { isActive })
+  };
+
+  try {
+    await db.update(catalogCategories).set(updates).where(eq(catalogCategories.id, id));
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      return c.json({ code: 'CATEGORY_EXISTS', message: '同一父级下已有同名分类' }, 409);
+    }
+    throw error;
+  }
+
+  return c.json({ ok: true, item: { id } });
+});
+
+/** 上下移动：重排同级 sort_order，写回 0,10,20…；越界时直接返回成功（按钮侧已禁用） */
+catalogRoutes.patch('/catalog/categories/:id/move', async (c) => {
+  const denied = await guardPermission(c, 'catalog.write');
+  if (denied) return denied;
+
+  const parsed = moveCatalogCategorySchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ code: 'INVALID_BODY', message: parsed.error.issues[0]?.message ?? '参数不合法' }, 400);
+  }
+
+  const db = await getDb();
+  const id = c.req.param('id');
+  const [current] = await db
+    .select({ id: catalogCategories.id, parentId: catalogCategories.parentId })
+    .from(catalogCategories)
+    .where(eq(catalogCategories.id, id))
+    .limit(1);
+  if (!current) return c.json({ code: 'NOT_FOUND', message: '分类不存在' }, 404);
+
+  await db.transaction(async (tx) => {
+    // 锁住同级行，避免并发排序交叉覆盖
+    const siblings = await tx
+      .select({ id: catalogCategories.id })
+      .from(catalogCategories)
+      .where(sameSiblingWhere(current.parentId))
+      .orderBy(
+        asc(catalogCategories.sortOrder),
+        asc(catalogCategories.createdAt),
+        asc(catalogCategories.id)
+      )
+      .for('update');
+
+    const index = siblings.findIndex((row) => row.id === id);
+    const targetIndex = parsed.data.direction === 'up' ? index - 1 : index + 1;
+    if (index < 0 || targetIndex < 0 || targetIndex >= siblings.length) return;
+
+    const reordered = [...siblings];
+    [reordered[index], reordered[targetIndex]] = [reordered[targetIndex], reordered[index]];
+    for (let position = 0; position < reordered.length; position += 1) {
+      await tx
+        .update(catalogCategories)
+        .set({ sortOrder: position * 10 })
+        .where(eq(catalogCategories.id, reordered[position].id));
+    }
+  });
+
+  return c.json({ ok: true });
+});
+
+/** 删除：有子级不可删；商品通过 catalog_products.category_id ON DELETE SET NULL 变未分类 */
+catalogRoutes.delete('/catalog/categories/:id', async (c) => {
+  const denied = await guardPermission(c, 'catalog.write');
+  if (denied) return denied;
+
+  const db = await getDb();
+  const id = c.req.param('id');
+  const [current] = await db
+    .select({ id: catalogCategories.id })
+    .from(catalogCategories)
+    .where(eq(catalogCategories.id, id))
+    .limit(1);
+  if (!current) return c.json({ code: 'NOT_FOUND', message: '分类不存在' }, 404);
+
+  const [childRow] = await db
+    .select({ total: sql<number>`count(*)::int` })
+    .from(catalogCategories)
+    .where(eq(catalogCategories.parentId, id));
+  if ((childRow?.total ?? 0) > 0) {
+    return c.json(
+      { code: 'CATEGORY_HAS_CHILDREN', message: '该分类下还有子分类，请先删除子分类' },
+      409
+    );
+  }
+
+  try {
+    await db.delete(catalogCategories).where(eq(catalogCategories.id, id));
+  } catch (error) {
+    if (isForeignKeyViolation(error)) {
+      return c.json(
+        { code: 'CATEGORY_IN_USE', message: '该分类仍被引用，暂时无法删除' },
+        409
+      );
+    }
+    throw error;
+  }
+
+  return c.json({ ok: true });
 });
 
 catalogRoutes.get('/catalog/products', async (c) => {
