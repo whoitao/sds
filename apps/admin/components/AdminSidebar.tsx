@@ -12,6 +12,7 @@ import {
   DashboardOutlined,
   DatabaseOutlined,
   FileExclamationOutlined,
+  FileTextOutlined,
   FontSizeOutlined,
   GoldOutlined,
   HomeOutlined,
@@ -32,6 +33,7 @@ import {
   UserOutlined,
   ContainerOutlined
 } from '@ant-design/icons';
+import { Tooltip } from 'antd';
 import { PAGE_SIZE_OPTIONS, useAdminSettings, type ThemePreference } from './AdminSettingsProvider';
 import { adminColors as palette } from '../lib/theme';
 import type { DisplayDensity } from '../lib/display';
@@ -56,8 +58,8 @@ const MAIN_ITEMS = [
   { href: '/users', label: '用户管理', icon: <UserOutlined /> },
   { href: '/products', label: '商品管理', icon: <AppstoreOutlined /> },
   { href: '/catalog', label: '总部商品库', icon: <DatabaseOutlined /> },
-  { href: '/carts', label: '购物车管理', icon: <ShoppingOutlined /> },
-  { href: '/orders', label: '订单管理', icon: <ShoppingCartOutlined /> },
+  { href: '/carts', label: '购物车管理', icon: <ShoppingCartOutlined /> },
+  { href: '/orders', label: '订单管理', icon: <FileTextOutlined /> },
   { href: '/inventory', label: '库存管理', icon: <InboxOutlined /> },
   { href: '/damage-reports', label: '报损管理', icon: <FileExclamationOutlined /> },
   { href: '/purchases', label: '采购管理', icon: <ShoppingOutlined /> },
@@ -351,17 +353,27 @@ export function AdminSidebar({ displayName }: { displayName: string }) {
       </div>
 
       <nav style={{ flex: 1, overflowY: 'auto', padding: '6px 0 8px' }}>
-        {MAIN_ITEMS.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            title={collapsed ? item.label : undefined}
-            style={itemStyle(pathname.startsWith(item.href))}
-          >
-            <span style={{ fontSize: 16, lineHeight: 1, flex: 'none' }}>{item.icon}</span>
-            {!collapsed ? <span>{item.label}</span> : null}
-          </Link>
-        ))}
+        {MAIN_ITEMS.map((item) => {
+          const link = (
+            <Link
+              key={item.href}
+              href={item.href}
+              style={itemStyle(pathname.startsWith(item.href))}
+            >
+              <span style={{ fontSize: 16, lineHeight: 1, flex: 'none' }}>{item.icon}</span>
+              {!collapsed ? <span>{item.label}</span> : null}
+            </Link>
+          );
+
+          // 收起态只剩图标，补一个名称提示；展开态文字已经可见，不再重复提示
+          return collapsed ? (
+            <Tooltip key={item.href} title={item.label} placement="right" mouseEnterDelay={0.2}>
+              {link}
+            </Tooltip>
+          ) : (
+            link
+          );
+        })}
       </nav>
 
       <div

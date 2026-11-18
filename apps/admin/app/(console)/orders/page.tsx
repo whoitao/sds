@@ -21,7 +21,12 @@ import { ReloadOutlined } from '@ant-design/icons';
 import { ORDER_STATUS_LABELS, type OrderStatus } from '@sds/shared';
 import { useAdminSettings } from '../../../components/AdminSettingsProvider';
 import { TestDataCleanupButton } from '../../../components/TestDataCleanupButton';
-import { ADMIN_FILTER_FIELD_WIDTH, getAdminTableProps } from '../../../lib/table';
+import { getAdminTableProps } from '../../../lib/table';
+import {
+  AdminFilterField,
+  AdminFilterSearch,
+  AdminListPage
+} from '../../../components/AdminListPage';
 
 interface ShopOption {
   id: string;
@@ -498,72 +503,70 @@ export default function OrdersPage() {
   ];
 
   return (
-    <div style={{ background: 'var(--admin-surface)', minHeight: '100vh' }}>
-      <div className="admin-page-bar">
-        <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--admin-text)' }}>订单管理</span>
-        <TestDataCleanupButton onCleaned={() => void loadOrders()} />
-      </div>
+    <AdminListPage
+      title="订单管理"
+      actions={
+        <Space size={8}>
+          <Button icon={<ReloadOutlined />} onClick={() => void loadOrders()}>
+            刷新
+          </Button>
+          <TestDataCleanupButton onCleaned={() => void loadOrders()} />
+        </Space>
+      }
+      filters={
+        <>
+          <AdminFilterField>
+            <Select
+              allowClear
+              placeholder="全部门店"
+              value={shopId}
+              onChange={(value) => {
+                setShopId(value);
+                setPage(1);
+              }}
+              options={shops.map((shop) => ({ value: shop.id, label: shop.name }))}
+            />
+          </AdminFilterField>
+          <AdminFilterField>
+            <Select
+              allowClear
+              placeholder="全部状态"
+              value={status}
+              onChange={(value) => {
+                setStatus(value);
+                setPage(1);
+              }}
+              options={(Object.keys(ORDER_STATUS_LABELS) as OrderStatus[]).map((value) => ({
+                value,
+                label: ORDER_STATUS_LABELS[value]
+              }))}
+            />
+          </AdminFilterField>
+          <AdminFilterSearch
+            value={keywordInput}
+            placeholder="订单号 / 顾客姓名 / 手机号"
+            onChange={setKeywordInput}
+            onSearch={() => {
+              setKeyword(keywordInput);
+              setPage(1);
+            }}
+          />
+        </>
+      }
+      notice={
+        error ? (
+          <Alert
+            type="error"
+            showIcon
+            title={error}
+            style={{ margin: '0 12px 8px' }}
+            closable
+            onClose={() => setError('')}
+          />
+        ) : null
+      }
+    >
       {contextHolder}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          padding: '12px 12px 8px',
-          flexWrap: 'wrap'
-        }}
-      >
-        <Select
-          allowClear
-          style={{ width: ADMIN_FILTER_FIELD_WIDTH }}
-          placeholder="全部门店"
-          value={shopId}
-          onChange={(value) => {
-            setShopId(value);
-            setPage(1);
-          }}
-          options={shops.map((shop) => ({ value: shop.id, label: shop.name }))}
-        />
-        <Select
-          allowClear
-          style={{ width: ADMIN_FILTER_FIELD_WIDTH }}
-          placeholder="全部状态"
-          value={status}
-          onChange={(value) => {
-            setStatus(value);
-            setPage(1);
-          }}
-          options={(Object.keys(ORDER_STATUS_LABELS) as OrderStatus[]).map((value) => ({
-            value,
-            label: ORDER_STATUS_LABELS[value]
-          }))}
-        />
-        <Input.Search
-          allowClear
-          style={{ width: ADMIN_FILTER_FIELD_WIDTH }}
-          placeholder="订单号 / 顾客姓名 / 手机号"
-          value={keywordInput}
-          onChange={(event) => setKeywordInput(event.target.value)}
-          onSearch={(value) => {
-            setKeyword(value);
-            setPage(1);
-          }}
-        />
-        <Button icon={<ReloadOutlined />} onClick={() => void loadOrders()}>
-          刷新
-        </Button>
-      </div>
-
-      {error ? (
-        <Alert
-          type="error"
-          showIcon
-          title={error}
-          style={{ margin: '0 12px 8px' }}
-          closable
-          onClose={() => setError('')}
-        />
-      ) : null}
 
       <Table
         rowKey="id"
@@ -764,6 +767,6 @@ export default function OrdersPage() {
           onChange={(event) => setRejectReason(event.target.value)}
         />
       </Modal>
-    </div>
+    </AdminListPage>
   );
 }

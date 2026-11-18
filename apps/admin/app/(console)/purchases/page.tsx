@@ -5,7 +5,11 @@ import Link from 'next/link';
 import { Alert, Button, Descriptions, Empty, Input, Modal, Segmented, Select, Space, Table, Tag } from 'antd';
 import type { TableColumnsType } from 'antd';
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
-import { ADMIN_FILTER_FIELD_WIDTH, getAdminTableProps } from '../../../lib/table';
+import { getAdminTableProps } from '../../../lib/table';
+import {
+  AdminFilterField,
+  AdminListPage
+} from '../../../components/AdminListPage';
 import { TestDataCleanupButton } from '../../../components/TestDataCleanupButton';
 
 interface ShopOption {
@@ -1174,58 +1178,10 @@ export default function PurchasesPage() {
   const activeSuppliers = suppliers.filter((supplier) => supplier.status === 'active');
 
   return (
-    <div style={{ background: 'var(--admin-surface)', minHeight: '100vh' }}>
-      <div className="admin-page-bar admin-page-bar--wrap">
-        <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--admin-text)' }}>采购管理</span>
-        <Space size={8} wrap>
-          <Segmented
-            value={subjectType}
-            onChange={(value) => {
-              const next = value as PurchaseSubjectType;
-              setSubjectType(next);
-              setPurchasePage(1);
-              setSupplierId(undefined);
-              setSupplierName('');
-              setSupplierPhone('');
-            }}
-            options={[
-              { value: 'shop', label: '门店采购' },
-              { value: 'warehouse', label: '总部仓采购' }
-            ]}
-          />
-          {subjectType === 'shop' ? (
-            <Select
-              style={{ width: ADMIN_FILTER_FIELD_WIDTH }}
-              placeholder="选择门店"
-              value={shopId}
-              onChange={(value) => {
-                setShopId(value);
-                setPurchasePage(1);
-                // 供应商按门店供货关系限定，切店后清空已选供应商，避免沿用其他门店的选择
-                setSupplierId(undefined);
-                setSupplierName('');
-                setSupplierPhone('');
-              }}
-              options={shops.map((shop) => ({ value: shop.id, label: shop.name }))}
-            />
-          ) : (
-            <Select
-              style={{ width: ADMIN_FILTER_FIELD_WIDTH }}
-              placeholder="选择总部仓"
-              value={warehouseId}
-              onChange={(value) => {
-                setWarehouseId(value);
-                setPurchasePage(1);
-                setSupplierId(undefined);
-                setSupplierName('');
-                setSupplierPhone('');
-              }}
-              options={warehouses.map((warehouse) => ({
-                value: warehouse.id,
-                label: warehouse.name
-              }))}
-            />
-          )}
+    <AdminListPage
+      title="采购管理"
+      actions={
+        <Space size={8}>
           <Button icon={<ReloadOutlined />} onClick={() => void loadPurchases()}>
             刷新
           </Button>
@@ -1234,18 +1190,75 @@ export default function PurchasesPage() {
           </Button>
           <TestDataCleanupButton onCleaned={() => void loadPurchases()} />
         </Space>
-      </div>
-
-      {error ? (
-        <Alert
-          type="error"
-          showIcon
-          title={error}
-          style={{ margin: '0 12px 8px' }}
-          closable
-          onClose={() => setError('')}
-        />
-      ) : null}
+      }
+      filters={
+        <>
+          <AdminFilterField>
+            <Segmented
+              block
+              value={subjectType}
+              onChange={(value) => {
+                const next = value as PurchaseSubjectType;
+                setSubjectType(next);
+                setPurchasePage(1);
+                setSupplierId(undefined);
+                setSupplierName('');
+                setSupplierPhone('');
+              }}
+              options={[
+                { value: 'shop', label: '门店采购' },
+                { value: 'warehouse', label: '总部仓采购' }
+              ]}
+            />
+          </AdminFilterField>
+          <AdminFilterField>
+            {subjectType === 'shop' ? (
+              <Select
+                placeholder="选择门店"
+                value={shopId}
+                onChange={(value) => {
+                  setShopId(value);
+                  setPurchasePage(1);
+                  // 供应商按门店供货关系限定，切店后清空已选供应商，避免沿用其他门店的选择
+                  setSupplierId(undefined);
+                  setSupplierName('');
+                  setSupplierPhone('');
+                }}
+                options={shops.map((shop) => ({ value: shop.id, label: shop.name }))}
+              />
+            ) : (
+              <Select
+                placeholder="选择总部仓"
+                value={warehouseId}
+                onChange={(value) => {
+                  setWarehouseId(value);
+                  setPurchasePage(1);
+                  setSupplierId(undefined);
+                  setSupplierName('');
+                  setSupplierPhone('');
+                }}
+                options={warehouses.map((warehouse) => ({
+                  value: warehouse.id,
+                  label: warehouse.name
+                }))}
+              />
+            )}
+          </AdminFilterField>
+        </>
+      }
+      notice={
+        error ? (
+          <Alert
+            type="error"
+            showIcon
+            title={error}
+            style={{ margin: '0 12px 8px' }}
+            closable
+            onClose={() => setError('')}
+          />
+        ) : null
+      }
+    >
 
       <Table
         rowKey="id"
@@ -1288,7 +1301,7 @@ export default function PurchasesPage() {
             <Alert
               type="info"
               showIcon
-              message={
+              title={
                 planInfo
                   ? `关联需求计划 ${planInfo.planNo}：已带入 ${planInfo.matched}/${planInfo.total} 条明细，数量取采纳数量`
                   : '正在加载需求计划明细…'
@@ -1597,6 +1610,6 @@ export default function PurchasesPage() {
           scroll={{ x: 920 }}
         />
       </Modal>
-    </div>
+    </AdminListPage>
   );
 }

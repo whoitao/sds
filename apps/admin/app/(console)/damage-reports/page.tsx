@@ -26,7 +26,12 @@ import {
   SendOutlined
 } from '@ant-design/icons';
 import { adminColors as colors } from '../../../lib/theme';
-import { ADMIN_FILTER_FIELD_WIDTH, getAdminTableProps } from '../../../lib/table';
+import { getAdminTableProps } from '../../../lib/table';
+import {
+  AdminFilterField,
+  AdminFilterGroup,
+  AdminListPage
+} from '../../../components/AdminListPage';
 import { useAdminSettings } from '../../../components/AdminSettingsProvider';
 import { TestDataCleanupButton } from '../../../components/TestDataCleanupButton';
 
@@ -168,17 +173,6 @@ function newIdempotencyKey(action: string, id: string) {
   return `${action}-${id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-const dateInputStyle: React.CSSProperties = {
-  width: 140,
-  height: 32,
-  padding: '0 8px',
-  borderRadius: 6,
-  border: `1px solid ${colors.border}`,
-  background: 'transparent',
-  color: colors.text,
-  fontFamily: 'inherit',
-  fontSize: 14
-};
 
 export default function DamageReportsPage() {
   const { pageSize } = useAdminSettings();
@@ -789,106 +783,127 @@ export default function DamageReportsPage() {
   const canReviewDetail = detail ? canWriteSubject(detail.subjectType) : false;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div className="admin-page-bar admin-page-bar--wrap">
-        <span style={{ fontSize: 14, fontWeight: 600, color: colors.text }}>报损管理</span>
-        <Space size={8} wrap>
-          <Select
-            allowClear
-            placeholder="主体"
-            style={{ width: 110 }}
-            value={subjectType}
-            onChange={(value) => {
-              setSubjectType(value);
-              setShopId(undefined);
-              setWarehouseId(undefined);
-              resetPage();
-            }}
-            options={SUBJECT_OPTIONS}
-          />
-          {subjectType !== 'warehouse' ? (
+    <AdminListPage
+      title="报损管理"
+      actions={
+        <Space size={8}>
+          <Button icon={<ReloadOutlined />} onClick={() => void load()}>
+            刷新
+          </Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
+            新建报损单
+          </Button>
+          <TestDataCleanupButton onCleaned={load} />
+        </Space>
+      }
+      filters={
+        <>
+          <AdminFilterField>
             <Select
               allowClear
-              placeholder="门店"
-              style={{ width: 160 }}
-              value={shopId}
+              placeholder="主体"
+              value={subjectType}
               onChange={(value) => {
-                setShopId(value);
+                setSubjectType(value);
+                setShopId(undefined);
+                setWarehouseId(undefined);
                 resetPage();
               }}
-              options={shops.map((row) => ({ value: row.id, label: row.name }))}
+              options={SUBJECT_OPTIONS}
             />
+          </AdminFilterField>
+          {subjectType !== 'warehouse' ? (
+            <AdminFilterField>
+              <Select
+                allowClear
+                placeholder="门店"
+                value={shopId}
+                onChange={(value) => {
+                  setShopId(value);
+                  resetPage();
+                }}
+                options={shops.map((row) => ({ value: row.id, label: row.name }))}
+              />
+            </AdminFilterField>
           ) : null}
           {subjectType !== 'shop' ? (
+            <AdminFilterField>
+              <Select
+                allowClear
+                placeholder="仓库"
+                value={warehouseId}
+                onChange={(value) => {
+                  setWarehouseId(value);
+                  resetPage();
+                }}
+                options={warehouses.map((row) => ({ value: row.id, label: row.name }))}
+              />
+            </AdminFilterField>
+          ) : null}
+          <AdminFilterField>
             <Select
               allowClear
-              placeholder="仓库"
-              style={{ width: 150 }}
-              value={warehouseId}
+              placeholder="状态"
+              value={status}
               onChange={(value) => {
-                setWarehouseId(value);
+                setStatus(value);
                 resetPage();
               }}
-              options={warehouses.map((row) => ({ value: row.id, label: row.name }))}
+              options={Object.entries(STATUS_META).map(([value, meta]) => ({
+                value,
+                label: meta.label
+              }))}
             />
-          ) : null}
-          <Select
-            allowClear
-            placeholder="状态"
-            style={{ width: 110 }}
-            value={status}
-            onChange={(value) => {
-              setStatus(value);
-              resetPage();
-            }}
-            options={Object.entries(STATUS_META).map(([value, meta]) => ({
-              value,
-              label: meta.label
-            }))}
-          />
-          <Select
-            allowClear
-            placeholder="报损原因"
-            style={{ width: 120 }}
-            value={reasonCategory}
-            onChange={(value) => {
-              setReasonCategory(value);
-              resetPage();
-            }}
-            options={REASON_OPTIONS}
-          />
-          <input
-            type="date"
-            aria-label="开始日期"
-            style={dateInputStyle}
-            value={dateFrom}
-            onChange={(event) => {
-              setDateFrom(event.target.value);
-              resetPage();
-            }}
-          />
-          <span style={{ color: colors.textSecondary }}>至</span>
-          <input
-            type="date"
-            aria-label="结束日期"
-            style={dateInputStyle}
-            value={dateTo}
-            onChange={(event) => {
-              setDateTo(event.target.value);
-              resetPage();
-            }}
-          />
-          <Input
-            allowClear
-            placeholder="单据号"
-            style={{ width: ADMIN_FILTER_FIELD_WIDTH }}
-            value={keywordInput}
-            onChange={(event) => setKeywordInput(event.target.value)}
-            onPressEnter={() => {
-              setKeyword(keywordInput.trim());
-              resetPage();
-            }}
-          />
+          </AdminFilterField>
+          <AdminFilterField>
+            <Select
+              allowClear
+              placeholder="报损原因"
+              value={reasonCategory}
+              onChange={(value) => {
+                setReasonCategory(value);
+                resetPage();
+              }}
+              options={REASON_OPTIONS}
+            />
+          </AdminFilterField>
+          <AdminFilterGroup>
+            <AdminFilterField>
+              <Input
+                type="date"
+                aria-label="开始日期"
+                value={dateFrom}
+                onChange={(event) => {
+                  setDateFrom(event.target.value);
+                  resetPage();
+                }}
+              />
+            </AdminFilterField>
+            <span style={{ color: colors.textSecondary }}>至</span>
+            <AdminFilterField>
+              <Input
+                type="date"
+                aria-label="结束日期"
+                value={dateTo}
+                onChange={(event) => {
+                  setDateTo(event.target.value);
+                  resetPage();
+                }}
+              />
+            </AdminFilterField>
+          </AdminFilterGroup>
+          <AdminFilterField>
+            <Input
+              allowClear
+              placeholder="单据号"
+              value={keywordInput}
+              onChange={(event) => setKeywordInput(event.target.value)}
+              onPressEnter={() => {
+                setKeyword(keywordInput.trim());
+                resetPage();
+              }}
+            />
+          </AdminFilterField>
           <Button
             icon={<SearchOutlined />}
             onClick={() => {
@@ -898,23 +913,21 @@ export default function DamageReportsPage() {
           >
             查询
           </Button>
-          <Button icon={<ReloadOutlined />} onClick={() => void load()}>
-            刷新
-          </Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
-            新建报损单
-          </Button>
-          <TestDataCleanupButton onCleaned={load} />
-        </Space>
-      </div>
-
-      {error ? (
-        <div style={{ padding: '0 12px', fontSize: 13, color: colors.danger }}>{error}</div>
-      ) : null}
-      {notice && !error ? (
-        <div style={{ padding: '0 12px', fontSize: 13, color: colors.textSecondary }}>{notice}</div>
-      ) : null}
-
+        </>
+      }
+      notice={
+        <>
+          {error ? (
+            <div style={{ padding: '0 12px', fontSize: 13, color: colors.danger }}>{error}</div>
+          ) : null}
+          {notice && !error ? (
+            <div style={{ padding: '0 12px', fontSize: 13, color: colors.textSecondary }}>
+              {notice}
+            </div>
+          ) : null}
+        </>
+      }
+    >
       <Table<ReportRow>
         rowKey="id"
         loading={loading}
@@ -941,7 +954,7 @@ export default function DamageReportsPage() {
         width={880}
         destroyOnHidden
       >
-        <Space direction="vertical" size={12} style={{ width: '100%' }}>
+        <Space orientation="vertical" size={12} style={{ width: '100%' }}>
           {createError ? (
             <div style={{ color: colors.danger, fontSize: 13 }}>{createError}</div>
           ) : null}
@@ -1039,7 +1052,7 @@ export default function DamageReportsPage() {
 
       <Drawer
         title={detail ? `报损单 ${detail.reportNo}` : '报损单详情'}
-        width={920}
+        size={920}
         open={detailOpen}
         onClose={() => setDetailOpen(false)}
         destroyOnHidden
@@ -1049,7 +1062,7 @@ export default function DamageReportsPage() {
         ) : null}
 
         {detail ? (
-          <Space direction="vertical" size={16} style={{ width: '100%' }}>
+          <Space orientation="vertical" size={16} style={{ width: '100%' }}>
             <Space size={8} wrap>
               <Tag color={STATUS_META[detail.status]?.color}>
                 {STATUS_META[detail.status]?.label ?? detail.status}
@@ -1132,7 +1145,7 @@ export default function DamageReportsPage() {
             {detail.events.length > 0 ? (
               <div>
                 <div style={{ fontWeight: 600, marginBottom: 8, color: colors.text }}>审核记录</div>
-                <Space direction="vertical" size={6} style={{ width: '100%' }}>
+                <Space orientation="vertical" size={6} style={{ width: '100%' }}>
                   {detail.events
                     .slice()
                     .reverse()
@@ -1167,7 +1180,7 @@ export default function DamageReportsPage() {
         confirmLoading={reviewing}
         destroyOnHidden
       >
-        <Space direction="vertical" size={12} style={{ width: '100%' }}>
+        <Space orientation="vertical" size={12} style={{ width: '100%' }}>
           {reviewError ? (
             <div style={{ color: colors.danger, fontSize: 13 }}>{reviewError}</div>
           ) : null}
@@ -1185,6 +1198,6 @@ export default function DamageReportsPage() {
           />
         </Space>
       </Modal>
-    </div>
+    </AdminListPage>
   );
 }

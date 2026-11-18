@@ -37,7 +37,9 @@ body {
    对应的 antd token 在 app/providers.tsx 同步切换，覆盖表格、表单等组件；
    档位 key 未变，旧偏好可直接沿用。 */
 :root {
-  --admin-display-font-size: 14px;
+  --admin-display-font-size: 13px;
+  /* antd 始终叠加 compactAlgorithm，实际控件高 = 档位 token - 4 */
+  --admin-control-height: 24px;
   --admin-nav-item-height: 36px;
   --admin-nav-item-gap: 10px;
   --admin-nav-item-padding: 12px;
@@ -46,7 +48,8 @@ body {
 }
 
 [data-display='standard'] {
-  --admin-display-font-size: 15px;
+  --admin-display-font-size: 14px;
+  --admin-control-height: 28px;
   --admin-nav-item-height: 40px;
   --admin-nav-item-gap: 12px;
   --admin-nav-item-padding: 14px;
@@ -57,7 +60,8 @@ body {
 }
 
 [data-display='relaxed'] {
-  --admin-display-font-size: 16px;
+  --admin-display-font-size: 15px;
+  --admin-control-height: 32px;
   --admin-nav-item-height: 44px;
   --admin-nav-item-gap: 14px;
   --admin-nav-item-padding: 16px;
@@ -176,6 +180,142 @@ body {
   height: auto;
   min-height: calc(var(--admin-brand-bar-height) - 12px);
   padding: 6px 12px;
+}
+
+/* 统一列表页骨架：页头（标题/Tabs + 右上角操作区）+ 独立筛选行 + 独立滚动内容区。
+   页头左侧可收缩、操作区始终右对齐且不换行；筛选行按 160px 栅格换行，不横向溢出；
+   内容区自己滚动，表格横向滚动留在内容区内，页面本身不产生滚动。 */
+.admin-list-page {
+  display: flex;
+  flex-direction: column;
+
+  height: 100vh;
+  overflow: hidden;
+
+  background: var(--admin-surface);
+}
+
+/* 页头不参与纵向弹性收缩，避免表格内容变高时把固定高度的页头压扁 */
+.admin-list-page > .admin-page-bar {
+  flex: 0 0 auto;
+}
+
+.admin-list-page-head {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+
+  min-width: 0;
+  height: 100%;
+}
+
+.admin-list-page-title {
+  flex: 0 0 auto;
+
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--admin-text);
+  white-space: nowrap;
+}
+
+.admin-list-page-desc {
+  overflow: hidden;
+
+  min-width: 0;
+
+  font-size: 12px;
+  color: var(--admin-text-tertiary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-list-page-actions {
+  flex: 0 0 auto;
+
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  margin-left: auto;
+}
+
+.admin-filter-bar {
+  flex: 0 0 auto;
+
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  overflow: hidden;
+
+  padding: 12px 12px 8px;
+}
+
+.admin-filter-bar--wrap {
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+
+/* 筛选控件统一栅格：容器 160px，内部控件撑满；搜索框 + 按钮的输入组整组 160，
+   组内输入自适应。新增列表页直接套这一层，不再逐页写宽度。 */
+.admin-filter-field {
+  flex: 0 0 var(--admin-filter-field-width, 160px);
+
+  width: var(--admin-filter-field-width, 160px);
+  max-width: 100%;
+  min-width: 0;
+}
+
+.admin-filter-field > * {
+  width: 100%;
+}
+
+/* 原生日期输入自带最小高度，会比其他控件高 2px；按当前展示档位对齐 token */
+.admin-filter-field > input[type='date'] {
+  height: var(--admin-control-height);
+  min-height: 0;
+}
+
+/* 日期区间一类不可拆的筛选组：组内控件保持 160，整组一起换行 */
+.admin-filter-group {
+  flex: 0 0 auto;
+
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-filter-field > .ant-space-compact > .ant-input,
+.admin-filter-field > .ant-space-compact > .ant-input-affix-wrapper,
+.admin-filter-field > .ant-space-compact > .ant-select {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.admin-list-page-body {
+  flex: 1 1 auto;
+
+  min-height: 0;
+  overflow: auto;
+}
+
+/* 列表空态：所有控制台列表页共用。空态在可用高度内垂直居中，常规窗口下保持
+   360px 的最小留白；窗口较矮时按 42vh 收缩，避免空态本身撑出滚动条。
+   弹窗、抽屉里的表格通过 portal 渲染在 body 下，不在这条规则的作用域内。 */
+.admin-main .ant-table-wrapper .ant-table-placeholder .ant-empty {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  min-height: clamp(260px, 42vh, 360px);
+  margin: 0;
+  padding: 24px 16px;
+}
+
+.admin-main .ant-table-wrapper .ant-table-placeholder .ant-empty-description {
+  margin-top: 12px;
 }
 
 /* 标签切换进度条：与 sharp admin 顶栏 route-progress 一致，

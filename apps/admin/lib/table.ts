@@ -1,6 +1,6 @@
 import type { TableColumnsType, TableProps } from 'antd';
 
-export const ADMIN_FILTER_FIELD_WIDTH = 240;
+export const ADMIN_FILTER_FIELD_WIDTH = 160;
 
 function normalizeColumns<RecordType>(
   columns: TableColumnsType<RecordType>

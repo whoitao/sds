@@ -27,7 +27,11 @@ import {
   SearchOutlined
 } from '@ant-design/icons';
 import { adminColors as colors } from '../../../lib/theme';
-import { ADMIN_FILTER_FIELD_WIDTH, getAdminTableProps } from '../../../lib/table';
+import { getAdminTableProps } from '../../../lib/table';
+import {
+  AdminFilterField,
+  AdminListPage
+} from '../../../components/AdminListPage';
 import { useAdminSettings } from '../../../components/AdminSettingsProvider';
 import { TestDataCleanupButton } from '../../../components/TestDataCleanupButton';
 
@@ -560,9 +564,9 @@ export default function DemandPlansPage() {
 
   return (
     <div>
-      <div style={{ background: colors.surface, minHeight: '100vh' }}>
-        <div className="admin-page-bar">
-          <span style={{ fontSize: 14, fontWeight: 600, color: colors.text }}>需求汇总</span>
+      <AdminListPage
+        title="需求汇总"
+        actions={
           <Space size={8}>
             <Button icon={<ReloadOutlined />} onClick={() => void load()}>
               刷新
@@ -581,85 +585,89 @@ export default function DemandPlansPage() {
             ) : null}
             <TestDataCleanupButton onCleaned={() => void load()} />
           </Space>
-        </div>
-
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            padding: '12px 12px 8px',
-            flexWrap: 'wrap'
-          }}
-        >
-          <Input
-            type="date"
-            aria-label="交付日期"
-            style={{ width: 160 }}
-            value={deliveryDate}
-            onChange={(event) => {
-              setDeliveryDate(event.target.value);
-              setPage(1);
-            }}
-          />
-          <Select
-            allowClear
-            showSearch
-            optionFilterProp="label"
-            placeholder="全部仓库"
-            style={{ width: ADMIN_FILTER_FIELD_WIDTH }}
-            value={warehouseId}
-            onChange={(value) => {
-              setWarehouseId(value);
-              setPage(1);
-            }}
-            options={warehouses.map((item) => ({
-              value: item.id,
-              label: item.status === 'active' ? item.name : `${item.name}（停用）`
-            }))}
-          />
-          <Select
-            allowClear
-            placeholder="全部状态"
-            style={{ width: 160 }}
-            value={status}
-            onChange={(value) => {
-              setStatus(value);
-              setPage(1);
-            }}
-            options={Object.entries(STATUS_META).map(([value, meta]) => ({
-              value,
-              label: meta.label
-            }))}
-          />
-          <Checkbox
-            checked={includeSuperseded}
-            onChange={(event) => {
-              setIncludeSuperseded(event.target.checked);
-              setPage(1);
-            }}
-          >
-            含历史版本
-          </Checkbox>
-          <Button
-            icon={<SearchOutlined />}
-            onClick={() => {
-              setPage(1);
-              void load();
-            }}
-          >
-            查询
-          </Button>
-        </div>
-
-        {error ? (
-          <div style={{ padding: '0 12px 8px', fontSize: 13, color: colors.danger }}>{error}</div>
-        ) : null}
-        {notice && !error ? (
-          <div style={{ padding: '0 12px 8px', fontSize: 13, color: colors.textSecondary }}>
-            {notice}
-          </div>
-        ) : null}
+        }
+        filters={
+          <>
+            <AdminFilterField>
+              <Input
+                type="date"
+                aria-label="交付日期"
+                value={deliveryDate}
+                onChange={(event) => {
+                  setDeliveryDate(event.target.value);
+                  setPage(1);
+                }}
+              />
+            </AdminFilterField>
+            <AdminFilterField>
+              <Select
+                allowClear
+                showSearch
+                optionFilterProp="label"
+                placeholder="全部仓库"
+                value={warehouseId}
+                onChange={(value) => {
+                  setWarehouseId(value);
+                  setPage(1);
+                }}
+                options={warehouses.map((item) => ({
+                  value: item.id,
+                  label: item.status === 'active' ? item.name : `${item.name}（停用）`
+                }))}
+              />
+            </AdminFilterField>
+            <AdminFilterField>
+              <Select
+                allowClear
+                placeholder="全部状态"
+                value={status}
+                onChange={(value) => {
+                  setStatus(value);
+                  setPage(1);
+                }}
+                options={Object.entries(STATUS_META).map(([value, meta]) => ({
+                  value,
+                  label: meta.label
+                }))}
+              />
+            </AdminFilterField>
+            <AdminFilterField>
+              <Checkbox
+                checked={includeSuperseded}
+                onChange={(event) => {
+                  setIncludeSuperseded(event.target.checked);
+                  setPage(1);
+                }}
+              >
+                含历史版本
+              </Checkbox>
+            </AdminFilterField>
+            <Button
+              icon={<SearchOutlined />}
+              onClick={() => {
+                setPage(1);
+                void load();
+              }}
+            >
+              查询
+            </Button>
+          </>
+        }
+        notice={
+          <>
+            {error ? (
+              <div style={{ padding: '0 12px 8px', fontSize: 13, color: colors.danger }}>
+                {error}
+              </div>
+            ) : null}
+            {notice && !error ? (
+              <div style={{ padding: '0 12px 8px', fontSize: 13, color: colors.textSecondary }}>
+                {notice}
+              </div>
+            ) : null}
+          </>
+        }
+      >
 
         <Table<PlanRow>
           rowKey="id"
@@ -675,7 +683,7 @@ export default function DemandPlansPage() {
             onChange: setPage
           }}
         />
-      </div>
+      </AdminListPage>
 
       {mounted ? (
         <Modal
@@ -690,13 +698,13 @@ export default function DemandPlansPage() {
           forceRender
         >
           {collectError ? (
-            <Alert type="error" showIcon message={collectError} style={{ marginBottom: 12 }} />
+            <Alert type="error" showIcon title={collectError} style={{ marginBottom: 12 }} />
           ) : null}
           <Alert
             type="info"
             showIcon
             style={{ marginBottom: 12 }}
-            message="按交付日 + 仓库汇总该范围内已审核的门店要货，生成当前版本；再次汇总会生成新版本替代旧版本。"
+            title="按交付日 + 仓库汇总该范围内已审核的门店要货，生成当前版本；再次汇总会生成新版本替代旧版本。"
           />
           <Form form={collectForm} layout="vertical">
             <Form.Item
@@ -766,7 +774,7 @@ export default function DemandPlansPage() {
             </div>
           ) : null}
           {detailError ? (
-            <Alert type="error" showIcon message={detailError} style={{ marginBottom: 12 }} />
+            <Alert type="error" showIcon title={detailError} style={{ marginBottom: 12 }} />
           ) : null}
           {detail ? (
             <>
@@ -787,7 +795,7 @@ export default function DemandPlansPage() {
                   type="warning"
                   showIcon
                   style={{ marginBottom: 12 }}
-                  message="该计划已被采购单引用，不能再调整，也不能被重新汇总覆盖。"
+                  title="该计划已被采购单引用，不能再调整，也不能被重新汇总覆盖。"
                   description={detail.referencedOrders.map((order) => order.poNo).join('、')}
                 />
               ) : null}
@@ -796,7 +804,7 @@ export default function DemandPlansPage() {
                   type="info"
                   showIcon
                   style={{ marginBottom: 12 }}
-                  message="这是历史版本，仅供查看。"
+                  title="这是历史版本，仅供查看。"
                 />
               ) : null}
               {canWrite && detail.isCurrent && detail.status === 'collecting' ? (
@@ -804,7 +812,7 @@ export default function DemandPlansPage() {
                   type="info"
                   showIcon
                   style={{ marginBottom: 12 }}
-                  message="可直接修改采纳数量与采购路径，保存后生效；确认无误后点「定稿」。"
+                  title="可直接修改采纳数量与采购路径，保存后生效；确认无误后点「定稿」。"
                 />
               ) : null}
 
@@ -825,7 +833,7 @@ export default function DemandPlansPage() {
                 {detail.events.length === 0 ? (
                   <span style={{ fontSize: 13, color: colors.textSecondary }}>暂无记录</span>
                 ) : (
-                  <Space direction="vertical" size={4}>
+                  <Space orientation="vertical" size={4}>
                     {detail.events.map((event) => (
                       <span key={event.id} style={{ fontSize: 13, color: colors.textSecondary }}>
                         {formatTime(event.createdAt)} · {event.fromStatus ?? '新建'} → {event.toStatus}

@@ -3,9 +3,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Button, Form, Input, Modal, Select, Space, Table, Tag } from 'antd';
 import type { TableColumnsType } from 'antd';
-import { EditOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
+import { EditOutlined, PlusOutlined } from '@ant-design/icons';
 import { adminColors as colors } from '../../../lib/theme';
-import { ADMIN_FILTER_FIELD_WIDTH, getAdminTableProps } from '../../../lib/table';
+import { getAdminTableProps } from '../../../lib/table';
+import {
+  AdminFilterField,
+  AdminFilterSearch,
+  AdminListPage
+} from '../../../components/AdminListPage';
 import { useAdminSettings } from '../../../components/AdminSettingsProvider';
 import { TestDataCleanupButton } from '../../../components/TestDataCleanupButton';
 
@@ -317,82 +322,65 @@ export default function SuppliersPage() {
 
   return (
     <div>
-      <div style={{ background: colors.surface, minHeight: '100vh' }}>
-        <div className="admin-page-bar">
-          <span style={{ fontSize: 14, fontWeight: 600, color: colors.text }}>供应商档案</span>
+      <AdminListPage
+        title="供应商档案"
+        actions={
           <Space size={8}>
             <TestDataCleanupButton onCleaned={() => void load()} />
             <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
               新建供应商
             </Button>
           </Space>
-        </div>
-
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            padding: '12px 12px 8px',
-            flexWrap: 'wrap'
-          }}
-        >
-          <Space.Compact style={{ width: ADMIN_FILTER_FIELD_WIDTH }}>
-            <Input
-              allowClear
+        }
+        filters={
+          <>
+            <AdminFilterSearch
               value={searchText}
               placeholder="按名称/编码/联系人/电话搜索…"
-              style={{ flex: 1, minWidth: 0 }}
-              onChange={(event) => {
-                const value = event.target.value;
+              onChange={(value) => {
                 setSearchText(value);
                 if (!value) {
                   setKeyword('');
                   setPage(1);
                 }
               }}
-              onPressEnter={() => {
+              onSearch={() => {
                 setKeyword(searchText.trim());
                 setPage(1);
               }}
             />
-            <Button
-              icon={<SearchOutlined />}
-              style={{
-                background: colors.subtle,
-                borderColor: colors.border,
-                color: colors.textSecondary
-              }}
-              onClick={() => {
-                setKeyword(searchText.trim());
-                setPage(1);
-              }}
-            />
-          </Space.Compact>
-          <Select
-            allowClear
-            placeholder="全部状态"
-            style={{ width: ADMIN_FILTER_FIELD_WIDTH }}
-            value={status}
-            onChange={(value) => {
-              setStatus(value);
-              setPage(1);
-            }}
-            options={[
-              { value: 'active', label: '启用' },
-              { value: 'disabled', label: '停用' }
-            ]}
-          />
-        </div>
-
-        {error ? (
-          <div style={{ padding: '0 12px 8px', fontSize: 13, color: colors.danger }}>{error}</div>
-        ) : null}
-        {notice && !error ? (
-          <div style={{ padding: '0 12px 8px', fontSize: 13, color: colors.textSecondary }}>
-            {notice}
-          </div>
-        ) : null}
+            <AdminFilterField>
+              <Select
+                allowClear
+                placeholder="全部状态"
+                value={status}
+                onChange={(value) => {
+                  setStatus(value);
+                  setPage(1);
+                }}
+                options={[
+                  { value: 'active', label: '启用' },
+                  { value: 'disabled', label: '停用' }
+                ]}
+              />
+            </AdminFilterField>
+          </>
+        }
+        notice={
+          <>
+            {error ? (
+              <div style={{ padding: '0 12px 8px', fontSize: 13, color: colors.danger }}>
+                {error}
+              </div>
+            ) : null}
+            {notice && !error ? (
+              <div style={{ padding: '0 12px 8px', fontSize: 13, color: colors.textSecondary }}>
+                {notice}
+              </div>
+            ) : null}
+          </>
+        }
+      >
 
         <Table<SupplierRow>
           rowKey="id"
@@ -409,7 +397,7 @@ export default function SuppliersPage() {
             onChange: setPage
           }}
         />
-      </div>
+      </AdminListPage>
 
       {mounted ? (
         <Modal

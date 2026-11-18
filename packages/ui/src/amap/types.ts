@@ -22,6 +22,7 @@ export interface AMapMapEvent {
 export interface AMapMap {
   setCenter(position: [number, number]): void;
   setZoom(level: number): void;
+  setMapStyle(style: string): void;
   add(overlay: unknown): void;
   remove(overlay: unknown): void;
   on(event: 'click', handler: (event: AMapMapEvent) => void): void;

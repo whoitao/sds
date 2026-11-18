@@ -8,9 +8,13 @@ import { reverseGeocode } from './reverse-geocode';
 import type { AMapMap, AMapMarker, LngLat, PickedLocation } from './types';
 
 /** 未传坐标时的初始中心：天安门 */
-const DEFAULT_CENTER: LngLat = { longitude: 116.397428, latitude: 39.90923 };
+const DEFAULT_CENTER: LngLat = { longitude: 120.3875850, latitude: 36.0747020 };
 /** 已有坐标时的最小初始缩放：15 只看得到街区，16 能看清街道名 */
 const DETAIL_ZOOM = 16;
+const MAP_STYLES = {
+  light: 'amap://styles/normal',
+  dark: 'amap://styles/dark'
+} as const;
 
 type PickerStatus = 'loading' | 'ready' | 'unconfigured' | 'error';
 
@@ -22,6 +26,8 @@ export interface AmapLocationPickerProps {
   height?: number;
   zoom?: number;
   disabled?: boolean;
+  /** 地图底图主题，默认浅色 */
+  theme?: 'light' | 'dark';
   /** 是否在选点后自动逆地理编码，默认 true */
   resolveAddress?: boolean;
   defaultCenter?: LngLat;
@@ -86,6 +92,7 @@ export function AmapLocationPicker({
   height = 260,
   zoom = 15,
   disabled = false,
+  theme = 'light',
   resolveAddress = true,
   defaultCenter = DEFAULT_CENTER,
   className,
@@ -171,7 +178,8 @@ export function AmapLocationPicker({
           zoom: initialZoom,
           center: [center.longitude, center.latitude],
           viewMode: '2D',
-          resizeEnable: true
+          resizeEnable: true,
+          mapStyle: MAP_STYLES[theme]
         });
         const marker = new amap.Marker({
           position: [center.longitude, center.latitude],
@@ -217,6 +225,10 @@ export function AmapLocationPicker({
     // 只在挂载时初始化，后续坐标/禁用态变化由下面的 effect 处理
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (status === 'ready') mapRef.current?.setMapStyle(MAP_STYLES[theme]);
+  }, [status, theme]);
 
   // 外部改值（切换店铺、回填、清空坐标）时同步地图与标记；
   // 地图尚未就绪时跳过，初始化会读 valueRef 里最新的值

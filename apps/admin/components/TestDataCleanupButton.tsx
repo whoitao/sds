@@ -126,18 +126,18 @@ export function TestDataCleanupButton({ onCleaned, danger = true }: TestDataClea
         }}
         width={560}
       >
-        {error ? <Alert type="error" showIcon message={error} style={{ marginBottom: 12 }} /> : null}
+        {error ? <Alert type="error" showIcon title={error} style={{ marginBottom: 12 }} /> : null}
         {previewLoading ? (
           <div style={{ padding: 16, textAlign: 'center', opacity: 0.65 }}>统计中…</div>
         ) : total === 0 ? (
-          <Alert type="success" showIcon message="当前没有测试数据" />
+          <Alert type="success" showIcon title="当前没有测试数据" />
         ) : (
           <>
             <Alert
               type="warning"
               showIcon
               style={{ marginBottom: 12 }}
-              message={`将删除 ${total} 条 is_test = true 的测试数据，正式数据不受影响`}
+              title={`将删除 ${total} 条 is_test = true 的测试数据，正式数据不受影响`}
               description="按外键顺序在同一个事务内删除；测试库存与测试流水一并清理，不会留下负库存。"
             />
             <Table<CleanupCount>

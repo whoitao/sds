@@ -32,14 +32,19 @@ import {
   DeleteOutlined,
   EditOutlined,
   PlusOutlined,
-  SearchOutlined,
+  SaveOutlined,
   StopOutlined,
   TagsOutlined,
   UndoOutlined,
   UploadOutlined
 } from '@ant-design/icons';
 import { adminColors as colors } from '../../../lib/theme';
-import { ADMIN_FILTER_FIELD_WIDTH, getAdminTableProps } from '../../../lib/table';
+import { getAdminTableProps } from '../../../lib/table';
+import {
+  AdminFilterField,
+  AdminFilterSearch,
+  AdminListPage
+} from '../../../components/AdminListPage';
 import { useAdminSettings } from '../../../components/AdminSettingsProvider';
 import { TabProgress } from '../../../components/TabProgress';
 
@@ -1111,8 +1116,8 @@ export default function CatalogPage() {
 
   return (
     <div>
-      <div style={{ background: colors.surface, minHeight: '100vh' }}>
-        <div className="admin-page-bar">
+      <AdminListPage
+        header={
           <div
             style={{
               position: 'relative',
@@ -1138,6 +1143,8 @@ export default function CatalogPage() {
             />
             <TabProgress activeKey={tab} />
           </div>
+        }
+        actions={
           <Space size={8}>
             {tab === 'products' ? (
               <>
@@ -1171,87 +1178,76 @@ export default function CatalogPage() {
               </Button>
             )}
           </Space>
-        </div>
-
-        {tab === 'products' ? (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-              padding: '12px 12px 8px',
-              flexWrap: 'wrap'
-            }}
-          >
-            <Space.Compact style={{ width: ADMIN_FILTER_FIELD_WIDTH }}>
-              <Input
-                allowClear
+        }
+        filters={
+          tab === 'products' ? (
+            <>
+              <AdminFilterSearch
                 value={searchText}
                 placeholder="按商品名称搜索…"
-                style={{ flex: 1, minWidth: 0 }}
-                onChange={(event) => {
-                  const value = event.target.value;
+                onChange={(value) => {
                   setSearchText(value);
                   if (!value) {
                     setKeyword('');
                     setPage(1);
                   }
                 }}
-                onPressEnter={() => {
+                onSearch={() => {
                   setKeyword(searchText.trim());
                   setPage(1);
                 }}
               />
-              <Button
-                icon={<SearchOutlined />}
-                style={{ background: colors.subtle, borderColor: colors.border, color: colors.textSecondary }}
-                onClick={() => {
-                  setKeyword(searchText.trim());
-                  setPage(1);
-                }}
-              />
-            </Space.Compact>
 
-            <TreeSelect
-              allowClear
-              showSearch
-              treeDefaultExpandAll
-              treeNodeFilterProp="title"
-              placeholder="全部分类"
-              style={{ width: ADMIN_FILTER_FIELD_WIDTH }}
-              value={categoryFilter}
-              onChange={(value?: string) => {
-                setCategoryFilter(value);
-                setPage(1);
-              }}
-              treeData={tree}
-            />
+              <AdminFilterField>
+                <TreeSelect
+                  allowClear
+                  showSearch
+                  treeDefaultExpandAll
+                  treeNodeFilterProp="title"
+                  placeholder="全部分类"
+                  value={categoryFilter}
+                  onChange={(value?: string) => {
+                    setCategoryFilter(value);
+                    setPage(1);
+                  }}
+                  treeData={tree}
+                />
+              </AdminFilterField>
 
-            <Select
-              allowClear
-              placeholder="全部状态"
-              style={{ width: ADMIN_FILTER_FIELD_WIDTH }}
-              value={statusFilter}
-              onChange={(value) => {
-                setStatusFilter(value);
-                setPage(1);
-              }}
-              options={[
-                { value: 'draft', label: '草稿' },
-                { value: 'published', label: '已发布' },
-                { value: 'archived', label: '已归档' }
-              ]}
-            />
-          </div>
-        ) : null}
-
-        {error ? (
-          <div style={{ padding: '0 12px 8px', fontSize: 13, color: colors.danger }}>{error}</div>
-        ) : null}
-        {notice && !error ? (
-          <div style={{ padding: '0 12px 8px', fontSize: 13, color: colors.textSecondary }}>{notice}</div>
-        ) : null}
-
+              <AdminFilterField>
+                <Select
+                  allowClear
+                  placeholder="全部状态"
+                  value={statusFilter}
+                  onChange={(value) => {
+                    setStatusFilter(value);
+                    setPage(1);
+                  }}
+                  options={[
+                    { value: 'draft', label: '草稿' },
+                    { value: 'published', label: '已发布' },
+                    { value: 'archived', label: '已归档' }
+                  ]}
+                />
+              </AdminFilterField>
+            </>
+          ) : undefined
+        }
+        notice={
+          <>
+            {error ? (
+              <div style={{ padding: '0 12px 8px', fontSize: 13, color: colors.danger }}>
+                {error}
+              </div>
+            ) : null}
+            {notice && !error ? (
+              <div style={{ padding: '0 12px 8px', fontSize: 13, color: colors.textSecondary }}>
+                {notice}
+              </div>
+            ) : null}
+          </>
+        }
+      >
         {tab === 'products' ? (
           <Table<CatalogRow>
             rowKey="id"
@@ -1292,7 +1288,7 @@ export default function CatalogPage() {
             }}
           />
         )}
-      </div>
+      </AdminListPage>
 
       {mounted ? (
         <>

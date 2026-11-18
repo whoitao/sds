@@ -21,13 +21,17 @@ import {
   EyeOutlined,
   PlusOutlined,
   ReloadOutlined,
-  SearchOutlined,
   SendOutlined,
   SettingOutlined,
   UndoOutlined
 } from '@ant-design/icons';
 import { adminColors as colors } from '../../../lib/theme';
-import { ADMIN_FILTER_FIELD_WIDTH, getAdminTableProps } from '../../../lib/table';
+import { getAdminTableProps } from '../../../lib/table';
+import {
+  AdminFilterField,
+  AdminFilterSearch,
+  AdminListPage
+} from '../../../components/AdminListPage';
 import { useAdminSettings } from '../../../components/AdminSettingsProvider';
 import { TestDataCleanupButton } from '../../../components/TestDataCleanupButton';
 
@@ -662,9 +666,9 @@ export default function RequisitionsPage() {
 
   return (
     <div>
-      <div style={{ background: colors.surface, minHeight: '100vh' }}>
-        <div className="admin-page-bar">
-          <span style={{ fontSize: 14, fontWeight: 600, color: colors.text }}>门店要货</span>
+      <AdminListPage
+        title="门店要货"
+        actions={
           <Space size={8}>
             {isSuperAdmin ? (
               <Button icon={<SettingOutlined />} onClick={() => void openScope()}>
@@ -679,99 +683,84 @@ export default function RequisitionsPage() {
             </Button>
             <TestDataCleanupButton onCleaned={() => void load()} />
           </Space>
-        </div>
-
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            padding: '12px 12px 8px',
-            flexWrap: 'wrap'
-          }}
-        >
-          <Select
-            allowClear
-            showSearch
-            optionFilterProp="label"
-            placeholder="全部门店"
-            style={{ width: ADMIN_FILTER_FIELD_WIDTH }}
-            value={shopId}
-            onChange={(value) => {
-              setShopId(value);
-              setPage(1);
-            }}
-            options={shops.map((item) => ({
-              value: item.id,
-              label: item.status === 'active' ? item.name : `${item.name}（停用）`
-            }))}
-          />
-          <Input
-            type="date"
-            aria-label="交付日期"
-            style={{ width: 160 }}
-            value={expectedDate}
-            onChange={(event) => {
-              setExpectedDate(event.target.value);
-              setPage(1);
-            }}
-          />
-          <Select
-            allowClear
-            placeholder="全部状态"
-            style={{ width: 140 }}
-            value={status}
-            onChange={(value) => {
-              setStatus(value);
-              setPage(1);
-            }}
-            options={Object.entries(STATUS_META).map(([value, meta]) => ({
-              value,
-              label: meta.label
-            }))}
-          />
-          <Space.Compact style={{ width: ADMIN_FILTER_FIELD_WIDTH }}>
-            <Input
-              allowClear
+        }
+        filters={
+          <>
+            <AdminFilterField>
+              <Select
+                allowClear
+                showSearch
+                optionFilterProp="label"
+                placeholder="全部门店"
+                value={shopId}
+                onChange={(value) => {
+                  setShopId(value);
+                  setPage(1);
+                }}
+                options={shops.map((item) => ({
+                  value: item.id,
+                  label: item.status === 'active' ? item.name : `${item.name}（停用）`
+                }))}
+              />
+            </AdminFilterField>
+            <AdminFilterField>
+              <Input
+                type="date"
+                aria-label="交付日期"
+                value={expectedDate}
+                onChange={(event) => {
+                  setExpectedDate(event.target.value);
+                  setPage(1);
+                }}
+              />
+            </AdminFilterField>
+            <AdminFilterField>
+              <Select
+                allowClear
+                placeholder="全部状态"
+                value={status}
+                onChange={(value) => {
+                  setStatus(value);
+                  setPage(1);
+                }}
+                options={Object.entries(STATUS_META).map(([value, meta]) => ({
+                  value,
+                  label: meta.label
+                }))}
+              />
+            </AdminFilterField>
+            <AdminFilterSearch
               value={searchText}
               placeholder="按单号/门店搜索…"
-              style={{ flex: 1, minWidth: 0 }}
-              onChange={(event) => {
-                const value = event.target.value;
+              onChange={(value) => {
                 setSearchText(value);
                 if (!value) {
                   setKeyword('');
                   setPage(1);
                 }
               }}
-              onPressEnter={() => {
+              onSearch={() => {
                 setKeyword(searchText.trim());
                 setPage(1);
               }}
             />
-            <Button
-              icon={<SearchOutlined />}
-              style={{
-                background: colors.subtle,
-                borderColor: colors.border,
-                color: colors.textSecondary
-              }}
-              onClick={() => {
-                setKeyword(searchText.trim());
-                setPage(1);
-              }}
-            />
-          </Space.Compact>
-        </div>
-
-        {error ? (
-          <div style={{ padding: '0 12px 8px', fontSize: 13, color: colors.danger }}>{error}</div>
-        ) : null}
-        {notice && !error ? (
-          <div style={{ padding: '0 12px 8px', fontSize: 13, color: colors.textSecondary }}>
-            {notice}
-          </div>
-        ) : null}
+          </>
+        }
+        notice={
+          <>
+            {error ? (
+              <div style={{ padding: '0 12px 8px', fontSize: 13, color: colors.danger }}>
+                {error}
+              </div>
+            ) : null}
+            {notice && !error ? (
+              <div style={{ padding: '0 12px 8px', fontSize: 13, color: colors.textSecondary }}>
+                {notice}
+              </div>
+            ) : null}
+          </>
+        }
+      >
 
         <Table<RequisitionRow>
           rowKey="id"
@@ -787,7 +776,7 @@ export default function RequisitionsPage() {
             onChange: setPage
           }}
         />
-      </div>
+      </AdminListPage>
 
       {mounted ? (
         <Modal
@@ -866,7 +855,7 @@ export default function RequisitionsPage() {
           </div>
 
           {draftItems.length === 0 ? (
-            <Alert type="info" showIcon message="还没有明细，请添加商品或从库存预警带出" />
+            <Alert type="info" showIcon title="还没有明细，请添加商品或从库存预警带出" />
           ) : null}
 
           {draftItems.map((item, index) => {
@@ -1041,7 +1030,7 @@ export default function RequisitionsPage() {
           绑定后，该管理员在要货与需求汇总里只能看到所选门店；不绑定则保持“全部门店”。
           超级管理员始终不受限制。
         </div>
-        <Space direction="vertical" style={{ width: '100%' }} size={12}>
+        <Space orientation="vertical" style={{ width: '100%' }} size={12}>
           <Select
             showSearch
             optionFilterProp="label"

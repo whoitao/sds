@@ -29,7 +29,7 @@ export default async function ConsoleLayout({ children }: { children: ReactNode 
       <div style={{ display: 'flex', minHeight: '100vh', background: adminColors.page }}>
         {/* html[data-theme] 由根布局按主题 cookie 在服务端写入，这里不再插 <script> */}
         <AdminSidebar displayName={admin.displayName} />
-        <main style={{ flex: 1, minWidth: 0 }}>{children}</main>
+        <main className="admin-main" style={{ flex: 1, minWidth: 0 }}>{children}</main>
       </div>
     </ConsoleProviders>
   );

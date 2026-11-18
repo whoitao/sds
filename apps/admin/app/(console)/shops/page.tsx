@@ -286,6 +286,7 @@ const DEFAULT_NEW_SHOP_LOCATION = { longitude: 120.387585, latitude: 36.074702 }
 
 /** 把表单里的经纬度与地图组件互相打通：打开编辑时回显，选点后写回 */
 function ShopLocationField({ form }: { form: FormInstance }) {
+  const { resolvedTheme } = useAdminSettings();
   const longitude = Form.useWatch('longitude', form);
   const latitude = Form.useWatch('latitude', form);
 
@@ -298,6 +299,7 @@ function ShopLocationField({ form }: { form: FormInstance }) {
   return (
     <AmapLocationPicker
       value={value}
+      theme={resolvedTheme}
       // 清空经纬度时回到新增门店的默认地址，而不是天安门
       defaultCenter={DEFAULT_NEW_SHOP_LOCATION}
       onChange={(next) => {

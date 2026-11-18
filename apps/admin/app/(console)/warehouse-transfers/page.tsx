@@ -24,7 +24,11 @@ import {
   SearchOutlined
 } from '@ant-design/icons';
 import { adminColors as colors } from '../../../lib/theme';
-import { ADMIN_FILTER_FIELD_WIDTH, getAdminTableProps } from '../../../lib/table';
+import { getAdminTableProps } from '../../../lib/table';
+import {
+  AdminFilterField,
+  AdminListPage
+} from '../../../components/AdminListPage';
 import { useAdminSettings } from '../../../components/AdminSettingsProvider';
 import { TestDataCleanupButton } from '../../../components/TestDataCleanupButton';
 
@@ -1242,7 +1246,7 @@ export default function WarehouseTransfersPage() {
 
   function renderFromDemandDetail(shop: FromDemandShopPlan) {
     return (
-      <Space direction="vertical" size={8} style={{ width: '100%' }}>
+      <Space orientation="vertical" size={8} style={{ width: '100%' }}>
         {shop.lines.length > 0 ? (
           <Table<FromDemandLine>
             rowKey="catalogSkuId"
@@ -1318,66 +1322,10 @@ export default function WarehouseTransfersPage() {
 
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div className="admin-page-bar admin-page-bar--wrap">
-        <span style={{ fontSize: 14, fontWeight: 600, color: colors.text }}>分拨管理</span>
-        <Space size={8} wrap>
-          <Select
-            allowClear
-            placeholder="来源仓"
-            style={{ width: 170 }}
-            value={warehouseId}
-            onChange={(value) => {
-              setWarehouseId(value);
-              setPage(1);
-            }}
-            options={warehouses.map((row) => ({ value: row.id, label: row.name }))}
-          />
-          <Select
-            allowClear
-            placeholder="目标门店"
-            style={{ width: 180 }}
-            value={shopId}
-            onChange={(value) => {
-              setShopId(value);
-              setPage(1);
-            }}
-            options={shops.map((row) => ({ value: row.id, label: row.name }))}
-          />
-          <Select
-            allowClear
-            placeholder="状态"
-            style={{ width: 130 }}
-            value={status}
-            onChange={(value) => {
-              setStatus(value);
-              setPage(1);
-            }}
-            options={Object.entries(STATUS_META).map(([value, meta]) => ({
-              value,
-              label: meta.label
-            }))}
-          />
-          <Input
-            allowClear
-            placeholder="单号 / 仓库 / 门店"
-            style={{ width: ADMIN_FILTER_FIELD_WIDTH }}
-            value={keywordInput}
-            onChange={(event) => setKeywordInput(event.target.value)}
-            onPressEnter={() => {
-              setKeyword(keywordInput.trim());
-              setPage(1);
-            }}
-          />
-          <Button
-            icon={<SearchOutlined />}
-            onClick={() => {
-              setKeyword(keywordInput.trim());
-              setPage(1);
-            }}
-          >
-            查询
-          </Button>
+    <AdminListPage
+      title="分拨管理"
+      actions={
+        <Space size={8}>
           <Button icon={<ReloadOutlined />} onClick={() => void load()}>
             刷新
           </Button>
@@ -1387,15 +1335,84 @@ export default function WarehouseTransfersPage() {
           <Button onClick={openFromDemand}>从要货生成</Button>
           <TestDataCleanupButton onCleaned={load} />
         </Space>
-      </div>
-
-      {error ? (
-        <div style={{ padding: '0 12px', fontSize: 13, color: colors.danger }}>{error}</div>
-      ) : null}
-      {notice && !error ? (
-        <div style={{ padding: '0 12px', fontSize: 13, color: colors.textSecondary }}>{notice}</div>
-      ) : null}
-
+      }
+      filters={
+        <>
+          <AdminFilterField>
+            <Select
+              allowClear
+              placeholder="来源仓"
+              value={warehouseId}
+              onChange={(value) => {
+                setWarehouseId(value);
+                setPage(1);
+              }}
+              options={warehouses.map((row) => ({ value: row.id, label: row.name }))}
+            />
+          </AdminFilterField>
+          <AdminFilterField>
+            <Select
+              allowClear
+              placeholder="目标门店"
+              value={shopId}
+              onChange={(value) => {
+                setShopId(value);
+                setPage(1);
+              }}
+              options={shops.map((row) => ({ value: row.id, label: row.name }))}
+            />
+          </AdminFilterField>
+          <AdminFilterField>
+            <Select
+              allowClear
+              placeholder="状态"
+              value={status}
+              onChange={(value) => {
+                setStatus(value);
+                setPage(1);
+              }}
+              options={Object.entries(STATUS_META).map(([value, meta]) => ({
+                value,
+                label: meta.label
+              }))}
+            />
+          </AdminFilterField>
+          <AdminFilterField>
+            <Input
+              allowClear
+              placeholder="单号 / 仓库 / 门店"
+              value={keywordInput}
+              onChange={(event) => setKeywordInput(event.target.value)}
+              onPressEnter={() => {
+                setKeyword(keywordInput.trim());
+                setPage(1);
+              }}
+            />
+          </AdminFilterField>
+          <Button
+            icon={<SearchOutlined />}
+            onClick={() => {
+              setKeyword(keywordInput.trim());
+              setPage(1);
+            }}
+          >
+            查询
+          </Button>
+        </>
+      }
+      notice={
+        <>
+          {error ? (
+            <div style={{ padding: '0 12px', fontSize: 13, color: colors.danger }}>{error}</div>
+          ) : null}
+          {notice && !error ? (
+            <div style={{ padding: '0 12px', fontSize: 13, color: colors.textSecondary }}>
+              {notice}
+            </div>
+          ) : null}
+        </>
+      }
+    >
       <Table<TransferRow>
         rowKey="id"
         loading={loading}
@@ -1422,7 +1439,7 @@ export default function WarehouseTransfersPage() {
         width={860}
         destroyOnHidden
       >
-        <Space direction="vertical" size={12} style={{ width: '100%' }}>
+        <Space orientation="vertical" size={12} style={{ width: '100%' }}>
           <Space size={12} wrap>
             <Select
               placeholder="选择来源仓库"
@@ -1493,7 +1510,7 @@ export default function WarehouseTransfersPage() {
         width={980}
         destroyOnHidden
       >
-        <Space direction="vertical" size={12} style={{ width: '100%' }}>
+        <Space orientation="vertical" size={12} style={{ width: '100%' }}>
           <Space size={12} wrap>
             <Select
               placeholder="选择来源仓库"
@@ -1598,7 +1615,7 @@ export default function WarehouseTransfersPage() {
         {detailLoading && !detail ? (
           <div style={{ color: colors.textSecondary }}>加载中…</div>
         ) : detail ? (
-          <Space direction="vertical" size={16} style={{ width: '100%' }}>
+          <Space orientation="vertical" size={16} style={{ width: '100%' }}>
             <Space size={8} wrap>
               {detail.status === 'draft' ? (
                 <Button type="primary" onClick={() => openAction('allocate')}>
@@ -1707,7 +1724,7 @@ export default function WarehouseTransfersPage() {
             {detail.events.length > 0 ? (
               <div>
                 <div style={{ fontWeight: 600, marginBottom: 8, color: colors.text }}>操作记录</div>
-                <Space direction="vertical" size={6} style={{ width: '100%' }}>
+                <Space orientation="vertical" size={6} style={{ width: '100%' }}>
                   {detail.events.slice(-8).reverse().map((event) => (
                     <div
                       key={event.id}
@@ -1738,7 +1755,7 @@ export default function WarehouseTransfersPage() {
         width={action === 'cancel' || action === 'close' ? 560 : 860}
         destroyOnHidden
       >
-        <Space direction="vertical" size={12} style={{ width: '100%' }}>
+        <Space orientation="vertical" size={12} style={{ width: '100%' }}>
           {actionError ? (
             <div style={{ color: colors.danger, fontSize: 13 }}>{actionError}</div>
           ) : null}
@@ -1792,6 +1809,6 @@ export default function WarehouseTransfersPage() {
           ) : null}
         </Space>
       </Modal>
-    </div>
+    </AdminListPage>
   );
 }

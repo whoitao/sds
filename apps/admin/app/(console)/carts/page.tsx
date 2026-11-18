@@ -7,7 +7,8 @@ import { Button, Drawer, Empty, Input, Select, Space, Table, Tag } from 'antd';
 import type { TableColumnsType } from 'antd';
 import { EyeOutlined, SearchOutlined } from '@ant-design/icons';
 import { adminColors as colors } from '../../../lib/theme';
-import { ADMIN_FILTER_FIELD_WIDTH, getAdminTableProps } from '../../../lib/table';
+import { getAdminTableProps } from '../../../lib/table';
+import { AdminFilterField, AdminListPage } from '../../../components/AdminListPage';
 import { useAdminSettings } from '../../../components/AdminSettingsProvider';
 import { TestDataCleanupButton } from '../../../components/TestDataCleanupButton';
 
@@ -203,84 +204,78 @@ export default function CartsPage() {
   ];
 
   return (
-    <div style={{ background: colors.surface, minHeight: '100vh' }}>
-      <div className="admin-page-bar">
-        <Space size={12}>
-          <span style={{ fontSize: 14, fontWeight: 600, color: colors.text }}>购物车管理</span>
-          <span style={{ fontSize: 12, color: colors.textTertiary }}>
-            顾客在移动端加入的购物车，与顾客端实时同一份数据
-          </span>
-        </Space>
+    <AdminListPage
+      title="购物车管理"
+      description="顾客在移动端加入的购物车，与顾客端实时同一份数据"
+      actions={
         <Space size={12}>
           <span style={{ fontSize: 12, color: colors.textTertiary }}>共 {total} 个购物车</span>
           <TestDataCleanupButton onCleaned={() => void loadCarts()} />
         </Space>
-      </div>
-
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          padding: '12px 12px 8px',
-          flexWrap: 'wrap'
-        }}
-      >
-        <Select
-          allowClear
-          showSearch
-          optionFilterProp="label"
-          placeholder="全部门店"
-          style={{ width: ADMIN_FILTER_FIELD_WIDTH }}
-          value={shopId}
-          onChange={(value) => {
-            setShopId(value);
-            setPage(1);
-          }}
-          options={shops.map((shop) => ({ value: shop.id, label: shop.name }))}
-        />
-        <Input
-          allowClear
-          value={customerInput}
-          placeholder="按顾客姓名或手机号搜索…"
-          style={{ width: ADMIN_FILTER_FIELD_WIDTH }}
-          onChange={(event) => {
-            const value = event.target.value;
-            setCustomerInput(value);
-            if (!value) {
-              setCustomer('');
-              setPage(1);
-            }
-          }}
-          onPressEnter={submitSearch}
-        />
-        <Input
-          allowClear
-          value={productInput}
-          placeholder="按商品名称搜索…"
-          style={{ width: ADMIN_FILTER_FIELD_WIDTH }}
-          onChange={(event) => {
-            const value = event.target.value;
-            setProductInput(value);
-            if (!value) {
-              setProductName('');
-              setPage(1);
-            }
-          }}
-          onPressEnter={submitSearch}
-        />
-        <Button
-          icon={<SearchOutlined />}
-          style={{ background: colors.subtle, borderColor: colors.border, color: colors.textSecondary }}
-          onClick={submitSearch}
-        >
-          查询
-        </Button>
-      </div>
-
-      {error ? (
-        <div style={{ padding: '0 12px 8px', fontSize: 13, color: colors.danger }}>{error}</div>
-      ) : null}
+      }
+      filters={
+        <>
+          <AdminFilterField>
+            <Select
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              placeholder="全部门店"
+              value={shopId}
+              onChange={(value) => {
+                setShopId(value);
+                setPage(1);
+              }}
+              options={shops.map((shop) => ({ value: shop.id, label: shop.name }))}
+            />
+          </AdminFilterField>
+          <AdminFilterField>
+            <Input
+              allowClear
+              value={customerInput}
+              placeholder="按顾客姓名或手机号搜索…"
+              onChange={(event) => {
+                const value = event.target.value;
+                setCustomerInput(value);
+                if (!value) {
+                  setCustomer('');
+                  setPage(1);
+                }
+              }}
+              onPressEnter={submitSearch}
+            />
+          </AdminFilterField>
+          <AdminFilterField>
+            <Input
+              allowClear
+              value={productInput}
+              placeholder="按商品名称搜索…"
+              onChange={(event) => {
+                const value = event.target.value;
+                setProductInput(value);
+                if (!value) {
+                  setProductName('');
+                  setPage(1);
+                }
+              }}
+              onPressEnter={submitSearch}
+            />
+          </AdminFilterField>
+          <Button
+            icon={<SearchOutlined />}
+            style={{ background: colors.subtle, borderColor: colors.border, color: colors.textSecondary }}
+            onClick={submitSearch}
+          >
+            查询
+          </Button>
+        </>
+      }
+      notice={
+        error ? (
+          <div style={{ padding: '0 12px 8px', fontSize: 13, color: colors.danger }}>{error}</div>
+        ) : null
+      }
+    >
 
       <Table<CartRow>
         rowKey="id"
@@ -368,6 +363,6 @@ export default function CartsPage() {
           <Empty description={detailLoading ? '正在加载明细…' : '暂无明细'} />
         )}
       </Drawer>
-    </div>
+    </AdminListPage>
   );
 }
