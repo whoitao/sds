@@ -52,7 +52,7 @@ export default async function CheckoutPage() {
   }
 
   return (
-    <div className="flex w-full min-w-0 flex-col gap-3 pt-3">
+    <div className="flex w-full min-w-0 flex-col gap-3 pt-3 lg:min-h-0 lg:flex-1">
       {addressResponse && !addressResponse.ok ? (
         <p className="m-0 rounded-xl bg-danger-soft px-4 py-3 text-[15px] text-danger">
           {addressResponse.message ?? '地址加载失败，请刷新重试'}

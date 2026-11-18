@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import ProgressSteps from '@/components/ProgressSteps';
 import ShopFinder from '@/components/ShopFinder';
 import { apiRequest } from '@/lib/api';
 import { getSelectedShop } from '@/lib/shop';
@@ -26,10 +27,11 @@ export default async function HomePage() {
   const shops = response.ok ? response.data?.items ?? [] : [];
 
   return (
-    <div className="flex w-full min-w-0 flex-col gap-5 pt-5 lg:min-h-0 lg:flex-1">
+    <div className="flex w-full min-w-0 flex-col gap-3 pt-3 lg:min-h-0 lg:flex-1">
       {/* 只有首页会注入高德脚本：提前建连，省一次 DNS + TLS */}
       <link rel="preconnect" href="https://webapi.amap.com" crossOrigin="anonymous" />
       <link rel="dns-prefetch" href="https://webapi.amap.com" />
+      <ProgressSteps current={1} />
       {!response.ok ? (
         <p className="m-0 rounded-xl bg-danger-soft px-4 py-3 text-[16px] text-danger">
           {response.message ?? '门店加载失败，请稍后刷新重试'}

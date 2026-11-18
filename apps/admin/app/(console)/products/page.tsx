@@ -48,6 +48,7 @@ interface CatalogNode {
   parentId: string | null;
   level: number;
   name: string;
+  iconUrl: string | null;
   isActive: boolean;
   productCount: number;
   childCount: number;
@@ -168,6 +169,30 @@ function buildCatalogTree(rows: CatalogNode[]): CatalogTreeRow[] {
     }
   }
   return roots;
+}
+
+/** 分类图标：无地址或加载失败时不渲染，避免出现破图与占位空隙 */
+function CategoryTreeIcon({ url }: { url: string | null }) {
+  const [failed, setFailed] = useState(false);
+  if (!url || failed) return null;
+  return (
+    <img
+      src={url}
+      alt=""
+      aria-hidden
+      style={{
+        width: 18,
+        height: 18,
+        flex: 'none',
+        display: 'block',
+        objectFit: 'cover',
+        borderRadius: 4,
+        background: colors.subtle,
+        border: `1px solid ${colors.border}`
+      }}
+      onError={() => setFailed(true)}
+    />
+  );
 }
 
 export default function ProductsPage() {
@@ -634,7 +659,10 @@ export default function ProductsPage() {
       dataIndex: 'name',
       render: (value: string, row) => (
         <Space size={6}>
-          <span>{value}</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+            <CategoryTreeIcon key={row.iconUrl ?? 'none'} url={row.iconUrl} />
+            <span>{value}</span>
+          </span>
           {row.level === 1 ? <Tag color="blue">一级</Tag> : null}
           {row.isActive ? null : <Tag color="default">总部停用</Tag>}
         </Space>

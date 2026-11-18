@@ -294,40 +294,66 @@ export default function Checkout({
 
   if (placed) {
     const online = placed.paymentMethod === 'wechat';
+    const totalAmount = placed.orders.reduce((sum, order) => sum + Number(order.totalAmount), 0);
     return (
-      <div className="flex w-full min-w-0 flex-col gap-3">
-        <ProgressSteps current={3} />
-        <section className={`${CARD} flex flex-col gap-4`}>
-          <div className="flex items-start gap-3">
-            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-brand-50 text-brand-700">
-              <Icon name="check" className="h-6 w-6" />
+      <div className="flex w-full min-w-0 flex-col gap-3 lg:flex-auto">
+        <ProgressSteps current={4} />
+        <section className="flex w-full min-w-0 flex-col rounded-[18px] border border-line bg-card shadow-perk lg:flex-auto lg:flex-row">
+          {/* 成功状态 */}
+          <div className="flex flex-col items-center justify-center gap-4 rounded-t-[18px] border-b border-line bg-brand-50/60 px-6 py-8 text-center lg:w-[38%] lg:shrink-0 lg:rounded-l-[18px] lg:rounded-tr-none lg:border-b-0 lg:border-r lg:py-10">
+            <span className="grid h-16 w-16 shrink-0 place-items-center rounded-full bg-brand-600 text-white sm:h-20 sm:w-20">
+              <Icon name="check" className="h-8 w-8 sm:h-10 sm:w-10" />
             </span>
-            <div className="min-w-0">
-              <h1 className="m-0 text-[24px] font-extrabold text-ink sm:text-[26px]">
+            <div className="flex flex-col gap-2">
+              <h1 className="m-0 text-[24px] font-extrabold leading-[1.25] text-ink sm:text-[26px]">
                 {online ? '订单已提交，等待支付' : '订单已提交，等待门店接单'}
               </h1>
-              <p className="mt-1 text-[15px] leading-[1.6] text-ink-2 sm:text-[16px]">
+              <p className="m-0 text-[15px] leading-[1.6] text-ink-2 sm:text-[16px]">
                 {online
                   ? '线上支付尚未开通，本页没有扣款；订单已保留，请联系门店完成支付。'
                   : '已通知门店备货，请留意门店来电。'}
               </p>
             </div>
+            <span className="flex max-w-full flex-wrap items-baseline justify-center gap-x-2 gap-y-0.5 rounded-full bg-card px-5 py-2.5 shadow-perk sm:px-6">
+              <span className="text-[14px] font-bold leading-[1.4] text-ink-2 sm:text-[15px]">
+                共 {placed.orders.length} 单 · 合计
+              </span>
+              <Price
+                value={totalAmount}
+                color="brand"
+                size={28}
+                weight={800}
+                symbolSize="0.62em"
+              />
+            </span>
           </div>
+
+          {/* 订单摘要与操作 */}
+          <div className="flex min-w-0 flex-1 flex-col gap-4 p-5 sm:p-6">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+              <h2 className="m-0 text-[18px] font-extrabold text-ink">订单摘要</h2>
+              <span className="text-[13px] text-ink-3">请记下订单号，取货或收货时报给店员</span>
+            </div>
 
           <ul className="m-0 flex list-none flex-col gap-3 p-0">
             {placed.orders.map((order) => (
-              <li
-                key={order.id}
-                className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl bg-card-soft px-4 py-3"
-              >
-                <b className="text-[16px] text-ink">{order.shopName}</b>
-                <span className="text-[13px] text-ink-3">订单号 {order.orderNo}</span>
-                <span className="ml-auto text-[18px] font-extrabold text-ink">
-                  <Price value={order.totalAmount} color="ink" size={18} weight={800} symbolSize="1em" />
-                </span>
-                <span className="w-full text-[13px] text-ink-2 sm:w-auto">
+              <li key={order.id} className="flex flex-col gap-2 rounded-xl bg-card-soft px-4 py-3">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <b className="text-[16px] text-ink">{order.shopName}</b>
+                  <span className="text-[13px] text-ink-3">订单号 {order.orderNo}</span>
+                  <span className="ml-auto text-[18px] font-extrabold text-ink">
+                    <Price
+                      value={order.totalAmount}
+                      color="ink"
+                      size={18}
+                      weight={800}
+                      symbolSize="1em"
+                    />
+                  </span>
+                </div>
+                <span className="text-[13px] text-ink-2">
                   {order.fulfillmentType === 'pickup' ? '到店自提' : '送货上门'} ·{' '}
-                  {online ? '待支付' : '货到付款'}
+                  {online ? '待支付' : '货到付款'} · 共 {order.itemCount} 件
                 </span>
               </li>
             ))}
@@ -351,7 +377,7 @@ export default function Checkout({
             </p>
           ) : null}
 
-          <div className="flex flex-wrap gap-3">
+          <div className="mt-auto flex flex-wrap gap-3 pt-1">
             {placed.remaining.length > 0 ? (
               <button
                 type="button"
@@ -381,6 +407,7 @@ export default function Checkout({
               </Link>
             ) : null}
           </div>
+          </div>
         </section>
       </div>
     );
@@ -389,7 +416,7 @@ export default function Checkout({
   if (!currentGroup) {
     return (
       <div className="flex w-full min-w-0 flex-col gap-3">
-        <ProgressSteps current={1} />
+        <ProgressSteps current={3} />
         <div className="flex w-full min-w-0 flex-col items-center gap-3 rounded-[20px] bg-card px-6 py-16 text-center shadow-perk">
           <span className="grid h-16 w-16 place-items-center rounded-full bg-brand-50 text-brand-700">
             <Icon name="bag" className="h-7 w-7" />
@@ -420,7 +447,7 @@ export default function Checkout({
   return (
     <div className="flex w-full min-w-0 flex-col gap-3">
       <h1 className="sr-only">确认订单</h1>
-      <ProgressSteps current={2} />
+      <ProgressSteps current={3} />
 
       <div className="grid w-full min-w-0 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_400px]">
         <div className="flex min-w-0 flex-col gap-3">

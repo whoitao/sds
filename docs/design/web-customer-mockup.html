@@ -126,6 +126,8 @@ svg.ic { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-wid
 
 /* ── W3 附近的店：≥1024 两栏 500 / 1fr ── */
 .shops { padding-top: 20px; display: grid; grid-template-columns: minmax(0, 500px) minmax(0, 1fr); gap: 24px; }
+.shopspage { padding-top: 12px; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+.shopspage .shops { padding-top: 0; flex: 1; min-height: 0; }
 .shops-list { display: flex; flex-direction: column; gap: 16px; min-height: 0; height: 100%; }
 .shops-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex: none; }
 .shops-head h2 { font-size: 28px; font-weight: 800; }
@@ -175,7 +177,7 @@ svg.ic { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-wid
 .mcbtn.ghost { border: 1.5px solid var(--green-200); color: var(--green-deep); background: var(--card); }
 .mcbtn.primary { background: var(--green-deep); color: #fff; }
 
-/* ── 步骤条：上下各 12px，1 进店选菜 / 2 购物车结算 / 3 下单完成 ── */
+/* ── 步骤条：上下各 12px，1 选店 / 2 挑菜 / 3 结算 / 4 下单 ── */
 .steps { display: flex; align-items: center; gap: 12px; flex: none; }
 .steps li { display: flex; align-items: center; gap: 8px; list-style: none; flex: 1; min-width: 0;
   font-size: 15px; font-weight: 700; color: var(--ink-3); }
@@ -676,7 +678,14 @@ svg.ic { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-wid
       <a class="cartlink"><svg class="ic"><use href="#i-cart"/></svg>购物车<b class="badge">5</b></a>
       <a class="avatar-btn"><span class="av">张</span>张桂英<svg class="ic chev" style="width:20px;height:20px"><use href="#i-down"/></svg></a>
     </header>
-    <div class="page shops">
+    <div class="page shopspage">
+      <ol class="steps" style="margin:0;padding:0">
+        <li class="on"><i>1</i>选店<span class="bar"></span></li>
+        <li><i>2</i>挑菜<span class="bar"></span></li>
+        <li><i>3</i>结算<span class="bar"></span></li>
+        <li><i>4</i>下单</li>
+      </ol>
+      <div class="shops">
       <section class="shops-list">
         <div class="shops-head">
           <h2>附近的店</h2>
@@ -760,13 +769,14 @@ svg.ic { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-wid
           </div>
         </div>
       </section>
+      </div>
     </div>
     <footer class="foot"><span>捎点啥 · 顾客端</span><span class="footlinks"><a href="/help">帮助</a><a href="/about">关于</a></span></footer>
   </div>
-  <div class="notes">内容高 656（700 − 20 顶部留白 − 24 底部内边距），列表自身滚动；地图铺满右栏，信息卡距边 16。列表列宽 <code>minmax(0,500px)</code>，地图 <code>minmax(0,1fr)</code>，间距 24。</div>
+  <div class="notes">内容高 624（700 − 12 顶部留白 − 28 步骤条 − 12 间距 − 24 底部内边距），列表自身滚动；地图铺满右栏，信息卡距边 16。列表列宽 <code>minmax(0,500px)</code>，地图 <code>minmax(0,1fr)</code>，间距 24。</div>
 
   <!-- ═══════════ W4 进店选菜 ═══════════ -->
-  <div class="label"><b>W4</b>进店选菜 · 三栏（类别 176 / 商品 / 购物车 300）、行式商品、售罄、步骤条第 1 步</div>
+  <div class="label"><b>W4</b>进店选菜 · 三栏（类别 176 / 商品 / 购物车 300）、行式商品、售罄、步骤条第 2 步</div>
   <div class="frame">
     <div class="chrome"><i></i><i></i><i></i><div class="url">shaodiansha.com/shops/47c758b6-c770-4f2c-b96c-35e59142e084</div></div>
     <header class="top">
@@ -779,9 +789,10 @@ svg.ic { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-wid
     <div class="page">
       <div class="menupage">
         <ol class="steps" style="margin:0;padding:0">
-          <li class="on"><i>1</i>挑好菜<span class="bar done"></span></li>
-          <li><i>2</i>怎么拿、怎么付<span class="bar"></span></li>
-          <li><i>3</i>下单好了</li>
+          <li class="done"><i><svg class="ic" style="width:15px;height:15px"><use href="#i-check"/></svg></i>选店<span class="bar done"></span></li>
+          <li class="on"><i>2</i>挑菜<span class="bar"></span></li>
+          <li><i>3</i>结算<span class="bar"></span></li>
+          <li><i>4</i>下单</li>
         </ol>
         <div class="desk">
           <nav class="cats">
@@ -881,7 +892,7 @@ svg.ic { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-wid
   <div class="notes">步骤条在内容区顶部、上下各 12px；类别栏 176、购物车 300，中间自适应。商品行高约 76，售罄行置灰、右侧为「已售罄」；有数量的商品显示减号/加号步进器，没有则显示圆形加号。</div>
 
   <!-- ═══════════ W5 结算 ═══════════ -->
-  <div class="label"><b>W5</b>购物车 · 结算 · 分组勾选、售罄行、取菜与支付方式、提示行，步骤条第 2 步（右侧 400）</div>
+  <div class="label"><b>W5</b>购物车 · 结算 · 分组勾选、售罄行、取菜与支付方式、提示行，步骤条第 3 步（右侧 400）</div>
   <div class="frame">
     <div class="chrome"><i></i><i></i><i></i><div class="url">shaodiansha.com/checkout</div></div>
     <header class="top">
@@ -894,9 +905,10 @@ svg.ic { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-wid
     <div class="page">
       <div class="co">
         <ol class="steps" style="margin:0;padding:0">
-          <li class="done"><i><svg class="ic" style="width:15px;height:15px"><use href="#i-check"/></svg></i>挑好菜<span class="bar done"></span></li>
-          <li class="on"><i>2</i>怎么拿、怎么付<span class="bar"></span></li>
-          <li><i>3</i>下单好了</li>
+          <li class="done"><i><svg class="ic" style="width:15px;height:15px"><use href="#i-check"/></svg></i>选店<span class="bar done"></span></li>
+          <li class="done"><i><svg class="ic" style="width:15px;height:15px"><use href="#i-check"/></svg></i>挑菜<span class="bar done"></span></li>
+          <li class="on"><i>3</i>结算<span class="bar"></span></li>
+          <li><i>4</i>下单</li>
         </ol>
         <div class="co-grid">
           <div class="co-left">

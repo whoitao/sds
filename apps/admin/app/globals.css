@@ -404,3 +404,56 @@ body {
     display: none;
   }
 }
+
+/* 通用图片上传（antd picture-card）：尺寸由组件传入的 CSS 变量决定 */
+.admin-image-upload.ant-upload-wrapper .ant-upload.ant-upload-select {
+  width: var(--admin-image-upload-width, 120px);
+  height: var(--admin-image-upload-height, 120px);
+  margin: 0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.admin-image-upload.ant-upload-wrapper .ant-upload.ant-upload-select > .ant-upload {
+  overflow: hidden;
+  border-radius: 7px;
+}
+
+.admin-image-upload--filled.ant-upload-wrapper .ant-upload.ant-upload-select {
+  border-style: solid;
+}
+
+.admin-image-upload-actions {
+  position: absolute;
+  inset: auto 0 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 2px 0;
+  background: rgba(0, 0, 0, 0.55);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.admin-image-upload .ant-upload.ant-upload-select:hover .admin-image-upload-actions,
+.admin-image-upload .ant-upload.ant-upload-select:focus-within .admin-image-upload-actions {
+  opacity: 1;
+}
+
+.admin-image-upload-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+  border: none;
+  background: transparent;
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.admin-image-upload-actions button:hover {
+  opacity: 0.8;
+}

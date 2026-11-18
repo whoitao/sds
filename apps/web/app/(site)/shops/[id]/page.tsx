@@ -67,7 +67,7 @@ export default async function ShopMenuPage({ params }: { params: Promise<{ id: s
 
   return (
     <div className="flex w-full min-w-0 flex-col gap-3 pt-3 xl:min-h-0 xl:flex-1">
-      <ProgressSteps current={1} />
+      <ProgressSteps current={2} />
       {!productPage.ok ? (
         <p className="m-0 rounded-xl bg-danger-soft px-4 py-3 text-[15px] text-danger">
           {productPage.message ?? '菜品加载失败，请刷新重试'}

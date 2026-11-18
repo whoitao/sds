@@ -1,4 +1,4 @@
-const DEFAULT_STEPS = ['挑好菜', '怎么拿、怎么付', '下单好了'];
+const DEFAULT_STEPS = ['选店', '挑菜', '结算', '下单'];
 
 function CheckIcon({ className = 'h-3.5 w-3.5' }: { className?: string }) {
   return (
@@ -23,7 +23,7 @@ export default function ProgressSteps({
 }: {
   /** 当前进行到第几步，从 1 开始；小于它的算已完成 */
   current: number;
-  /** 步骤文案，默认是买菜流程的三步 */
+  /** 步骤文案，默认是买菜流程的四步：选店 → 挑菜 → 结算 → 下单 */
   steps?: readonly string[];
   className?: string;
 }) {
@@ -33,8 +33,14 @@ export default function ProgressSteps({
         const step = index + 1;
         const done = step < current;
         const active = step === current;
+        const last = step === steps.length;
         return (
-          <li key={`${step}-${label}`} className="flex items-center gap-1.5 sm:gap-2.5">
+          <li
+            key={`${step}-${label}`}
+            className={`flex min-w-0 items-center gap-1.5 sm:gap-2.5 ${
+              last ? 'shrink-0' : 'flex-1'
+            }`}
+          >
             <span
               className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-[12px] font-bold sm:h-7 sm:w-7 sm:text-[14px] ${
                 done

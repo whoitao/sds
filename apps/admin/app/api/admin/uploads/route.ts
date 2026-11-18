@@ -34,3 +34,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ code: 'API_UNREACHABLE', message: '服务不可用' }, { status: 503 });
   }
 }
+
+/** 删除上传文件的透传代理：请求体为 { url }，校验与存储操作都在 packages/api */
+export async function DELETE(request: Request) {
+  const token = (await cookies()).get(ADMIN_COOKIE)?.value;
+  if (!token) {
+    return NextResponse.json({ code: 'UNAUTHORIZED', message: '未登录' }, { status: 401 });
+  }
+
+  try {
+    const upstream = await fetch(`${getApiBaseUrl()}/api/admin/uploads`, {
+      method: 'DELETE',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: await request.text(),
+      cache: 'no-store'
+    });
+
+    return NextResponse.json(await upstream.json(), { status: upstream.status });
+  } catch {
+    return NextResponse.json({ code: 'API_UNREACHABLE', message: '服务不可用' }, { status: 503 });
+  }
+}

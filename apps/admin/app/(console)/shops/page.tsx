@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { Button, Checkbox, Empty, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, TreeSelect, Upload } from 'antd';
+import { Button, Checkbox, Empty, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, TreeSelect } from 'antd';
 import type { FormInstance, TableColumnsType } from 'antd';
 import {
   EditOutlined,
@@ -11,12 +11,12 @@ import {
   PlusOutlined,
   SearchOutlined,
   StopOutlined,
-  TeamOutlined,
-  UploadOutlined
+  TeamOutlined
 } from '@ant-design/icons';
 import { adminColors as colors } from '../../../lib/theme';
-import { ImageCompressError, compressCoverImage } from '../../../lib/compress-image';
 import { ADMIN_FILTER_FIELD_WIDTH, getAdminTableProps } from '../../../lib/table';
+import { AdminImageUpload } from '../../../components/AdminImageUpload';
+import { deleteUploadedImage } from '../../../lib/upload-cleanup';
 import { useAdminSettings } from '../../../components/AdminSettingsProvider';
 import { TestDataCleanupButton } from '../../../components/TestDataCleanupButton';
 
@@ -84,109 +84,6 @@ function formatBusinessHours(value: ShopBusinessHours | null) {
   if (days.length === 0) return '未设置';
   const same = days.every((day) => day.open === days[0].open && day.close === days[0].close);
   return same ? `${days[0].open} - ${days[0].close}` : `分日不同 · ${days.length} 天营业`;
-}
-
-/** 店铺图片：上传到 /api/admin/uploads（Supabase Storage），表单里只保留 URL */
-function ShopCoverField({
-  value: coverUrl,
-  onChange
-}: {
-  value?: string | null;
-  onChange?: (url: string | null) => void;
-}) {
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState('');
-
-  return (
-    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-      {coverUrl ? (
-        <img
-          src={coverUrl}
-          alt="店铺图片"
-          style={{
-            width: 144,
-            height: 72,
-            objectFit: 'cover',
-            borderRadius: 8,
-            border: `1px solid ${colors.border}`
-          }}
-        />
-      ) : (
-        <div
-          style={{
-            width: 144,
-            height: 72,
-            borderRadius: 8,
-            border: `1px dashed ${colors.border}`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 12,
-            color: colors.textTertiary
-          }}
-        >
-          暂无
-        </div>
-      )}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <Space size={8}>
-          <Upload
-            accept="image/jpeg,image/png,image/webp,image/gif"
-            maxCount={1}
-            showUploadList={false}
-            customRequest={async ({ file, onSuccess, onError }) => {
-              setUploading(true);
-              setUploadError('');
-              try {
-                // 上传前先压到 20KB 以内（2:1），服务端 5MB 限制保持不变
-                const compressed = await compressCoverImage(file as File);
-                const data = new FormData();
-                data.append('file', compressed);
-                data.append('dir', 'shops');
-                const response = await fetch('/api/admin/uploads', { method: 'POST', body: data });
-                const payload = await response.json();
-                if (!response.ok || !payload?.url) {
-                  const message = payload?.message ?? '上传失败';
-                  setUploadError(message);
-                  onError?.(new Error(message));
-                  return;
-                }
-                onChange?.(payload.url);
-                onSuccess?.(payload);
-              } catch (error) {
-                const message =
-                  error instanceof ImageCompressError ? error.message : '上传失败';
-                setUploadError(message);
-                onError?.(new Error(message));
-              } finally {
-                setUploading(false);
-              }
-            }}
-          >
-            <Button size="small" icon={<UploadOutlined />} loading={uploading}>
-              {coverUrl ? '重新上传' : '上传图片'}
-            </Button>
-          </Upload>
-          {coverUrl ? (
-            <Button
-              size="small"
-              variant="text"
-              color="danger"
-              onClick={() => onChange?.(null)}
-            >
-              移除
-            </Button>
-          ) : null}
-        </Space>
-        <span style={{ fontSize: 12, color: colors.textTertiary }}>
-          JPG / PNG / WebP / GIF，自动压成 2:1 封面（约 20KB 内）
-        </span>
-        {uploadError ? (
-          <span style={{ fontSize: 12, color: colors.danger }}>{uploadError}</span>
-        ) : null}
-      </div>
-    </div>
-  );
 }
 
 /** 营业时间：每天一段「开始 - 结束」，勾选休息即清空该天；不做跨天 */
@@ -286,7 +183,6 @@ const DEFAULT_NEW_SHOP_LOCATION = { longitude: 120.387585, latitude: 36.074702 }
 
 /** 把表单里的经纬度与地图组件互相打通：打开编辑时回显，选点后写回 */
 function ShopLocationField({ form }: { form: FormInstance }) {
-  const { resolvedTheme } = useAdminSettings();
   const longitude = Form.useWatch('longitude', form);
   const latitude = Form.useWatch('latitude', form);
 
@@ -299,7 +195,6 @@ function ShopLocationField({ form }: { form: FormInstance }) {
   return (
     <AmapLocationPicker
       value={value}
-      theme={resolvedTheme}
       // 清空经纬度时回到新增门店的默认地址，而不是天安门
       defaultCenter={DEFAULT_NEW_SHOP_LOCATION}
       onChange={(next) => {
@@ -458,6 +353,10 @@ export default function ShopsPage() {
       if (!response.ok) {
         setError(payload?.message ?? '保存失败');
         return;
+      }
+      // 保存成功后再清理被替换/移除的旧图，取消或保存失败时旧文件仍可用
+      if (editing?.coverUrl && editing.coverUrl !== coverUrl) {
+        void deleteUploadedImage(editing.coverUrl);
       }
       setFormOpen(false);
       if (!editing && typeof payload.importedCount === 'number') {
@@ -821,8 +720,15 @@ export default function ShopsPage() {
               </Space>
             </div>
             <div style={{ minWidth: 0 }}>
-              <Form.Item name="coverUrl" label="店铺图片" extra="上传后保存图片地址，不会把图片存进数据库">
-                <ShopCoverField />
+              <Form.Item name="coverUrl" label="店铺图片">
+                <AdminImageUpload
+                  width={320}
+                  height={160}
+                  aspectRatio={2}
+                  dir="shops"
+                  compressToKB={20}
+                  hint="支持 JPG / PNG / WebP / GIF，单张 ≤ 5MB；自动居中裁成 2:1 并压到 20KB 内"
+                />
               </Form.Item>
               <Form.Item
                 name="businessHours"

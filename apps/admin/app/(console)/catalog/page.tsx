@@ -20,8 +20,7 @@ import {
   Tabs,
   Tag,
   Tooltip,
-  TreeSelect,
-  Upload
+  TreeSelect
 } from 'antd';
 import type { TableColumnsType } from 'antd';
 import { TestDataCleanupButton } from '../../../components/TestDataCleanupButton';
@@ -35,11 +34,12 @@ import {
   SaveOutlined,
   StopOutlined,
   TagsOutlined,
-  UndoOutlined,
-  UploadOutlined
+  UndoOutlined
 } from '@ant-design/icons';
 import { adminColors as colors } from '../../../lib/theme';
 import { getAdminTableProps } from '../../../lib/table';
+import { AdminImageUpload } from '../../../components/AdminImageUpload';
+import { deleteUploadedImage } from '../../../lib/upload-cleanup';
 import {
   AdminFilterField,
   AdminFilterSearch,
@@ -156,102 +156,6 @@ const STOCK_TYPE_LABEL: Record<CatalogRow['stockType'], string> = {
 
 function formatTime(value: string | null) {
   return value ? new Date(value).toLocaleString('zh-CN') : '—';
-}
-
-/** 分类图标：可粘贴图片地址，也可复用 /api/admin/uploads 上传（dir=catalog-categories） */
-function CategoryIconField({
-  value,
-  onChange
-}: {
-  value?: string | null;
-  onChange?: (url: string | null) => void;
-}) {
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState('');
-
-  return (
-    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-      {value ? (
-        <img
-          src={value}
-          alt="分类图标"
-          style={{
-            width: 48,
-            height: 48,
-            objectFit: 'cover',
-            borderRadius: 8,
-            border: `1px solid ${colors.border}`
-          }}
-        />
-      ) : (
-        <div
-          style={{
-            width: 48,
-            height: 48,
-            borderRadius: 8,
-            border: `1px dashed ${colors.border}`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 11,
-            color: colors.textTertiary
-          }}
-        >
-          无
-        </div>
-      )}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, minWidth: 0 }}>
-        <Input
-          value={value ?? ''}
-          placeholder="https://…"
-          onChange={(event) => onChange?.(event.target.value || null)}
-        />
-        <Space size={8}>
-          <Upload
-            accept="image/jpeg,image/png,image/webp,image/gif"
-            maxCount={1}
-            showUploadList={false}
-            customRequest={async ({ file, onSuccess, onError }) => {
-              setUploading(true);
-              setUploadError('');
-              try {
-                const data = new FormData();
-                data.append('file', file as File);
-                data.append('dir', 'catalog-categories');
-                const response = await fetch('/api/admin/uploads', { method: 'POST', body: data });
-                const payload = await response.json();
-                if (!response.ok || !payload?.url) {
-                  const message = payload?.message ?? '上传失败';
-                  setUploadError(message);
-                  onError?.(new Error(message));
-                  return;
-                }
-                onChange?.(payload.url);
-                onSuccess?.(payload);
-              } catch {
-                setUploadError('上传失败');
-                onError?.(new Error('上传失败'));
-              } finally {
-                setUploading(false);
-              }
-            }}
-          >
-            <Button size="small" icon={<UploadOutlined />} loading={uploading}>
-              上传图标
-            </Button>
-          </Upload>
-          {value ? (
-            <Button size="small" variant="text" color="danger" onClick={() => onChange?.(null)}>
-              移除
-            </Button>
-          ) : null}
-        </Space>
-        {uploadError ? (
-          <span style={{ fontSize: 12, color: colors.danger }}>{uploadError}</span>
-        ) : null}
-      </div>
-    </div>
-  );
 }
 
 export default function CatalogPage() {
@@ -446,6 +350,10 @@ export default function CatalogPage() {
         setError(payload?.message ?? '保存失败');
         return;
       }
+      // 分类保存成功后再清理被替换/移除的旧图标
+      if (editingCategory?.iconUrl && editingCategory.iconUrl !== (values.iconUrl || null)) {
+        void deleteUploadedImage(editingCategory.iconUrl);
+      }
       setCategoryModalOpen(false);
       setNotice(editingCategory ? '分类已更新' : '分类已创建');
       await loadCategories();
@@ -562,6 +470,10 @@ export default function CatalogPage() {
       if (!response.ok) {
         setError(payload?.message ?? '保存失败');
         return;
+      }
+      // 商品保存成功后再清理被替换/移除的旧图
+      if (editing?.imageUrl && editing.imageUrl !== (values.imageUrl || null)) {
+        void deleteUploadedImage(editing.imageUrl);
       }
       setModalOpen(false);
       setNotice(editing ? '已保存，门店侧共享字段将同步更新' : '已保存为草稿，发布后门店可见');
@@ -1320,9 +1232,13 @@ export default function CatalogPage() {
                 name="iconUrl"
                 label="分类图标"
                 rules={[{ type: 'url', message: '请输入合法 URL' }]}
-                extra="可粘贴图片地址，或上传一张（JPG / PNG / WebP / GIF，≤5MB）"
               >
-                <CategoryIconField />
+                <AdminImageUpload
+                  width={48}
+                  aspectRatio={1}
+                  dir="catalog-categories"
+                  hint="支持 JPG / PNG / WebP / GIF，单张 ≤ 5MB；正方形展示，非正方形图片居中裁切"
+                />
               </Form.Item>
               <Form.Item
                 name="isActive"
@@ -1376,8 +1292,13 @@ export default function CatalogPage() {
               <Form.Item name="description" label="商品描述" rules={[{ max: 1000, message: '最多 1000 字' }]}>
                 <Input.TextArea rows={3} maxLength={1000} placeholder="选填" />
               </Form.Item>
-              <Form.Item name="imageUrl" label="商品图片 URL" rules={[{ type: 'url', message: '请输入合法 URL' }]}>
-                <Input placeholder="选填" />
+              <Form.Item name="imageUrl" label="商品图片" rules={[{ type: 'url', message: '请输入合法 URL' }]}>
+                <AdminImageUpload
+                  width={120}
+                  aspectRatio={1}
+                  dir="catalog-products"
+                  hint="支持 JPG / PNG / WebP / GIF，单张 ≤ 5MB；正方形展示，非正方形图片居中裁切"
+                />
               </Form.Item>
               <Form.Item name="stockType" label="库存追踪" style={{ width: 160 }}>
                 <Select

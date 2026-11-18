@@ -72,3 +72,19 @@ export async function uploadObject(
     throw new Error(`storage responded ${response.status}${detail ? `: ${detail.slice(0, 200)}` : ''}`);
   }
 }
+
+/** 删除单个对象；对象已不存在（404）按成功处理，方便重复清理 */
+export async function deleteObject(config: StorageConfig, path: string): Promise<void> {
+  const response = await fetch(`${config.url}/storage/v1/object/${config.bucket}/${path}`, {
+    method: 'DELETE',
+    headers: {
+      authorization: `Bearer ${config.serviceKey}`
+    },
+    signal: AbortSignal.timeout(15000)
+  });
+
+  if (!response.ok && response.status !== 404) {
+    const detail = await response.text().catch(() => '');
+    throw new Error(`storage responded ${response.status}${detail ? `: ${detail.slice(0, 200)}` : ''}`);
+  }
+}

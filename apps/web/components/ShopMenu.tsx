@@ -131,9 +131,15 @@ export default function ShopMenu({
     return new Set([activeCategory, ...(category?.children ?? []).map((row) => row.id)]);
   }, [activeCategory, activeChild, categories]);
 
-  const visible = scope
-    ? products.filter((product) => product.categoryId && scope.has(product.categoryId))
-    : products;
+  function isProductSoldOut(product: MenuProduct) {
+    const sku = defaultSkuOf(product);
+    return product.soldOut || !sku || Boolean(itemsBySku.get(sku.skuId)?.soldOut);
+  }
+
+  // 保持各组内的原始顺序，只把可购买商品排在售罄商品前面
+  const visible = products
+    .filter((product) => !scope || (product.categoryId && scope.has(product.categoryId)))
+    .sort((a, b) => Number(isProductSoldOut(a)) - Number(isProductSoldOut(b)));
 
   const busy = pendingKey !== null;
   const loginHref = `/login?next=${encodeURIComponent(`/shops/${shop.id}`)}`;
@@ -181,7 +187,11 @@ export default function ShopMenu({
     run(itemId, () => setCartItemQuantity(itemId, nextQuantity.toFixed(2)));
   }
 
-  function categoryButton(category: { id: string; name: string; productCount: number }, active: boolean, mobile: boolean) {
+  function categoryButton(
+    category: { id: string; name: string; iconUrl?: string | null; productCount: number },
+    active: boolean,
+    mobile: boolean
+  ) {
     const classes = mobile
       ? `relative flex h-[54px] shrink-0 items-center gap-2 rounded-xl px-3 text-[16px] transition-colors ${
           active ? 'bg-brand-50 font-bold text-brand-700' : 'text-ink'
@@ -208,14 +218,35 @@ export default function ShopMenu({
           />
         ) : null}
         <i
-          className={`grid shrink-0 place-items-center rounded-[13px] font-extrabold not-italic ${
+          className={`grid shrink-0 place-items-center overflow-hidden rounded-[13px] font-extrabold not-italic ${
             mobile ? 'h-10 w-10 text-[17px]' : 'h-[42px] w-[42px] text-[18px]'
           } ${active ? 'bg-brand-500 text-white' : 'bg-brand-50 text-brand-700'}`}
         >
-          {category.name.slice(0, 1)}
+          {category.iconUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={category.iconUrl}
+              alt=""
+              width={42}
+              height={42}
+              loading="lazy"
+              decoding="async"
+              className="h-full w-full object-contain"
+            />
+          ) : (
+            category.name.slice(0, 1)
+          )}
         </i>
-        {/* 现有顶层分类都是单字（肉/蛋/奶…），单字时只留图标方块，避免「肉 肉」重复 */}
-        {category.name.length > 1 ? <span className="whitespace-nowrap">{category.name}</span> : null}
+        <span className="whitespace-nowrap">{category.name}</span>
+        {category.productCount > 0 ? (
+          <em
+            className={`text-[13px] font-normal not-italic text-ink-3 ${
+              mobile ? 'ml-1' : 'ml-auto'
+            }`}
+          >
+            {category.productCount}
+          </em>
+        ) : null}
       </button>
     );
   }
@@ -276,7 +307,7 @@ export default function ShopMenu({
                 const sku = defaultSkuOf(product);
                 const item = sku ? itemsBySku.get(sku.skuId) : undefined;
                 // 商品列表数据可能滞后，购物车里的售罄标记更及时，两边都按售罄处理
-                const soldOut = product.soldOut || !sku || Boolean(item?.soldOut);
+                const soldOut = isProductSoldOut(product);
                 const mode = sku?.quantityMode ?? 'integer';
                 const step = stepOf(mode);
                 const stock = Number(sku?.stockQuantity ?? 0);
@@ -360,9 +391,9 @@ export default function ShopMenu({
 
       <aside className="sticky bottom-0 z-20 shrink-0 border-t border-line bg-card shadow-[0_-6px_18px_rgba(30,42,34,0.08)] xl:static xl:flex xl:w-[300px] xl:flex-col xl:border-l xl:border-t-0 xl:shadow-none">
         <div
-          className={`${cartOpen ? 'flex' : 'hidden'} max-h-[68dvh] min-h-0 flex-col gap-2.5 overflow-hidden border-b border-line p-4 xl:max-h-none xl:flex xl:flex-1 xl:border-b-0`}
+          className={`${cartOpen ? 'flex' : 'hidden'} max-h-[68dvh] min-h-0 flex-col gap-2.5 overflow-hidden border-b border-line p-4 xl:max-h-none xl:flex xl:flex-1 xl:border-b-0 xl:p-3.5`}
         >
-          <h2 className="m-0 flex shrink-0 items-baseline justify-between text-[19px] font-extrabold text-ink">
+          <h2 className="m-0 flex shrink-0 items-baseline justify-between text-[19px] font-extrabold text-ink xl:h-[62px] xl:items-center">
             {shop.name}的菜
             <small className="text-[14px] font-normal text-ink-3">{group?.items.length ?? 0} 样</small>
           </h2>
