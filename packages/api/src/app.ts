@@ -13,6 +13,14 @@ import { productRoutes } from './routes/products.js';
 import { catalogRoutes } from './routes/catalog.js';
 import { inventoryRoutes } from './routes/inventory.js';
 import { purchaseRoutes } from './routes/purchases.js';
+import { warehouseRoutes } from './routes/warehouses.js';
+import { warehouseStockRoutes } from './routes/warehouse-stocks.js';
+import { requisitionRoutes } from './routes/requisitions.js';
+import { demandPlanRoutes } from './routes/demand-plans.js';
+import { warehouseTransferRoutes } from './routes/warehouse-transfers.js';
+import { damageReportRoutes } from './routes/damage-reports.js';
+import { testDataRoutes } from './routes/test-data.js';
+import { DocumentRuleError } from './lib/documents.js';
 import { mobileRoutes } from './routes/mobile.js';
 import { cartRoutes } from './routes/mobile-cart.js';
 import { adminCartRoutes } from './routes/admin-carts.js';
@@ -36,7 +44,7 @@ app.use(
   cors({
     origin: corsOrigins,
     credentials: true,
-    allowHeaders: ['Content-Type', 'Authorization', 'If-None-Match'],
+    allowHeaders: ['Content-Type', 'Authorization', 'If-None-Match', 'Idempotency-Key'],
     allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
     // 区划接口用 ETag 做协商缓存，浏览器端需要能读到该响应头
     exposeHeaders: ['ETag']
@@ -70,6 +78,13 @@ app.route('/api/admin', productRoutes);
 app.route('/api/admin', catalogRoutes);
 app.route('/api/admin', inventoryRoutes);
 app.route('/api/admin', purchaseRoutes);
+app.route('/api/admin/warehouses', warehouseRoutes);
+app.route('/api/admin/warehouse-stocks', warehouseStockRoutes);
+app.route('/api/admin/requisitions', requisitionRoutes);
+app.route('/api/admin/demand-plans', demandPlanRoutes);
+app.route('/api/admin', warehouseTransferRoutes);
+app.route('/api/admin', damageReportRoutes);
+app.route('/api/admin/test-data', testDataRoutes);
 app.route('/api/admin/carts', adminCartRoutes);
 app.route('/api/admin/orders', adminOrderRoutes);
 // 顾客端：移动端首页使用，独立于 admin 路径与权限
@@ -88,6 +103,9 @@ app.route('/api/regions', regionRoutes);
 
 // 统一兜底：避免把堆栈直接返回给前端
 app.onError((err, c) => {
+  if (err instanceof DocumentRuleError) {
+    return c.json({ code: err.code, message: err.message }, err.status);
+  }
   console.error('[sds-api] 未处理异常:', err);
   return c.json({ code: 'INTERNAL_ERROR', message: '服务暂时不可用，请稍后再试' }, 500);
 });

@@ -18,6 +18,7 @@ import { adminColors as colors } from '../../../lib/theme';
 import { ImageCompressError, compressCoverImage } from '../../../lib/compress-image';
 import { ADMIN_FILTER_FIELD_WIDTH, getAdminTableProps } from '../../../lib/table';
 import { useAdminSettings } from '../../../components/AdminSettingsProvider';
+import { TestDataCleanupButton } from '../../../components/TestDataCleanupButton';
 
 interface ShopRow {
   id: string;
@@ -661,9 +662,12 @@ export default function ShopsPage() {
       >
         <div className="admin-page-bar">
           <span style={{ fontSize: 14, fontWeight: 600, color: colors.text }}>店铺列表</span>
-          <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
-            新建店铺
-          </Button>
+          <Space size={8}>
+            <TestDataCleanupButton onCleaned={() => void load()} />
+            <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
+              新建店铺
+            </Button>
+          </Space>
         </div>
 
         <div

@@ -81,6 +81,8 @@ const inventorySelect = {
   quantity: sql<string>`coalesce(${productSkuStocks.quantity}, 0)`,
   minThreshold: sql<string>`coalesce(${productSkuStocks.minThreshold}, 0)`,
   maxThreshold: productSkuStocks.maxThreshold,
+  avgUnitCost: sql<string>`coalesce(${productSkuStocks.avgUnitCost}, 0)`,
+  reservedQty: sql<string>`coalesce(${productSkuStocks.reservedQty}, 0)`,
   stockUpdatedAt: productSkuStocks.updatedAt,
   lowStock: sql<boolean>`${productSkus.stockType} = 'tracked'
     and coalesce(${productSkuStocks.quantity}, 0) <= coalesce(${productSkuStocks.minThreshold}, 0)`
@@ -459,6 +461,8 @@ inventoryRoutes.post('/inventory/adjustments', async (c) => {
           .where(eq(productSkuStocks.productSkuId, item.skuId));
         await tx.insert(stockMovements).values({
           shopId,
+          locationType: 'shop',
+          locationId: shopId,
           productSkuId: item.skuId,
           movementType:
             item.reason === 'waste' ||

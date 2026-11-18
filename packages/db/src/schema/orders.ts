@@ -1,5 +1,6 @@
 import { relations } from 'drizzle-orm';
 import {
+  boolean,
   index,
   numeric,
   pgTable,
@@ -61,6 +62,8 @@ export const orders = pgTable(
     refundReason: text('refund_reason'),
     refundRejectedReason: text('refund_rejected_reason'),
     statusBeforeRefund: orderStatusEnum('status_before_refund'),
+    /** 测试/演示订单标记；清理接口只删 is_test=true */
+    isTest: boolean('is_test').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
   },
@@ -91,6 +94,7 @@ export const orderItems = pgTable(
     unitPrice: numeric('unit_price', { precision: 10, scale: 2 }).notNull(),
     quantity: numeric('quantity', { precision: 12, scale: 2 }).notNull(),
     subtotal: numeric('subtotal', { precision: 10, scale: 2 }).notNull(),
+    isTest: boolean('is_test').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
   },
   (t) => ({
@@ -121,6 +125,7 @@ export const orderPayments = pgTable(
     paidAt: timestamp('paid_at', { withTimezone: true }),
     refundedAt: timestamp('refunded_at', { withTimezone: true }),
     refundReason: text('refund_reason'),
+    isTest: boolean('is_test').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
   },

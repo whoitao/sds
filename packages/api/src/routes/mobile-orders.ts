@@ -434,6 +434,12 @@ mobileOrderRoutes.post('/', async (c) => {
         }
 
         const totalAmount = money(totalCents);
+        const [orderShop] = await tx
+          .select({ isTest: shops.isTest })
+          .from(shops)
+          .where(eq(shops.id, group.shopId))
+          .limit(1);
+        const orderIsTest = orderShop?.isTest ?? false;
         const [order] = await tx
           .insert(orders)
           .values({
@@ -450,7 +456,8 @@ mobileOrderRoutes.post('/', async (c) => {
             subtotal: totalAmount,
             totalAmount,
             paymentMethod,
-            remark: group.remark
+            remark: group.remark,
+            isTest: orderIsTest
           })
           .returning({ id: orders.id, orderNo: orders.orderNo });
         resultIds.push(order.id);
@@ -460,7 +467,8 @@ mobileOrderRoutes.post('/', async (c) => {
           method: paymentMethod,
           provider: payOnline ? PAYMENT_PROVIDER : 'offline',
           amount: totalAmount,
-          status: payOnline ? 'created' : 'offline'
+          status: payOnline ? 'created' : 'offline',
+          isTest: orderIsTest
         });
 
         for (const item of group.items) {
@@ -476,7 +484,8 @@ mobileOrderRoutes.post('/', async (c) => {
             quantityMode: item.quantityMode,
             unitPrice: money(cents(item.unitPrice)),
             quantity: money(cents(item.quantity)),
-            subtotal: money(lineCents)
+            subtotal: money(lineCents),
+            isTest: orderIsTest
           });
 
           if (item.stockType === 'tracked') {
@@ -489,6 +498,8 @@ mobileOrderRoutes.post('/', async (c) => {
               .where(eq(productSkuStocks.productSkuId, item.skuId));
             await tx.insert(stockMovements).values({
               shopId: item.shopId,
+              locationType: 'shop',
+              locationId: item.shopId,
               productSkuId: item.skuId,
               movementType: 'sale_out',
               quantityChange: `-${money(cents(item.quantity))}`,
@@ -496,7 +507,8 @@ mobileOrderRoutes.post('/', async (c) => {
               referenceType: 'order',
               referenceId: order.id,
               operatorUserId: session.userId,
-              remark: `订单出库 ${order.orderNo}`
+              remark: `订单出库 ${order.orderNo}`,
+              isTest: orderIsTest
             });
           }
 

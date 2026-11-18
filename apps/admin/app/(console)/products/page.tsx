@@ -36,6 +36,7 @@ import { adminColors as colors } from '../../../lib/theme';
 import { ADMIN_FILTER_FIELD_WIDTH, getAdminTableProps } from '../../../lib/table';
 import { useAdminSettings } from '../../../components/AdminSettingsProvider';
 import { TabProgress } from '../../../components/TabProgress';
+import { TestDataCleanupButton } from '../../../components/TestDataCleanupButton';
 
 interface ShopOption {
   id: string;
@@ -828,18 +829,26 @@ export default function ProductsPage() {
             商品由总部商品库统一发布，门店维护价格与上下架
           </span>
         </Space>
-        <Select
-          showSearch
-          optionFilterProp="label"
-          placeholder="选择店铺"
-          style={{ width: 200 }}
-          value={shopId}
-          onChange={(value) => {
-            setShopId(value);
-            setPage(1);
-          }}
-          options={shops.map((shop) => ({ value: shop.id, label: shop.name }))}
-        />
+        <Space size={8}>
+          <Select
+            showSearch
+            optionFilterProp="label"
+            placeholder="选择店铺"
+            style={{ width: 200 }}
+            value={shopId}
+            onChange={(value) => {
+              setShopId(value);
+              setPage(1);
+            }}
+            options={shops.map((shop) => ({ value: shop.id, label: shop.name }))}
+          />
+          <TestDataCleanupButton
+            onCleaned={() => {
+              void loadCatalog();
+              void loadProducts();
+            }}
+          />
+        </Space>
       </div>
 
       <div style={{ position: 'relative' }}>

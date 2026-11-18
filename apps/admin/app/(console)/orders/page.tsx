@@ -20,6 +20,7 @@ import type { TableColumnsType } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import { ORDER_STATUS_LABELS, type OrderStatus } from '@sds/shared';
 import { useAdminSettings } from '../../../components/AdminSettingsProvider';
+import { TestDataCleanupButton } from '../../../components/TestDataCleanupButton';
 import { ADMIN_FILTER_FIELD_WIDTH, getAdminTableProps } from '../../../lib/table';
 
 interface ShopOption {
@@ -500,6 +501,7 @@ export default function OrdersPage() {
     <div style={{ background: 'var(--admin-surface)', minHeight: '100vh' }}>
       <div className="admin-page-bar">
         <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--admin-text)' }}>订单管理</span>
+        <TestDataCleanupButton onCleaned={() => void loadOrders()} />
       </div>
       {contextHolder}
       <div

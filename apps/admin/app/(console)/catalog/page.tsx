@@ -24,6 +24,7 @@ import {
   Upload
 } from 'antd';
 import type { TableColumnsType } from 'antd';
+import { TestDataCleanupButton } from '../../../components/TestDataCleanupButton';
 import {
   ArrowDownOutlined,
   ArrowUpOutlined,
@@ -290,14 +291,6 @@ export default function CatalogPage() {
   const [skuDraft, setSkuDraft] = useState<CatalogSkuDraft | null>(null);
   const [skuSubmitting, setSkuSubmitting] = useState(false);
   const [skuError, setSkuError] = useState('');
-
-  const [cleanupOpen, setCleanupOpen] = useState(false);
-  const [cleanupCounts, setCleanupCounts] = useState<{
-    catalogProducts: number;
-    shopProducts: number;
-  } | null>(null);
-  const [cleanupLoading, setCleanupLoading] = useState(false);
-  const [cleanupSubmitting, setCleanupSubmitting] = useState(false);
 
   const [appliedPageSize, setAppliedPageSize] = useState(pageSize);
   if (pageSize !== appliedPageSize) {
@@ -639,54 +632,6 @@ export default function CatalogPage() {
     }
     const payload = await response.json().catch(() => null);
     setError(payload?.message ?? '操作失败');
-  }
-
-  async function openCleanup() {
-    setError('');
-    setCleanupOpen(true);
-    setCleanupLoading(true);
-    setCleanupCounts(null);
-    try {
-      const response = await fetch('/api/admin/catalog/test-data', { cache: 'no-store' });
-      const payload = await response.json();
-      if (!response.ok) {
-        setError(payload?.message ?? '测试数据统计失败');
-        return;
-      }
-      setCleanupCounts({
-        catalogProducts: payload.catalogProducts ?? 0,
-        shopProducts: payload.shopProducts ?? 0
-      });
-    } catch {
-      setError('接口不可用');
-    } finally {
-      setCleanupLoading(false);
-    }
-  }
-
-  async function cleanupTestData() {
-    setCleanupSubmitting(true);
-    setError('');
-    try {
-      const response = await fetch('/api/admin/catalog/test-data', { method: 'DELETE' });
-      const payload = await response.json();
-      if (!response.ok) {
-        setError(payload?.message ?? '清理失败');
-        return;
-      }
-      setCleanupOpen(false);
-      setCleanupCounts(null);
-      setSelectedKeys([]);
-      setNotice(
-        `已清理 ${payload.catalogProducts ?? 0} 条测试商品、${payload.shopProducts ?? 0} 条门店商品行`
-      );
-      void load();
-      void loadCategories();
-    } catch {
-      setError('清理失败');
-    } finally {
-      setCleanupSubmitting(false);
-    }
   }
 
   async function loadSkus(productId: string) {
@@ -1196,9 +1141,13 @@ export default function CatalogPage() {
           <Space size={8}>
             {tab === 'products' ? (
               <>
-                <Button danger icon={<DeleteOutlined />} onClick={() => void openCleanup()}>
-                  清理测试数据
-                </Button>
+                <TestDataCleanupButton
+                  onCleaned={() => {
+                    setSelectedKeys([]);
+                    void load();
+                    void loadCategories();
+                  }}
+                />
                 <Button
                   icon={<CheckCircleOutlined />}
                   disabled={draftSelected.length === 0}
@@ -1635,44 +1584,6 @@ export default function CatalogPage() {
               <br />
               发布后立即对所有门店可见，并自动铺货到尚未上架的门店；已铺货门店的价格、上下架、排序不会被覆盖。
             </div>
-          </Modal>
-
-          <Modal
-            open={cleanupOpen}
-            title="清理测试数据"
-            okText="确认清理"
-            okButtonProps={{
-              danger: true,
-              disabled:
-                cleanupLoading ||
-                cleanupSubmitting ||
-                !cleanupCounts ||
-                (cleanupCounts.catalogProducts === 0 && cleanupCounts.shopProducts === 0)
-            }}
-            confirmLoading={cleanupSubmitting}
-            cancelText="取消"
-            onOk={() => void cleanupTestData()}
-            onCancel={() => {
-              if (!cleanupSubmitting) setCleanupOpen(false);
-            }}
-          >
-            {cleanupLoading ? (
-              <div style={{ fontSize: 14, lineHeight: 1.8 }}>正在统计测试数据…</div>
-            ) : cleanupCounts ? (
-              cleanupCounts.catalogProducts === 0 && cleanupCounts.shopProducts === 0 ? (
-                <div style={{ fontSize: 14, lineHeight: 1.8 }}>当前没有标记为测试的数据。</div>
-              ) : (
-                <div style={{ fontSize: 14, lineHeight: 1.8 }}>
-                  将删除 <strong>{cleanupCounts.catalogProducts}</strong> 条总部测试商品、
-                  <strong>{cleanupCounts.shopProducts}</strong> 条门店商品行。
-                  <br />
-                  门店库存随商品级联删除；只删除 <code>is_test = true</code> 的数据，正式商品不受影响。
-                  该操作不可撤销。
-                </div>
-              )
-            ) : (
-              <div style={{ fontSize: 14, lineHeight: 1.8 }}>统计失败，请关闭后重试。</div>
-            )}
           </Modal>
 
           <Modal

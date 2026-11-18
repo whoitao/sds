@@ -35,6 +35,8 @@ export const catalogSkus = pgTable(
     quantityMode: quantityModeEnum('quantity_mode').notNull().default('integer'),
     isDefault: boolean('is_default').notNull().default(false),
     status: varchar('status', { length: 16 }).notNull().default('active'),
+    /** 测试/演示数据标记；清理接口只删 is_test=true */
+    isTest: boolean('is_test').notNull().default(false),
     sortOrder: integer('sort_order').notNull().default(0),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
@@ -80,6 +82,7 @@ export const productSkus = pgTable(
     quantityMode: quantityModeEnum('quantity_mode').notNull().default('integer'),
     isAvailable: boolean('is_available').notNull().default(true),
     isDefault: boolean('is_default').notNull().default(false),
+    isTest: boolean('is_test').notNull().default(false),
     sortOrder: integer('sort_order').notNull().default(0),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
@@ -126,6 +129,11 @@ export const productSkuStocks = pgTable(
       .notNull()
       .default('0'),
     maxThreshold: numeric('max_threshold', { precision: 12, scale: 2 }),
+    /** 移动加权平均成本（迁移 0023，本轮只展示不参与扣减） */
+    avgUnitCost: numeric('avg_unit_cost', { precision: 10, scale: 2 }).notNull().default('0'),
+    /** 预留数量（迁移 0023，本轮只展示不参与扣减） */
+    reservedQty: numeric('reserved_qty', { precision: 12, scale: 2 }).notNull().default('0'),
+    isTest: boolean('is_test').notNull().default(false),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
   },
   (t) => ({

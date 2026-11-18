@@ -16,6 +16,7 @@ import {
 import type { TableColumnsType } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import { ADMIN_FILTER_FIELD_WIDTH, getAdminTableProps } from '../../../lib/table';
+import { TestDataCleanupButton } from '../../../components/TestDataCleanupButton';
 
 interface ShopOption {
   id: string;
@@ -43,6 +44,8 @@ interface InventoryRow {
   quantity: string;
   minThreshold: string;
   maxThreshold: string | null;
+  avgUnitCost: string;
+  reservedQty: string;
   stockUpdatedAt: string | null;
   lowStock: boolean;
 }
@@ -392,6 +395,19 @@ export default function InventoryPage() {
           : `${row.minThreshold}${row.maxThreshold ? ` ~ ${row.maxThreshold}` : ''}`
     },
     {
+      title: '平均成本',
+      key: 'avgUnitCost',
+      width: 110,
+      render: (_, row) => `¥${row.avgUnitCost}`
+    },
+    {
+      title: '预留',
+      key: 'reservedQty',
+      width: 110,
+      render: (_, row) =>
+        row.stockType === 'untracked' ? '—' : `${row.reservedQty} ${row.unit}`
+    },
+    {
       title: '状态',
       key: 'status',
       width: 80,
@@ -518,6 +534,13 @@ export default function InventoryPage() {
           <Button icon={<ReloadOutlined />} onClick={() => void loadInventory()}>
             刷新
           </Button>
+          <TestDataCleanupButton
+            onCleaned={() => {
+              void loadInventory();
+              void loadAlerts();
+              void loadMovements();
+            }}
+          />
         </Space>
       </div>
 

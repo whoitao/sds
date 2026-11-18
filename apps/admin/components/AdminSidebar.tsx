@@ -8,9 +8,13 @@ import {
   BarChartOutlined,
   BgColorsOutlined,
   CheckOutlined,
+  ContactsOutlined,
   DashboardOutlined,
   DatabaseOutlined,
+  FileExclamationOutlined,
   FontSizeOutlined,
+  GoldOutlined,
+  HomeOutlined,
   InboxOutlined,
   InfoCircleOutlined,
   LogoutOutlined,
@@ -23,8 +27,10 @@ import {
   ShoppingCartOutlined,
   ShoppingOutlined,
   SunOutlined,
+  SwapOutlined,
   UnorderedListOutlined,
-  UserOutlined
+  UserOutlined,
+  ContainerOutlined
 } from '@ant-design/icons';
 import { PAGE_SIZE_OPTIONS, useAdminSettings, type ThemePreference } from './AdminSettingsProvider';
 import { adminColors as palette } from '../lib/theme';
@@ -53,7 +59,14 @@ const MAIN_ITEMS = [
   { href: '/carts', label: '购物车管理', icon: <ShoppingOutlined /> },
   { href: '/orders', label: '订单管理', icon: <ShoppingCartOutlined /> },
   { href: '/inventory', label: '库存管理', icon: <InboxOutlined /> },
+  { href: '/damage-reports', label: '报损管理', icon: <FileExclamationOutlined /> },
   { href: '/purchases', label: '采购管理', icon: <ShoppingOutlined /> },
+  { href: '/warehouse-transfers', label: '分拨管理', icon: <SwapOutlined /> },
+  { href: '/requisitions', label: '门店要货', icon: <UnorderedListOutlined /> },
+  { href: '/demand-plans', label: '需求汇总', icon: <ContainerOutlined /> },
+  { href: '/suppliers', label: '供应商档案', icon: <ContactsOutlined /> },
+  { href: '/warehouses', label: '仓库管理', icon: <HomeOutlined /> },
+  { href: '/warehouse-stocks', label: '仓库库存', icon: <GoldOutlined /> },
   { href: '/reports', label: '报表统计', icon: <BarChartOutlined /> }
 ];
 

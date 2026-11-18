@@ -1035,47 +1035,4 @@ catalogRoutes.patch('/catalog/products/:id/offline', async (c) => {
   return c.json({ ok: true, blocked: parsed.data.blocked, affectedShops: updated.length });
 });
 
-/** 测试数据清理预览：总部商品数 + 受影响门店商品行数 */
-catalogRoutes.get('/catalog/test-data', async (c) => {
-  const denied = await guardPermission(c, 'catalog.write');
-  if (denied) return denied;
-
-  const db = await getDb();
-  const result = await db.execute(sql`
-    select
-      (select count(*)::int from catalog_products where is_test) as "catalogProducts",
-      (select count(*)::int
-         from products p
-        where p.is_test
-           or p.catalog_product_id in (select id from catalog_products where is_test)) as "shopProducts"
-  `);
-  return c.json(result.rows[0] ?? { catalogProducts: 0, shopProducts: 0 });
-});
-
-/**
- * 一键清理测试数据：先删门店商品行（product_stocks 随外键级联），
- * 再删总部商品，避免 catalog_products 被门店行引用而删除失败。
- */
-catalogRoutes.delete('/catalog/test-data', async (c) => {
-  const denied = await guardPermission(c, 'catalog.write');
-  if (denied) return denied;
-
-  const db = await getDb();
-  const result = await db.transaction(async (tx) => {
-    const shopRows = await tx.execute(sql`
-      delete from products p
-       where p.is_test
-          or p.catalog_product_id in (select id from catalog_products where is_test)
-      returning p.id
-    `);
-    const catalogRows = await tx.execute(sql`
-      delete from catalog_products where is_test returning id
-    `);
-    return {
-      shopProducts: shopRows.rowCount ?? 0,
-      catalogProducts: catalogRows.rowCount ?? 0
-    };
-  });
-
-  return c.json({ ok: true, ...result });
-});
+/** 测试数据清理已统一到 /api/admin/test-data（见 routes/test-data.ts） */

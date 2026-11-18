@@ -1,5 +1,6 @@
 import { relations } from 'drizzle-orm';
 import {
+  boolean,
   pgTable,
   pgEnum,
   uuid,
@@ -30,6 +31,8 @@ export const shops = pgTable('shops', {
   phone: varchar('phone', { length: 11 }),
   businessHours: jsonb('business_hours').$type<BusinessHours>(),
   status: shopStatusEnum('status').notNull().default('open'),
+  /** 测试/演示门店标记；清理接口只删 is_test=true */
+  isTest: boolean('is_test').notNull().default(false),
   announcement: text('announcement'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()

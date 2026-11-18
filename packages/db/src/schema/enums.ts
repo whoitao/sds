@@ -13,7 +13,10 @@ export const stockMovementTypeEnum = pgEnum('stock_movement_type', [
   'order_return',
   'adjustment',
   'waste',
-  'initial'
+  'initial',
+  /** 分拨单：仓库发出 / 门店收货（迁移 0032 追加） */
+  'transfer_out',
+  'transfer_in'
 ]);
 
 export const purchaseOrderStatusEnum = pgEnum('purchase_order_status', [

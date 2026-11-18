@@ -42,7 +42,9 @@ export async function restoreOrderStock(
     );
   if (deducted.length === 0) return;
 
-  const skuIds = deducted.map((item) => item.productSkuId);
+  const skuIds = deducted
+    .map((item) => item.productSkuId)
+    .filter((id): id is string => Boolean(id));
   const stockRows = await tx
     .select({
       productSkuId: productSkuStocks.productSkuId,
@@ -54,6 +56,7 @@ export async function restoreOrderStock(
   const balance = new Map(stockRows.map((row) => [row.productSkuId, cents(row.quantity)]));
 
   for (const item of deducted) {
+    if (!item.productSkuId) continue;
     const before = balance.get(item.productSkuId);
     if (before === undefined) continue;
     const after = before + cents(item.quantity);
@@ -64,6 +67,8 @@ export async function restoreOrderStock(
       .where(eq(productSkuStocks.productSkuId, item.productSkuId));
     await tx.insert(stockMovements).values({
       shopId: params.shopId,
+      locationType: 'shop',
+      locationId: params.shopId,
       productSkuId: item.productSkuId,
       movementType: 'order_return',
       quantityChange: money(cents(item.quantity)),

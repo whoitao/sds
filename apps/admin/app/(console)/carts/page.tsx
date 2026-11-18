@@ -9,6 +9,7 @@ import { EyeOutlined, SearchOutlined } from '@ant-design/icons';
 import { adminColors as colors } from '../../../lib/theme';
 import { ADMIN_FILTER_FIELD_WIDTH, getAdminTableProps } from '../../../lib/table';
 import { useAdminSettings } from '../../../components/AdminSettingsProvider';
+import { TestDataCleanupButton } from '../../../components/TestDataCleanupButton';
 
 interface ShopOption {
   id: string;
@@ -210,7 +211,10 @@ export default function CartsPage() {
             顾客在移动端加入的购物车，与顾客端实时同一份数据
           </span>
         </Space>
-        <span style={{ fontSize: 12, color: colors.textTertiary }}>共 {total} 个购物车</span>
+        <Space size={12}>
+          <span style={{ fontSize: 12, color: colors.textTertiary }}>共 {total} 个购物车</span>
+          <TestDataCleanupButton onCleaned={() => void loadCarts()} />
+        </Space>
       </div>
 
       <div

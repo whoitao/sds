@@ -96,6 +96,7 @@ export const productStocks = pgTable(
       .notNull()
       .references(() => shops.id, { onDelete: 'cascade' }),
     quantity: integer('quantity').notNull().default(0),
+    isTest: boolean('is_test').notNull().default(false),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
   },
   (t) => ({
