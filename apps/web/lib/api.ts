@@ -14,11 +14,13 @@ type RequestOptions = {
   method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   token?: string | null;
   body?: unknown;
+  /** 只读公共数据可交给 Next 的 fetch 缓存；不传则保持 no-store */
+  next?: { revalidate?: number | false; tags?: string[] };
 };
 
 export async function apiRequest<T>(
   path: string,
-  { method = 'GET', token, body }: RequestOptions = {}
+  { method = 'GET', token, body, next }: RequestOptions = {}
 ): Promise<ApiResponse<T>> {
   const headers: Record<string, string> = { accept: 'application/json' };
   if (body !== undefined) headers['content-type'] = 'application/json';
@@ -29,7 +31,7 @@ export async function apiRequest<T>(
       method,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
-      cache: 'no-store'
+      ...(next ? { next } : { cache: 'no-store' as const })
     });
     const data = (await response.json().catch(() => null)) as T | null;
     return {

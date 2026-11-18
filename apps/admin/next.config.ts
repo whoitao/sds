@@ -1,7 +1,5 @@
 import type { NextConfig } from 'next';
 
-console.log(`[AMap build env] SDS_PUBLIC_AMAP_KEY=${Boolean(process.env.SDS_PUBLIC_AMAP_KEY)}`);
-
 const nextConfig: NextConfig = {
   transpilePackages: ['@sds/shared', '@sds/ui'],
   // 高德变量统一使用 SDS_PUBLIC_ 前缀。Next 只自动内联 NEXT_PUBLIC_*，

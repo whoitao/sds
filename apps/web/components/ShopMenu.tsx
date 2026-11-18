@@ -26,7 +26,15 @@ function Thumb({ name, imageUrl, size }: { name: string; imageUrl: string | null
     >
       {imageUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={imageUrl} alt="" className="h-full w-full object-cover" />
+        <img
+          src={imageUrl}
+          alt=""
+          width={160}
+          height={160}
+          loading="lazy"
+          decoding="async"
+          className="h-full w-full object-cover"
+        />
       ) : (
         name.slice(0, 1)
       )}

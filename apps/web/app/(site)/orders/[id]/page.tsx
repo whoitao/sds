@@ -29,7 +29,15 @@ function Thumb({ name, imageUrl }: { name: string; imageUrl: string | null }) {
     <span className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-[12px] bg-gradient-to-br from-thumb-from to-thumb-to text-[18px] font-extrabold text-brand-700 sm:h-12 sm:w-12">
       {imageUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={imageUrl} alt="" className="h-full w-full object-cover" />
+        <img
+          src={imageUrl}
+          alt=""
+          width={96}
+          height={96}
+          loading="lazy"
+          decoding="async"
+          className="h-full w-full object-cover"
+        />
       ) : (
         name.slice(0, 1)
       )}

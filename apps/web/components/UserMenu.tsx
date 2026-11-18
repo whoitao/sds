@@ -9,9 +9,6 @@ type UserMenuProps = {
   /** 已处理好的展示名（优先姓名，其次打码手机号） */
   name: string;
   phone: string | null;
-  /** 进行中订单数 / 地址数；接口取不到时为 null，不展示数字 */
-  ongoingOrders: number | null;
-  addressCount: number | null;
 };
 
 function maskPhone(phone: string) {
@@ -86,11 +83,16 @@ function Icon({ name, className = 'h-[22px] w-[22px]' }: { name: string; classNa
   }
 }
 
-export default function UserMenu({ name, phone, ongoingOrders, addressCount }: UserMenuProps) {
+export default function UserMenu({ name, phone }: UserMenuProps) {
   const pathname = usePathname();
   const settingsActive = pathname === '/settings' || pathname.startsWith('/settings/');
   const profileActive = pathname === '/profile' || pathname.startsWith('/profile/');
   const [open, setOpen] = useState(false);
+  // 进行中订单数 / 地址数：菜单展开时才取，取不到时保持 null 不展示数字
+  const [counts, setCounts] = useState<{ ongoingOrders: number | null; addressCount: number | null }>({
+    ongoingOrders: null,
+    addressCount: null
+  });
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -100,6 +102,30 @@ export default function UserMenu({ name, phone, ongoingOrders, addressCount }: U
   useEffect(() => {
     setOpen(false);
   }, [pathname]);
+
+  // 展开时才取「进行中订单 / 地址」两个计数；关闭后保留结果，下次展开再刷新
+  useEffect(() => {
+    if (!open) return;
+    const controller = new AbortController();
+    fetch('/api/menu-summary', { signal: controller.signal, cache: 'no-store' })
+      .then((response) => (response.ok ? response.json() : null))
+      .then(
+        (
+          data: { ok?: boolean; addressCount?: number; ongoingOrderCount?: number } | null
+        ) => {
+          if (!data?.ok) return;
+          setCounts({
+            ongoingOrders:
+              typeof data.ongoingOrderCount === 'number' ? data.ongoingOrderCount : null,
+            addressCount: typeof data.addressCount === 'number' ? data.addressCount : null
+          });
+        }
+      )
+      .catch(() => {
+        /* 取不到就保持不展示数字，与之前接口异常时一致 */
+      });
+    return () => controller.abort();
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -233,8 +259,8 @@ export default function UserMenu({ name, phone, ongoingOrders, addressCount }: U
             >
               <Icon name="list" className="h-[22px] w-[22px] shrink-0 text-ink-2" />
               我的订单
-              {ongoingOrders !== null && ongoingOrders > 0 ? (
-                <span className="ml-auto text-[15px] text-ink-3">进行中 {ongoingOrders}</span>
+              {counts.ongoingOrders !== null && counts.ongoingOrders > 0 ? (
+                <span className="ml-auto text-[15px] text-ink-3">进行中 {counts.ongoingOrders}</span>
               ) : null}
             </Link>
 
@@ -246,8 +272,8 @@ export default function UserMenu({ name, phone, ongoingOrders, addressCount }: U
             >
               <Icon name="pin" className="h-[22px] w-[22px] shrink-0 text-ink-2" />
               收货地址
-              {addressCount !== null ? (
-                <span className="ml-auto text-[15px] text-ink-3">{addressCount} 个</span>
+              {counts.addressCount !== null ? (
+                <span className="ml-auto text-[15px] text-ink-3">{counts.addressCount} 个</span>
               ) : null}
             </Link>
 

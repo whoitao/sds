@@ -15,35 +15,33 @@ export const metadata: Metadata = {
 const EMPTY_CART: CartPayload = { carts: [], itemCount: 0, totalAmount: '0.00' };
 
 export default async function CheckoutPage() {
-  // 未登录会带着 next=/checkout 去登录页
-  const customer = await requireCustomer('/checkout');
+  const token = await getSessionToken();
+  // 没有会话直接回登录页，避免为匿名访客发一串无用请求
+  if (!token) redirect('/login?next=%2Fcheckout');
 
-  const [token, cart, regionTree, selected] = await Promise.all([
-    getSessionToken(),
+  // 顾客、购物车、区划、门店、地址互不依赖，全部并发；会话失效时同样会去登录页
+  const [customer, cart, regionTree, selected, addressResponse] = await Promise.all([
+    requireCustomer('/checkout'),
     getCartPayload(),
     getRegionTree(),
-    getSelectedShop()
+    getSelectedShop(),
+    apiRequest<{ items: AddressItem[] }>('/api/addresses', { token })
   ]);
 
   const groups = cart?.carts ?? [];
-  const [addressResponse, shopEntries] = await Promise.all([
-    token
-      ? apiRequest<{ items: AddressItem[] }>('/api/addresses', { token })
-      : Promise.resolve(null),
-    // 自提要展示门店地址与电话，按购物车里的门店逐个取（通常只有 1 家）
-    Promise.all(
-      groups.map(async (group) => {
-        const home = await apiRequest<ShopHomePayload>(
-          `/api/mobile/shops/${encodeURIComponent(group.shopId)}/home`
-        );
-        const shop = home.ok ? home.data?.shop : null;
-        return [
-          group.shopId,
-          shop ? { address: shop.address, phone: shop.phone ?? '' } : null
-        ] as const;
-      })
-    )
-  ]);
+  // 自提要展示门店地址与电话，按购物车里的门店逐个取（通常只有 1 家）
+  const shopEntries = await Promise.all(
+    groups.map(async (group) => {
+      const home = await apiRequest<ShopHomePayload>(
+        `/api/mobile/shops/${encodeURIComponent(group.shopId)}/home`
+      );
+      const shop = home.ok ? home.data?.shop : null;
+      return [
+        group.shopId,
+        shop ? { address: shop.address, phone: shop.phone ?? '' } : null
+      ] as const;
+    })
+  );
 
   if (addressResponse?.status === 401) redirect('/login?next=%2Fcheckout');
 

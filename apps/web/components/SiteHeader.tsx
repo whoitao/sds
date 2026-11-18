@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import UserMenu from '@/components/UserMenu';
-import { getAddressCount, getOngoingOrderCount } from '@/lib/account';
 import { cartBadgeCount, getCartPayload } from '@/lib/cart';
 import { getSelectedShop } from '@/lib/shop';
 import { getCurrentCustomer } from '@/lib/session';
@@ -65,10 +64,9 @@ function Icon({ name, className = 'h-[22px] w-[22px]' }: { name: string; classNa
 }
 
 export default async function SiteHeader() {
-  const customer = await getCurrentCustomer();
-  const [addressCount, ongoingOrders, shop, cart] = await Promise.all([
-    customer ? getAddressCount() : Promise.resolve(null),
-    customer ? getOngoingOrderCount() : Promise.resolve(null),
+  // 顶栏只渲染顾客身份、门店药丸与购物车角标；下拉里的计数在菜单展开时由客户端再取
+  const [customer, shop, cart] = await Promise.all([
+    getCurrentCustomer(),
     getSelectedShop(),
     getCartPayload()
   ]);
@@ -130,12 +128,7 @@ export default async function SiteHeader() {
 
         {customer ? (
           <div className="shrink-0">
-            <UserMenu
-              name={displayName(customer.nickname, customer.phone)}
-              phone={customer.phone}
-              ongoingOrders={ongoingOrders}
-              addressCount={addressCount}
-            />
+            <UserMenu name={displayName(customer.nickname, customer.phone)} phone={customer.phone} />
           </div>
         ) : (
           <Link

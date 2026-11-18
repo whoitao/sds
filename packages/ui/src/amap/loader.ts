@@ -21,7 +21,9 @@ export class AMapLoadError extends Error {
 /** 单例：并发调用共享同一个 Promise，脚本只会注入一次 */
 let pending: Promise<AMapNamespace> | null = null;
 
-export interface LoadAMapOptions extends AMapEnvConfig {
+export interface LoadAMapOptions extends Omit<AMapEnvConfig, 'key'> {
+  /** 不传则读环境变量 SDS_PUBLIC_AMAP_KEY */
+  key?: string;
   plugins?: string[];
   version?: string;
 }
@@ -48,6 +50,7 @@ export function loadAMap(options?: LoadAMapOptions): Promise<AMapNamespace> {
   else if (securityCode) window._AMapSecurityConfig = { securityJsCode: securityCode };
 
   const plugins = options?.plugins ?? DEFAULT_PLUGINS;
+  const pluginQuery = plugins.length ? `&plugin=${plugins.join(',')}` : '';
   const version = options?.version ?? SCRIPT_VERSION;
 
   pending = new Promise<AMapNamespace>((resolve, reject) => {
@@ -56,7 +59,7 @@ export function loadAMap(options?: LoadAMapOptions): Promise<AMapNamespace> {
     script.async = true;
     script.src = `https://webapi.amap.com/maps?v=${version}&key=${encodeURIComponent(
       key
-    )}&plugin=${plugins.join(',')}`;
+    )}${pluginQuery}`;
     script.onload = () => {
       if (window.AMap) resolve(window.AMap);
       else reject(new AMapLoadError('SCRIPT_FAILED', '高德地图脚本已加载但未找到 AMap 对象'));

@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { compress } from 'hono/compress';
 import { ROLES, ORDER_STATUS_LABELS } from '@sds/shared';
 import { publicShopRoutes } from './routes/public-shops.js';
 import { registerHealthRoutes } from './routes/health.js';
@@ -16,6 +17,7 @@ import { mobileRoutes } from './routes/mobile.js';
 import { cartRoutes } from './routes/mobile-cart.js';
 import { adminCartRoutes } from './routes/admin-carts.js';
 import { mobileOrderRoutes } from './routes/mobile-orders.js';
+import { customerSummaryRoutes } from './routes/customer-summary.js';
 import { adminOrderRoutes } from './routes/admin-orders.js';
 import { authRoutes } from './routes/auth.js';
 import { addressRoutes } from './routes/addresses.js';
@@ -40,6 +42,9 @@ app.use(
     exposeHeaders: ['ETag']
   })
 );
+
+// 响应压缩：JSON 体积明显下降；前面有代理重复压缩时，代理会看到已带编码的响应而跳过
+app.use('/api/*', compress());
 
 app.get('/', (c) =>
   c.json({
@@ -73,6 +78,8 @@ app.route('/api/mobile', mobileRoutes);
 app.route('/api/mobile/cart', cartRoutes);
 // 顾客订单：下单即扣库存，与后台订单管理共享同一份 orders / order_items
 app.route('/api/mobile/orders', mobileOrderRoutes);
+// 顾客顶栏计数：订单进行中数量 + 地址数量，只返回数字
+app.route('/api/mobile/summary', customerSummaryRoutes);
 // 顾客认证：PRD 6.2，公开接口 + Bearer 会话
 app.route('/api/auth', authRoutes);
 app.route('/api/addresses', addressRoutes);

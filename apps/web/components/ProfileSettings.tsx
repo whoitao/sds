@@ -139,7 +139,15 @@ export default function ProfileSettings({
           <span className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-full bg-brand-50 text-[28px] font-bold text-brand-700">
             {avatar ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={avatar} alt="当前头像" className="h-full w-full object-cover" />
+              <img
+                src={avatar}
+                alt="当前头像"
+                width={160}
+                height={160}
+                loading="lazy"
+                decoding="async"
+                className="h-full w-full object-cover"
+              />
             ) : (
               (nickname.trim()[0] ?? '客')
             )}

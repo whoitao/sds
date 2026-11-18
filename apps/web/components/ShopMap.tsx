@@ -61,7 +61,8 @@ export default function ShopMap({
   // 初始化：等脚本就绪后建图，卸载时销毁
   useEffect(() => {
     let cancelled = false;
-    loadAMap()
+    // 首页地图只画点和气泡，不逆地理也不搜地点，不随脚本拉 Geocoder / PlaceSearch
+    loadAMap({ plugins: [] })
       .then((amap) => {
         if (cancelled || !containerRef.current) return;
         const first = shopsRef.current[0];

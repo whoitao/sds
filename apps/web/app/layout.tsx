@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 import ThemeSync from '@/components/ThemeSync';
 import { parseTheme, THEME_COOKIE } from '@/lib/theme';
 import './globals.css';
@@ -29,6 +30,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className="bg-paper text-ink">
         {children}
         <ThemeSync />
+        <SpeedInsights />
       </body>
     </html>
   );

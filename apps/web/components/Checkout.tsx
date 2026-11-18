@@ -514,7 +514,15 @@ export default function Checkout({
                         <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-[10px] bg-thumb-from text-[15px] font-extrabold text-brand-700 sm:h-12 sm:w-12 sm:text-[17px]">
                           {item.imageUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={item.imageUrl} alt="" className="h-full w-full object-cover" />
+                            <img
+                              src={item.imageUrl}
+                              alt=""
+                              width={96}
+                              height={96}
+                              loading="lazy"
+                              decoding="async"
+                              className="h-full w-full object-cover"
+                            />
                           ) : (
                             item.name.slice(0, 1)
                           )}

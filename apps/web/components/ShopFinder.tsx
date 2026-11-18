@@ -268,7 +268,15 @@ export default function ShopFinder({
                         {shop.coverUrl ? (
                           // 后台传了实拍图就用实拍图，没有就用店名首字占位（与设计稿一致）
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={shop.coverUrl} alt="" className="h-full w-full object-cover" />
+                          <img
+                            src={shop.coverUrl}
+                            alt=""
+                            width={320}
+                            height={320}
+                            loading="lazy"
+                            decoding="async"
+                            className="h-full w-full object-cover"
+                          />
                         ) : (
                           shop.name.slice(0, 1)
                         )}

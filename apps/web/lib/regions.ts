@@ -22,7 +22,7 @@ export type RegionTreeNode = {
 export async function getRegionTree(): Promise<RegionTreeNode[]> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/regions`, {
-      next: { revalidate: 3600 }
+      next: { revalidate: 3600, tags: ['regions'] }
     });
     if (!response.ok) return [];
 

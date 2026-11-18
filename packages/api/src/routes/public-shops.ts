@@ -20,6 +20,8 @@ function keywordFilter(keyword: string) {
 publicShopRoutes.get('/', async (c) => {
   const parsed = searchSchema.safeParse(c.req.query());
   if (!parsed.success) return c.json({ code: 'INVALID_QUERY', message: '搜索内容最多 50 个字' }, 400);
+  // 公开只读列表：允许浏览器/CDN 短暂缓存，后台改店后由顾客端 revalidateTag 立即失效
+  c.header('Cache-Control', 'public, max-age=30, stale-while-revalidate=300');
   const result = await (await getDb()).execute(sql`
     select ${shopFields}, null::integer as "distanceMeters"
       from shops

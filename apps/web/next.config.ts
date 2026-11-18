@@ -1,7 +1,5 @@
 import type { NextConfig } from 'next';
 
-console.log(`[AMap build env] SDS_PUBLIC_AMAP_KEY=${Boolean(process.env.SDS_PUBLIC_AMAP_KEY)}`);
-
 const nextConfig: NextConfig = {
   // workspace 内共享包直接导出 TS 源码，需要 Next 转译
   transpilePackages: ['@sds/shared', '@sds/ui'],
