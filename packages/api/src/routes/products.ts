@@ -68,7 +68,7 @@ function categoryWriteDisabled(c: Context<AdminEnv>) {
   return c.json(
     {
       code: 'CATEGORY_WRITE_DISABLED',
-      message: '门店分类已改为总部共享分类，门店只能在「商品管理 → 分类」中隐藏/显示分类'
+      message: '门店分类已改为总部共享分类，门店只能在「店铺商品 → 分类」中隐藏/显示分类'
     },
     410
   );
@@ -1257,7 +1257,7 @@ productRoutes.patch('/products/:id/stock', async (c) => {
   return c.json(
     {
       code: 'DIRECT_STOCK_DISABLED',
-      message: '库存已改为 SKU 台账，请在「库存管理」中调整，或通过采购入库'
+      message: '库存已改为 SKU 台账，请在「店铺库存」中调整，或通过采购入库'
     },
     410
   );

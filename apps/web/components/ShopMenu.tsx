@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { Price } from '@sds/ui';
+import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { addCartItem, removeCartItem, setCartItemQuantity, type CartActionResult } from '@/lib/cart-actions';
 import type { CartGroup, CartPayload } from '@/lib/cart';
 import { selectShop } from '@/lib/shop-actions';
@@ -255,6 +256,7 @@ export default function ShopMenu({
 
   return (
     <div className="flex w-full min-w-0 flex-col rounded-[20px] bg-card shadow-perk xl:flex-1 xl:min-h-[406px] xl:flex-row xl:overflow-hidden">
+      <LoadingOverlay show={busy} text="正在更新购物车…" />
       <nav className="flex shrink-0 gap-1.5 overflow-x-auto border-b border-line px-3 py-2.5 [scrollbar-width:none] xl:hidden [&::-webkit-scrollbar]:hidden">
         {categoryButton(allCategory, activeCategory === 'all', true)}
         {categories.map((category) => categoryButton(category, activeCategory === category.id, true))}

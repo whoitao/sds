@@ -153,7 +153,7 @@ async function resolveItems(shopId: string, inputs: ItemInput[]) {
     if (!sku.catalogSkuId) {
       throw new DocumentRuleError(
         'SKU_WITHOUT_CATALOG',
-        '该规格未关联总部 SKU，暂不能要货，请先在商品管理中关联总部规格',
+        '该规格未关联总部 SKU，暂不能要货，请先在店铺商品中关联总部规格',
         400
       );
     }

@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import { selectShop } from '@/lib/shop-actions';
 import {
@@ -180,6 +181,7 @@ export default function ShopFinder({
 
   return (
     <div className="grid w-full min-w-0 gap-6 lg:flex-1 lg:min-h-[420px] lg:grid-cols-[minmax(0,500px)_minmax(0,1fr)]">
+      <LoadingOverlay show={pending} text="正在打开门店…" />
       <section className="flex min-w-0 flex-col gap-4 lg:h-full lg:min-h-0 lg:[contain:size]">
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
           <h2 className="m-0 text-[28px] font-extrabold text-ink">附近的店</h2>

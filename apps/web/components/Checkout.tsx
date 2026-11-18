@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState, useTransition } from 'react';
 import { Price } from '@sds/ui';
 import { AddressForm } from '@/components/AddressBook';
+import { LoadingOverlay } from '@/components/LoadingOverlay';
 import ProgressSteps from '@/components/ProgressSteps';
 import { setDefaultAddressAction } from '@/app/(site)/addresses/actions';
 import type { AddressItem } from '@/lib/api';
@@ -446,6 +447,7 @@ export default function Checkout({
 
   return (
     <div className="flex w-full min-w-0 flex-col gap-3">
+      <LoadingOverlay show={pending} text="正在提交，请稍候…" />
       <h1 className="sr-only">确认订单</h1>
       <ProgressSteps current={3} />
 

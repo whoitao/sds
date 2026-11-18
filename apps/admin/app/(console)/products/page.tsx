@@ -852,7 +852,7 @@ export default function ProductsPage() {
     <div style={{ background: colors.surface, minHeight: '100vh' }}>
       <div className="admin-page-bar">
         <Space size={12}>
-          <span style={{ fontSize: 14, fontWeight: 600, color: colors.text }}>商品管理</span>
+          <span style={{ fontSize: 14, fontWeight: 600, color: colors.text }}>店铺商品</span>
           <span style={{ fontSize: 12, color: colors.textTertiary }}>
             商品由总部商品库统一发布，门店维护价格与上下架
           </span>
@@ -1085,7 +1085,7 @@ export default function ProductsPage() {
                 name="stockType"
                 label="默认规格库存追踪"
                 style={{ width: 160 }}
-                tooltip="仅影响默认规格；库存数量请到「规格」弹窗或库存管理中通过台账调整"
+                tooltip="仅影响默认规格；库存数量请到「规格」弹窗或店铺库存中通过台账调整"
               >
                 <Select
                   options={[
@@ -1277,7 +1277,7 @@ export default function ProductsPage() {
                 </Button>
               </Space>
               <div style={{ marginTop: 8, fontSize: 12, opacity: 0.65 }}>
-                库存数量不能在商品页直改；请到「库存管理」使用调整或采购入库生成台账。
+                库存数量不能在商品页直改；请到「店铺库存」使用调整或采购入库生成台账。
               </div>
             </div>
           ) : null}

@@ -9,6 +9,7 @@ import {
   uploadAvatarAction,
   type ProfileState
 } from '@/lib/profile-actions';
+import { LoadingOverlay } from '@/components/LoadingOverlay';
 
 const CARD = 'flex flex-col gap-2 rounded-[20px] border border-line bg-card p-4 shadow-perk sm:p-5';
 const INPUT =
@@ -132,6 +133,10 @@ export default function ProfileSettings({
 
   return (
     <>
+      <LoadingOverlay
+        show={uploading || removing || savingNickname || resetting || sendingCode}
+        text={uploading ? '正在上传头像…' : sendingCode ? '正在发送验证码…' : '正在保存，请稍候…'}
+      />
       <section className={CARD}>
         <h2 className="m-0 text-[17px] font-bold text-ink">头像</h2>
         <p className="m-0 text-[14px] text-ink-3">支持 JPG / PNG / WebP / GIF，2MB 以内</p>

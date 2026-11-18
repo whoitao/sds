@@ -9,6 +9,7 @@ import {
 } from '@/app/(site)/addresses/actions';
 import type { AddressItem } from '@/lib/api';
 import type { RegionTreeNode } from '@/lib/regions';
+import { LoadingOverlay } from '@/components/LoadingOverlay';
 
 const PHONE_RULE = /^1[3-9]\d{9}$/;
 const HIDDEN_REGION_NAMES = new Set(['市辖区', '省直辖县级行政区划', '自治区直辖县级行政区划']);
@@ -104,6 +105,7 @@ export function AddressForm({
 
   return (
     <section className="rounded-3xl bg-card p-6 shadow-auth sm:p-7">
+      <LoadingOverlay show={saving} text="正在保存地址…" />
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-[24px] font-extrabold text-brand-700">
           {item ? '编辑地址' : '新增地址'}
@@ -296,7 +298,7 @@ export default function AddressBook({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const cancelRef = useRef<HTMLButtonElement | null>(null);
-  const [, startTransition] = useTransition();
+  const [pending, startTransition] = useTransition();
   const confirmItem = items.find((item) => item.id === confirmId) ?? null;
 
   const handleSaved = useCallback((message: string) => {
@@ -353,6 +355,7 @@ export default function AddressBook({
 
   return (
     <div className="flex w-full flex-col gap-6">
+      <LoadingOverlay show={pending} text="正在更新地址…" />
       {feedback ? (
         <div
           role="status"

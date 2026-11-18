@@ -201,6 +201,7 @@ function newDraftItem(): PurchaseItemDraft {
 }
 
 export default function PurchasesPage() {
+  const [modal, contextHolder] = Modal.useModal();
   const [mounted, setMounted] = useState(false);
   const [shops, setShops] = useState<ShopOption[]>([]);
   const [shopId, setShopId] = useState<string | undefined>();
@@ -800,7 +801,7 @@ export default function PurchasesPage() {
       setReceiptDetail(null);
       void loadPurchases();
       void loadInventoryOptions();
-      Modal.success({
+      modal.success({
         title: `入库质检完成 · ${item.receiptNo}`,
         width: 520,
         content: (
@@ -1259,6 +1260,7 @@ export default function PurchasesPage() {
         ) : null
       }
     >
+      {contextHolder}
 
       <Table
         rowKey="id"

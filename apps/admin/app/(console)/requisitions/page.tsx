@@ -142,6 +142,7 @@ function nextDraftKey() {
 }
 
 export default function RequisitionsPage() {
+  const [modal, contextHolder] = Modal.useModal();
   const { pageSize } = useAdminSettings();
   const [shops, setShops] = useState<ShopOption[]>([]);
   const [shopId, setShopId] = useState<string | undefined>();
@@ -438,7 +439,7 @@ export default function RequisitionsPage() {
   async function runAction(row: RequisitionRow, action: 'submit' | 'withdraw' | 'review') {
     const labels = { submit: '提交', withdraw: '撤回', review: '审核通过' } as const;
     const confirmed = await new Promise<boolean>((resolve) => {
-      Modal.confirm({
+      modal.confirm({
         title: `确认${labels[action]}要货单 ${row.requisitionNo}？`,
         okText: labels[action],
         cancelText: '取消',
@@ -666,6 +667,7 @@ export default function RequisitionsPage() {
 
   return (
     <div>
+      {contextHolder}
       <AdminListPage
         title="门店要货"
         actions={

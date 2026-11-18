@@ -457,3 +457,13 @@ body {
 .admin-image-upload-actions button:hover {
   opacity: 0.8;
 }
+
+/* 控制面板待办卡片：整卡可点，悬停提亮 */
+.admin-dashboard-todo {
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.admin-dashboard-todo:hover {
+  background: var(--admin-subtle) !important;
+  border-color: var(--admin-primary) !important;
+}

@@ -27,6 +27,7 @@ import { adminCartRoutes } from './routes/admin-carts.js';
 import { mobileOrderRoutes } from './routes/mobile-orders.js';
 import { customerSummaryRoutes } from './routes/customer-summary.js';
 import { adminOrderRoutes } from './routes/admin-orders.js';
+import { dashboardRoutes } from './routes/dashboard.js';
 import { authRoutes } from './routes/auth.js';
 import { addressRoutes } from './routes/addresses.js';
 import { regionRoutes } from './routes/regions.js';
@@ -87,6 +88,7 @@ app.route('/api/admin', damageReportRoutes);
 app.route('/api/admin/test-data', testDataRoutes);
 app.route('/api/admin/carts', adminCartRoutes);
 app.route('/api/admin/orders', adminOrderRoutes);
+app.route('/api/admin/dashboard', dashboardRoutes);
 // 顾客端：移动端首页使用，独立于 admin 路径与权限
 app.route('/api/mobile', mobileRoutes);
 // 顾客购物车：需登录（Bearer 会话），与后台共享同一份 carts / cart_items

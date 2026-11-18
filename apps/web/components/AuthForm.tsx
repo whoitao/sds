@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useActionState, useEffect, useState } from 'react';
 import { loginAction, sendCodeAction, type LoginState } from '@/lib/auth-actions';
+import { LoadingOverlay } from '@/components/LoadingOverlay';
 
 type Mode = 'login' | 'register';
 type FieldErrors = { phone?: string; code?: string; name?: string };
@@ -345,6 +346,10 @@ export default function AuthForm({ mode, next }: { mode: Mode; next?: string }) 
 
   return (
     <div className="mx-auto grid w-full max-w-[1120px] flex-1 content-start gap-12 pb-6 xl:grid-cols-[520px_minmax(0,1fr)] xl:gap-14">
+      <LoadingOverlay
+        show={isPending || sendingCode}
+        text={sendingCode ? '正在发送验证码…' : mode === 'register' ? '正在注册…' : '正在登录…'}
+      />
       <div className="grid [grid-template-areas:'aside'] content-center">{VARIANTS.map(renderAside)}</div>
       <div className="grid min-w-0 [grid-template-areas:'card']">{VARIANTS.map(renderCard)}</div>
     </div>

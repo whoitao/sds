@@ -14,7 +14,6 @@ import {
   FileExclamationOutlined,
   FileTextOutlined,
   FontSizeOutlined,
-  GoldOutlined,
   HomeOutlined,
   InboxOutlined,
   InfoCircleOutlined,
@@ -56,11 +55,11 @@ const MAIN_ITEMS = [
   { href: '/dashboard', label: '控制面板', icon: <DashboardOutlined /> },
   { href: '/shops', label: '店铺管理', icon: <ShopOutlined /> },
   { href: '/users', label: '用户管理', icon: <UserOutlined /> },
-  { href: '/products', label: '商品管理', icon: <AppstoreOutlined /> },
+  { href: '/products', label: '店铺商品', icon: <AppstoreOutlined /> },
+  { href: '/inventory', label: '店铺库存', icon: <InboxOutlined /> },
   { href: '/catalog', label: '总部商品库', icon: <DatabaseOutlined /> },
   { href: '/carts', label: '购物车管理', icon: <ShoppingCartOutlined /> },
   { href: '/orders', label: '订单管理', icon: <FileTextOutlined /> },
-  { href: '/inventory', label: '库存管理', icon: <InboxOutlined /> },
   { href: '/damage-reports', label: '报损管理', icon: <FileExclamationOutlined /> },
   { href: '/purchases', label: '采购管理', icon: <ShoppingOutlined /> },
   { href: '/warehouse-transfers', label: '分拨管理', icon: <SwapOutlined /> },
@@ -68,7 +67,6 @@ const MAIN_ITEMS = [
   { href: '/demand-plans', label: '需求汇总', icon: <ContainerOutlined /> },
   { href: '/suppliers', label: '供应商档案', icon: <ContactsOutlined /> },
   { href: '/warehouses', label: '仓库管理', icon: <HomeOutlined /> },
-  { href: '/warehouse-stocks', label: '仓库库存', icon: <GoldOutlined /> },
   { href: '/reports', label: '报表统计', icon: <BarChartOutlined /> }
 ];
 

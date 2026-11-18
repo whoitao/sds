@@ -497,7 +497,7 @@ export default function InventoryPage() {
   return (
     <div style={{ background: 'var(--admin-surface)', minHeight: '100vh' }}>
       <div className="admin-page-bar">
-        <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--admin-text)' }}>库存管理</span>
+        <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--admin-text)' }}>店铺库存</span>
         <Space size={12} wrap>
           <Select
             style={{ width: ADMIN_FILTER_FIELD_WIDTH }}
