@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Alert, AppState, BackHandler, Linking, Platform, Pressable, SafeAreaView,
+  ActivityIndicator, Alert, AppState, BackHandler, Linking, Pressable,
   ScrollView, StatusBar, StyleSheet, Text, View
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { fetchHome, fetchNearbyShops, fetchShops, type ShopInfo, type ShopLocation } from '../api';
@@ -178,7 +179,7 @@ export default function ShopsScreen({ currentShopId, onSelect, onBack }: {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.paper, paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0 },
+  safe: { flex: 1, backgroundColor: colors.paper },
   body: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xl, gap: spacing.md },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },
   actions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },

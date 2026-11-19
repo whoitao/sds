@@ -3,9 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
-  Platform,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -13,6 +11,7 @@ import {
   TextInput,
   View
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import {
   clearCart,
@@ -195,7 +194,7 @@ export default function CartScreen({
     .toFixed(2);
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <StatusBar barStyle="dark-content" />
 
       <ScreenHeader
@@ -462,8 +461,7 @@ export default function CartScreen({
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: colors.paper,
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0
+    backgroundColor: colors.paper
   },
   body: {
     flex: 1

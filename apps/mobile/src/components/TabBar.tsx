@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fontSize, tap } from '../theme';
 
 type TabKey = 'home' | 'cart' | 'orders' | 'profile';
@@ -23,6 +24,8 @@ export default function TabBar({
   onOrders: () => void;
   onProfile: () => void;
 }) {
+  // iOS 手势条、安卓手势/三键导航都由 insets.bottom 给出，底部再多留 6px 呼吸空间
+  const insets = useSafeAreaInsets();
   const tabs: {
     key: TabKey;
     label: string;
@@ -37,7 +40,7 @@ export default function TabBar({
   ];
 
   return (
-    <View style={styles.tabbar}>
+    <View style={[styles.tabbar, { paddingBottom: Math.max(10, insets.bottom + 6) }]}>
       {tabs.map((tab) => {
         const selected = tab.key === active;
         return (

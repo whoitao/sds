@@ -1,95 +1,348 @@
-import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { WebView } from 'react-native-webview';
-import { API_BASE_URL, type ShopInfo, type ShopLocation } from '../api';
-import { colors, fontSize, radius, spacing, tap } from '../theme';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import {
+  ExpoGaodeMapModule,
+  MapView,
+  Marker,
+  type MapViewRef
+} from 'expo-gaode-map';
+import type { ShopInfo, ShopLocation } from '../api';
 
-const mapUrl = `${API_BASE_URL}/api/mobile/shops/map`;
-
-export default function ShopMap({ shops, location, selectedId, onSelect, onShowList }: {
+interface Props {
   shops: ShopInfo[];
   location: ShopLocation | null;
-  selectedId: string | null;
+  selectedId?: string | null;
   onSelect: (id: string) => void;
   onShowList: () => void;
-}) {
-  const web = useRef<WebView<object>>(null);
+}
+
+type PrivacyState = 'checking' | 'required' | 'ready' | 'error';
+
+const DEFAULT_CENTER = { longitude: 120.387585, latitude: 36.074702 };
+const PRIVACY_VERSION = '2026-11-19';
+const GAODE_PRIVACY_URL = 'https://lbs.amap.com/pages/privacy/';
+
+/** 原生高德地图：门店数据与定位仍沿用现有接口，地图和标记不再经过 WebView。 */
+export default function ShopMap({ shops, location, selectedId, onSelect, onShowList }: Props) {
+  const mapRef = useRef<MapViewRef>(null);
+  const [privacy, setPrivacy] = useState<PrivacyState>('checking');
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
 
-  useEffect(() => {
-    const timer = setTimeout(() => setFailed(true), 20000);
-    if (ready) clearTimeout(timer);
-    return () => clearTimeout(timer);
-  }, [ready, attempt]);
+  const selectedShop = useMemo(
+    () => shops.find((shop) => shop.id === selectedId),
+    [shops, selectedId]
+  );
+  const initialCenter = selectedShop ?? location ?? shops[0] ?? DEFAULT_CENTER;
 
   useEffect(() => {
-    if (!ready) return;
-    const data = JSON.stringify({
-      shops: shops.map(({ id, name, latitude, longitude, status }) => ({ id, name, latitude, longitude, status })),
-      location,
-      selectedId
-    }).replace(/</g, '\\u003c');
-    web.current?.injectJavaScript(`window.renderShops(${data}); true;`);
-  }, [ready, shops, location, selectedId]);
+    setReady(false);
+    setFailed(false);
+    try {
+      const status = ExpoGaodeMapModule.getPrivacyStatus();
+      setPrivacy(status.isReady ? 'ready' : 'required');
+    } catch {
+      // Expo Go 或未重新打包时没有原生模块，展示明确的重打包提示
+      setPrivacy('error');
+    }
+  }, [attempt]);
+
+  useEffect(() => {
+    if (privacy !== 'ready' || ready || failed) return;
+    const timer = setTimeout(() => setFailed(true), 20000);
+    return () => clearTimeout(timer);
+  }, [privacy, ready, failed, attempt]);
+
+  useEffect(() => {
+    if (!ready || failed) return;
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (selectedShop) {
+      void map.moveCamera({
+        target: { longitude: selectedShop.longitude, latitude: selectedShop.latitude },
+        zoom: 16
+      }, 250).catch(() => {});
+      return;
+    }
+
+    const points = [
+      ...shops.map((shop) => ({ longitude: shop.longitude, latitude: shop.latitude })),
+      ...(location ? [{ longitude: location.longitude, latitude: location.latitude }] : [])
+    ];
+    if (points.length === 0) return;
+    void map.fitToCoordinates(points, {
+      paddingPx: 72,
+      maxZoom: 15,
+      singlePointZoom: 15
+    }).catch(() => {});
+  }, [ready, failed, selectedShop, shops, location]);
+
+  function agreePrivacy() {
+    try {
+      ExpoGaodeMapModule.setPrivacyConfig({
+        hasShow: true,
+        hasContainsPrivacy: true,
+        hasAgree: true,
+        privacyVersion: PRIVACY_VERSION
+      });
+      setPrivacy('ready');
+    } catch {
+      setPrivacy('error');
+    }
+  }
+
+  const showFailure = failed || privacy === 'error';
 
   return (
-    <View style={styles.map}>
-      <WebView<object>
-        key={attempt}
-        ref={web}
-        source={{ uri: mapUrl }}
-        style={styles.web}
-        originWhitelist={[API_BASE_URL]}
-        onShouldStartLoadWithRequest={({ url }) => url === mapUrl || url === 'about:blank'}
-        javaScriptCanOpenWindowsAutomatically={false}
-        setSupportMultipleWindows={false}
-        geolocationEnabled={false}
-        onError={() => setFailed(true)}
-        onHttpError={() => setFailed(true)}
-        onMessage={({ nativeEvent }) => {
-          let data: { type?: string; id?: string };
-          try { data = JSON.parse(nativeEvent.data); } catch { return; }
-          if (!data || typeof data !== 'object') return;
-          if (data.type === 'ready') setReady(true);
-          if (data.type === 'error') setFailed(true);
-          if (data.type === 'select' && shops.some(shop => shop.id === data.id)) onSelect(data.id!);
-        }}
-      />
-      {!ready && !failed ? (
-        <View style={styles.overlay} pointerEvents="none">
-          <ActivityIndicator color={colors.green} />
-          <Text style={styles.text}>正在打开地图…</Text>
-        </View>
-      ) : null}
-      {failed ? (
-        <View style={styles.overlay}>
-          <Text style={styles.text}>地图暂时打不开，列表仍可找店</Text>
-          <View style={styles.actions}>
-            <Pressable accessibilityRole="button" style={styles.button} onPress={onShowList}>
-              <Text style={styles.actionText}>用列表找店</Text>
+    <View style={styles.container}>
+      <View style={styles.mapArea}>
+        {privacy === 'ready' && !failed ? (
+          <MapView
+            key={attempt}
+            ref={mapRef}
+            style={StyleSheet.absoluteFill}
+            initialCameraPosition={{
+              target: { longitude: initialCenter.longitude, latitude: initialCenter.latitude },
+              zoom: 14
+            }}
+            compassEnabled
+            scaleControlsEnabled
+            zoomControlsEnabled={false}
+            myLocationButtonEnabled={false}
+            onLoad={() => setReady(true)}
+          >
+            {location ? (
+              <Marker
+                position={{ longitude: location.longitude, latitude: location.latitude }}
+                anchor={{ x: 0.5, y: 0.5 }}
+                title="当前位置"
+              >
+                <View style={styles.locationDot}>
+                  <View style={styles.locationDotCenter} />
+                </View>
+              </Marker>
+            ) : null}
+            {shops.map((shop) => (
+              <Marker
+                key={shop.id}
+                position={{ longitude: shop.longitude, latitude: shop.latitude }}
+                title={shop.name}
+                snippet={shop.address ?? undefined}
+                pinColor={selectedId === shop.id ? 'green' : shop.status === 'open' ? 'red' : 'purple'}
+                onMarkerPress={() => onSelect(shop.id)}
+              />
+            ))}
+          </MapView>
+        ) : null}
+
+        {privacy === 'checking' ? (
+          <View style={styles.centerOverlay}>
+            <Ionicons name="map-outline" size={42} color="#2f6b45" />
+            <Text style={styles.loadingText}>正在准备地图…</Text>
+          </View>
+        ) : null}
+
+        {privacy === 'required' ? (
+          <View style={styles.privacyOverlay}>
+            <Ionicons name="shield-checkmark-outline" size={44} color="#2f6b45" />
+            <Text style={styles.privacyTitle}>使用高德地图</Text>
+            <Text style={styles.privacyText}>
+              地图用于展示附近门店和您的位置。首次使用前，请阅读并同意高德地图隐私政策；不同意也可以使用门店列表。
+            </Text>
+            <Pressable onPress={() => void Linking.openURL(GAODE_PRIVACY_URL)}>
+              <Text style={styles.privacyLink}>查看高德地图隐私政策</Text>
             </Pressable>
-            <Pressable accessibilityRole="button" style={styles.button} onPress={() => {
-              setReady(false);
-              setFailed(false);
-              setAttempt(value => value + 1);
-            }}>
-              <Text style={styles.actionText}>重试地图</Text>
+            <Pressable style={styles.agreeButton} onPress={agreePrivacy}>
+              <Text style={styles.retryText}>同意并使用地图</Text>
+            </Pressable>
+            <Pressable style={styles.privacyListButton} onPress={onShowList}>
+              <Text style={styles.privacyListText}>暂不同意，使用列表</Text>
             </Pressable>
           </View>
-        </View>
+        ) : null}
+
+        {privacy === 'ready' && !ready && !failed ? (
+          <View style={styles.centerOverlay}>
+            <Ionicons name="map-outline" size={42} color="#2f6b45" />
+            <Text style={styles.loadingText}>地图加载中…</Text>
+          </View>
+        ) : null}
+
+        {showFailure ? (
+          <View style={styles.centerOverlay}>
+            <Ionicons name="map-outline" size={42} color="#9aa0a6" />
+            <Text style={styles.failedTitle}>原生地图加载失败</Text>
+            <Text style={styles.failedText}>
+              请检查网络、平台原生 Key，并确认当前应用已重新打包（不支持 Expo Go）
+            </Text>
+            <Pressable style={styles.retryButton} onPress={() => setAttempt((value) => value + 1)}>
+              <Text style={styles.retryText}>重新加载</Text>
+            </Pressable>
+            <Pressable style={styles.failedListButton} onPress={onShowList}>
+              <Text style={styles.failedListText}>使用门店列表</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        {!showFailure && privacy !== 'required' ? (
+          <Pressable style={styles.listButton} onPress={onShowList}>
+            <Ionicons name="list" size={18} color="#2f6b45" />
+            <Text style={styles.listText}>门店列表</Text>
+          </Pressable>
+        ) : null}
+      </View>
+
+      {!showFailure && privacy === 'ready' ? (
+        <>
+          <View style={styles.countRow}>
+            <Text style={styles.countText}>{shops.length} 家门店</Text>
+          </View>
+          {selectedShop ? (
+            <View style={styles.selectedCard}>
+              <View style={{ flex: 1, marginRight: 10 }}>
+                <Text style={styles.shopName} numberOfLines={1}>{selectedShop.name}</Text>
+                <Text style={styles.shopAddress} numberOfLines={1}>
+                  {selectedShop.address ?? '暂无地址'}
+                </Text>
+              </View>
+              <View style={styles.selectedTag}>
+                <Text style={styles.selectedTagText}>当前门店</Text>
+              </View>
+            </View>
+          ) : null}
+        </>
       ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  map: { height: 260, overflow: 'hidden', borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line },
-  web: { flex: 1, backgroundColor: colors.paper },
-  overlay: { ...StyleSheet.absoluteFill, backgroundColor: colors.paper, alignItems: 'center', justifyContent: 'center', padding: spacing.lg, gap: spacing.md },
-  text: { fontSize: fontSize.body, color: colors.ink2, textAlign: 'center' },
-  actions: { flexDirection: 'row', gap: spacing.md },
-  button: { minHeight: tap.min, paddingHorizontal: spacing.lg, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.greenSoft, borderRadius: radius.md },
-  actionText: { fontSize: fontSize.body, fontWeight: '700', color: colors.greenDeep }
+  container: { flex: 1 },
+  mapArea: { flex: 1, position: 'relative', overflow: 'hidden' },
+  centerOverlay: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 28,
+    zIndex: 20
+  },
+  loadingText: { marginTop: 12, fontSize: 14, color: '#6c757d' },
+  failedTitle: { marginTop: 12, fontSize: 16, fontWeight: '600', color: '#343a40' },
+  failedText: { marginTop: 8, fontSize: 13, lineHeight: 20, color: '#868e96', textAlign: 'center' },
+  retryButton: {
+    marginTop: 18,
+    backgroundColor: '#2f6b45',
+    borderRadius: 12,
+    paddingHorizontal: 24,
+    paddingVertical: 11
+  },
+  retryText: { fontSize: 14, color: '#fff', fontWeight: '600' },
+  failedListButton: { marginTop: 16, paddingHorizontal: 16, paddingVertical: 6 },
+  failedListText: { fontSize: 14, color: '#2f6b45', fontWeight: '600' },
+  privacyOverlay: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+    zIndex: 30
+  },
+  privacyTitle: { marginTop: 14, fontSize: 20, fontWeight: '700', color: '#1f2933' },
+  privacyText: {
+    marginTop: 12,
+    fontSize: 14,
+    lineHeight: 22,
+    color: '#6c757d',
+    textAlign: 'center'
+  },
+  privacyLink: { marginTop: 14, fontSize: 14, color: '#2f6b45', textDecorationLine: 'underline' },
+  agreeButton: {
+    marginTop: 24,
+    backgroundColor: '#2f6b45',
+    borderRadius: 12,
+    paddingHorizontal: 28,
+    paddingVertical: 12
+  },
+  privacyListButton: { marginTop: 16, padding: 6 },
+  privacyListText: { fontSize: 14, color: '#6c757d' },
+  listButton: {
+    position: 'absolute',
+    left: 14,
+    bottom: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#fff',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 22,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    zIndex: 10
+  },
+  listText: { fontSize: 14, color: '#2f6b45', fontWeight: '600' },
+  countRow: {
+    position: 'absolute',
+    left: 14,
+    top: 12,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 16,
+    elevation: 2,
+    zIndex: 10
+  },
+  countText: { fontSize: 13, color: '#495057', fontWeight: '500' },
+  selectedCard: {
+    position: 'absolute',
+    right: 14,
+    bottom: 14,
+    left: 140,
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    zIndex: 10
+  },
+  shopName: { fontSize: 14, fontWeight: '700', color: '#212529' },
+  shopAddress: { fontSize: 12, color: '#868e96', marginTop: 3 },
+  selectedTag: { backgroundColor: '#e8f3eb', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5 },
+  selectedTagText: { fontSize: 11, color: '#2f6b45', fontWeight: '600' },
+  locationDot: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(47,107,69,0.22)',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  locationDotCenter: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#2f6b45',
+    borderWidth: 2,
+    borderColor: '#fff'
+  }
 });

@@ -1,15 +1,14 @@
 import type { ComponentProps } from 'react';
 import {
   Alert,
-  Platform,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
   View
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import type { CustomerProfile } from '../api';
 import { cardShadow, colors, fontSize, radius, spacing, tap } from '../theme';
@@ -95,7 +94,7 @@ export default function ProfileScreen({
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <StatusBar barStyle="dark-content" />
 
       <ScreenHeader
@@ -190,8 +189,7 @@ export default function ProfileScreen({
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: colors.paper,
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0
+    backgroundColor: colors.paper
   },
   body: {
     flex: 1

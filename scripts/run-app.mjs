@@ -70,6 +70,10 @@ let args;
 if (appName === 'api') {
   command = bin('tsx');
   args = mode === 'start' ? ['src/index.ts'] : ['watch', 'src/index.ts'];
+} else if (appName === 'mobile' && mode === 'build') {
+  // EAS --local 不读取云端 Secret，统一从根 .env / 当前 shell 注入原生 Key
+  command = bin('eas');
+  args = ['build', ...rest];
 } else if (appName === 'mobile') {
   command = bin('expo');
   args = ['start', '--port', port, ...rest];

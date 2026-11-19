@@ -4,13 +4,16 @@ import { Platform } from 'react-native';
  * 顾客端接口基地址。
  * - iOS 模拟器 / Expo Go（本机）：localhost；
  * - Android 模拟器：ADB reverse 将设备 localhost 映射到宿主机；
- * - 真机调试：改成电脑的局域网 IP（如 http://192.168.3.16:19852）。
+ * - preview / 真机：通过 EXPO_PUBLIC_API_BASE_URL 注入线上 HTTPS 地址。
  */
-export const API_BASE_URL =
-  Platform.select({
-    android: 'http://127.0.0.1:19852',
-    default: 'http://localhost:19852'
-  }) ?? 'http://localhost:19852';
+const DEV_API_BASE_URL = Platform.select({
+  android: 'http://127.0.0.1:19852',
+  default: 'http://localhost:19852'
+}) ?? 'http://localhost:19852';
+
+export const API_BASE_URL = (
+  process.env.EXPO_PUBLIC_API_BASE_URL || DEV_API_BASE_URL
+).replace(/\/+$/, '');
 
 export interface ShopInfo {
   id: string;

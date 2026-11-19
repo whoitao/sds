@@ -4,7 +4,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -12,6 +11,7 @@ import {
   TextInput,
   View
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { loginWithCode, sendCode, type AuthSession } from '../api';
 import { colors, cardShadow, fontSize, radius, spacing, tap } from '../theme';
@@ -140,7 +140,6 @@ export default function AuthScreen({ onSuccess }: { onSuccess: (session: AuthSes
           </View>
 
           <View style={styles.card}>
-            <Text style={styles.label}>手机号</Text>
             <TextInput
               value={phone}
               onChangeText={(value) => setPhone(value.replace(/[^\d]/g, '').slice(0, 11))}
@@ -152,7 +151,6 @@ export default function AuthScreen({ onSuccess }: { onSuccess: (session: AuthSes
               accessibilityLabel="手机号"
             />
 
-            <Text style={styles.label}>验证码</Text>
             <View style={styles.codeRow}>
               <TextInput
                 value={code}
@@ -180,18 +178,15 @@ export default function AuthScreen({ onSuccess }: { onSuccess: (session: AuthSes
             </View>
 
             {mode === 'register' ? (
-              <>
-                <Text style={styles.label}>姓名</Text>
-                <TextInput
-                  value={nickname}
-                  onChangeText={(value) => setNickname(value.slice(0, 20))}
-                  placeholder="例如：张桂英"
-                  placeholderTextColor={colors.ink3}
-                  maxLength={20}
-                  style={styles.input}
-                  accessibilityLabel="姓名"
-                />
-              </>
+              <TextInput
+                value={nickname}
+                onChangeText={(value) => setNickname(value.slice(0, 20))}
+                placeholder="例如：张桂英"
+                placeholderTextColor={colors.ink3}
+                maxLength={20}
+                style={styles.input}
+                accessibilityLabel="姓名"
+              />
             ) : null}
 
             {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -222,8 +217,6 @@ export default function AuthScreen({ onSuccess }: { onSuccess: (session: AuthSes
               现在是开发体验版：验证码固定为 {devCode || '123456'}，不会真的发短信；正式上线后会改成短信验证码。
             </Text>
           </View>
-
-          <Text style={styles.helpText}>不会操作？可以让家人帮忙，或到店里找店员。</Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -233,8 +226,7 @@ export default function AuthScreen({ onSuccess }: { onSuccess: (session: AuthSes
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: colors.paper,
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0
+    backgroundColor: colors.paper
   },
   flex: {
     flex: 1
@@ -308,20 +300,15 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     ...cardShadow
   },
-  label: {
-    fontSize: fontSize.body,
-    fontWeight: '600',
-    color: colors.ink2,
-    marginTop: spacing.xs
-  },
   input: {
-    minHeight: tap.primary,
+    minHeight: tap.min,
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.line,
     backgroundColor: colors.cardSoft,
     paddingHorizontal: spacing.md,
-    fontSize: fontSize.title,
+    paddingVertical: 0,
+    fontSize: fontSize.body,
     color: colors.ink
   },
   codeRow: {
@@ -332,10 +319,10 @@ const styles = StyleSheet.create({
     flex: 1
   },
   codeButton: {
-    minWidth: 124,
-    minHeight: tap.primary,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.md,
+    minWidth: 116,
+    minHeight: tap.min,
+    paddingHorizontal: 10,
+    borderRadius: tap.min / 2,
     borderWidth: 1,
     borderColor: colors.green,
     backgroundColor: colors.greenSoft,
@@ -346,7 +333,7 @@ const styles = StyleSheet.create({
     opacity: 0.6
   },
   codeButtonText: {
-    fontSize: fontSize.body,
+    fontSize: fontSize.mini,
     fontWeight: '700',
     color: colors.greenDeep
   },
@@ -362,8 +349,8 @@ const styles = StyleSheet.create({
   },
   submit: {
     marginTop: spacing.sm,
-    minHeight: tap.primary,
-    borderRadius: radius.md,
+    minHeight: tap.min,
+    borderRadius: tap.min / 2,
     backgroundColor: colors.greenDeep,
     alignItems: 'center',
     justifyContent: 'center'
@@ -372,7 +359,7 @@ const styles = StyleSheet.create({
     opacity: 0.7
   },
   submitText: {
-    fontSize: fontSize.title,
+    fontSize: fontSize.name,
     fontWeight: '700',
     color: colors.white
   },
@@ -396,11 +383,5 @@ const styles = StyleSheet.create({
     fontSize: fontSize.body,
     lineHeight: 24,
     color: colors.ink2
-  },
-  helpText: {
-    fontSize: fontSize.body,
-    color: colors.ink3,
-    textAlign: 'center',
-    paddingBottom: spacing.lg
   }
 });

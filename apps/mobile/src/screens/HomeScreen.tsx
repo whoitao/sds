@@ -5,15 +5,14 @@ import {
   Alert,
   Image,
   Linking,
-  Platform,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
   View
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   addCartItem,
   fetchCart,
@@ -252,7 +251,7 @@ export default function HomeScreen({
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <StatusBar barStyle="dark-content" />
         <View style={styles.center}>
           <ActivityIndicator color={colors.green} size="large" />
@@ -264,7 +263,7 @@ export default function HomeScreen({
 
   if (error || !shop) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <StatusBar barStyle="dark-content" />
         <View style={styles.center}>
           <Text style={styles.centerText}>{error || '门店信息加载失败'}</Text>
@@ -285,7 +284,7 @@ export default function HomeScreen({
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <StatusBar barStyle="dark-content" />
 
       <ScreenHeader
@@ -534,9 +533,7 @@ const styles = StyleSheet.create({
   shopNotice: { fontSize: fontSize.body, color: colors.greenDeep, backgroundColor: colors.greenSoft, padding: spacing.md, borderRadius: radius.md, lineHeight: 24 },
   safeArea: {
     flex: 1,
-    backgroundColor: colors.paper,
-    // Android 的 SafeAreaView 不处理状态栏，这里补上避让
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0
+    backgroundColor: colors.paper
   },
   center: {
     flex: 1,
