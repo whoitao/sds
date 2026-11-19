@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Pressable,
   SafeAreaView,
   ScrollView,
   StatusBar,
@@ -10,72 +11,76 @@ import {
   View
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { fetchOrders, payOrders, type OrderPayload } from '../api';
 import {
-  cancelOrder,
-  fetchOrders,
-  payOrders,
-  type OrderPayload,
-  type QuantityMode
-} from '../api';
-import { cardShadow, colors, fontSize, radius, spacing } from '../theme';
+  formatOrderTime,
+  itemCountLabel,
+  orderStatusTone,
+  paymentNote
+} from '../order-format';
+import { cardShadow, colors, fontSize, radius, spacing, tap } from '../theme';
 import ScreenHeader from '../components/ScreenHeader';
 import TabBar from '../components/TabBar';
-import { DangerButton, GhostButton, PrimaryButton } from '../components/Button';
+import { GhostButton, PrimaryButton } from '../components/Button';
 
-const statusStyles: Record<string, { background: string; color: string }> = {
-  pending_payment: { background: colors.amberSoft, color: colors.amber },
-  paid: { background: colors.blueSoft, color: colors.blueInk },
-  preparing: { background: colors.amberSoft, color: colors.amber },
-  delivering: { background: colors.blueSoft, color: colors.blueInk },
-  pickup_ready: { background: colors.blueSoft, color: colors.blueInk },
-  completed: { background: colors.greenSoft, color: colors.greenDeep },
-  refund_pending: { background: colors.amberSoft, color: colors.amber },
-  refunded: { background: colors.line, color: colors.ink2 },
-  cancelled: { background: colors.line, color: colors.ink2 }
-};
+type OrderTabKey =
+  | 'all'
+  | 'pending_payment'
+  | 'paid'
+  | 'preparing'
+  | 'delivering'
+  | 'completed'
+  | 'after_sale';
 
-function formatQuantity(value: number, mode: QuantityMode) {
-  if (mode === 'integer') return String(Math.round(value));
-  return String(Number(value.toFixed(2)));
-}
+/**
+ * 状态页签按现有订单状态枚举分组：
+ * - 备货/自提：preparing + pickup_ready（都是等店里备好/等顾客来拿）
+ * - 退款/售后：refund_pending + refunded + cancelled（售后与取消都在这里收口）
+ */
+const TABS: { key: OrderTabKey; label: string; statuses: string[] | null }[] = [
+  { key: 'all', label: '全部', statuses: null },
+  { key: 'pending_payment', label: '待付款', statuses: ['pending_payment'] },
+  { key: 'paid', label: '待接单', statuses: ['paid'] },
+  { key: 'preparing', label: '备货/自提', statuses: ['preparing', 'pickup_ready'] },
+  { key: 'delivering', label: '配送中', statuses: ['delivering'] },
+  { key: 'completed', label: '已完成', statuses: ['completed'] },
+  { key: 'after_sale', label: '退款/售后', statuses: ['refund_pending', 'refunded', 'cancelled'] }
+];
 
-function formatTime(value: string) {
-  return new Date(value).toLocaleString('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
+/** 列表摘要：最多列两个商品，其余收成件数，避免一屏铺满明细 */
+function summaryOf(order: OrderPayload) {
+  const names = order.items.slice(0, 2).map((item) => {
+    if (!item.specName) return item.name;
+    return `${item.name}（${item.specName}）`;
   });
-}
-
-/** 付钱这件事对老人最容易含糊，订单卡上直接说清楚 */
-function paymentNote(order: OrderPayload) {
-  if (order.status === 'pending_payment') return '还没付钱';
-  if (order.status === 'refunded') return '钱已经退回';
-  if (order.paymentMethod === 'cash') return '收到菜再付钱';
-  return order.paidAt ? '已经付过钱' : '';
+  const more = order.items.length > 2 ? ` 等 ${itemCountLabel(order)}` : ` 共 ${itemCountLabel(order)}`;
+  return `${names.join('、')}${more}`;
 }
 
 /**
- * 我的订单：按门店一单一卡，展示进度、商品与金额。
- * 待支付的单可以直接付钱，备货前可以说「不要了」；
- * 已线上付款的取消会转成退款申请，由门店在后台确认。
+ * 我的订单：状态页签 + 精简订单卡。
+ * 明细、地址、退款详情收进订单详情页，列表只保留门店、状态、时间、摘要、金额与操作。
  */
 export default function OrdersScreen({
   token,
+  cartCount,
   onGoHome,
   onOpenCart,
-  onOpenProfile
+  onOpenProfile,
+  onOpenOrder
 }: {
   token: string;
+  cartCount: number | null;
   onGoHome: () => void;
   onOpenCart: () => void;
   onOpenProfile: () => void;
+  onOpenOrder: (order: OrderPayload) => void;
 }) {
   const [orders, setOrders] = useState<OrderPayload[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [actingId, setActingId] = useState('');
+  const [activeTab, setActiveTab] = useState<OrderTabKey>('all');
 
   const load = useCallback(async () => {
     setError('');
@@ -92,6 +97,14 @@ export default function OrdersScreen({
   useEffect(() => {
     void load();
   }, [load]);
+
+  const visible = useMemo(() => {
+    const tab = TABS.find((item) => item.key === activeTab);
+    if (!tab?.statuses) return orders;
+    return orders.filter((order) => tab.statuses!.includes(order.status));
+  }, [activeTab, orders]);
+
+  const activeLabel = TABS.find((item) => item.key === activeTab)?.label ?? '全部';
 
   async function run(order: OrderPayload, action: () => Promise<unknown>) {
     setActingId(order.id);
@@ -116,27 +129,6 @@ export default function OrdersScreen({
     );
   }
 
-  function askCancel(order: OrderPayload) {
-    Alert.alert(
-      '不要这些菜了？',
-      order.cancelNeedsRefund
-        ? `钱已经付了，取消后要等店长确认，确认后 ¥${order.totalAmount} 会退回。`
-        : '取消后菜会还给店里，钱不会扣。',
-      [
-        { text: '再想想', style: 'cancel' },
-        {
-          text: '不要了',
-          style: 'destructive',
-          onPress: () =>
-            void run(order, async () => {
-              const result = await cancelOrder(token, order.id, '顾客取消订单');
-              if (result.refundPending) Alert.alert('已经交给店长了', result.message);
-            })
-        }
-      ]
-    );
-  }
-
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" />
@@ -144,10 +136,32 @@ export default function OrdersScreen({
         left="bell"
         onLeftPress={() => Alert.alert('暂无新消息', '订单进度变化时会显示在这里。')}
         title="我的订单"
-        onHelpPress={() =>
-          Alert.alert('需要帮忙？', '可以到「我的」里联系客服，或者直接拨打门店电话。')
-        }
       />
+
+      <View style={styles.tabWrap}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tabContent}
+        >
+          {TABS.map((tab) => {
+            const active = tab.key === activeTab;
+            return (
+              <Pressable
+                key={tab.key}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+                onPress={() => setActiveTab(tab.key)}
+                style={[styles.tab, active ? styles.tabActive : null]}
+              >
+                <Text style={[styles.tabText, active ? styles.tabTextActive : null]}>
+                  {tab.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </View>
 
       {loading ? (
         <View style={styles.center}>
@@ -165,18 +179,26 @@ export default function OrdersScreen({
               <Text style={styles.centerText}>{error}</Text>
               <GhostButton label="重新加载" compact onPress={() => void load()} />
             </View>
-          ) : orders.length === 0 ? (
+          ) : visible.length === 0 ? (
             <View style={styles.center}>
               <Ionicons name="receipt-outline" size={48} color={colors.ink3} />
-              <Text style={styles.emptyTitle}>还没有订单</Text>
-              <Text style={styles.centerText}>买了菜之后，订单会显示在这里。</Text>
-              <PrimaryButton label="去首页买菜" onPress={onGoHome} />
+              <Text style={styles.emptyTitle}>
+                {activeTab === 'all' ? '还没有订单' : `没有「${activeLabel}」的订单`}
+              </Text>
+              <Text style={styles.centerText}>
+                {activeTab === 'all'
+                  ? '买了菜之后，订单会显示在这里。'
+                  : '可以切到「全部」看看其它订单。'}
+              </Text>
+              {activeTab === 'all' ? (
+                <PrimaryButton label="去首页买菜" onPress={onGoHome} />
+              ) : (
+                <GhostButton label="看看全部订单" onPress={() => setActiveTab('all')} />
+              )}
             </View>
           ) : (
-            orders.map((order) => {
-              const tone = statusStyles[order.status] ?? statusStyles.paid;
-              const countLabel =
-                order.itemCount % 1 === 0 ? String(order.itemCount) : order.itemCount.toFixed(2);
+            visible.map((order) => {
+              const tone = orderStatusTone[order.status] ?? orderStatusTone.paid;
               return (
                 <View key={order.id} style={styles.card}>
                   <View style={styles.cardTop}>
@@ -193,86 +215,48 @@ export default function OrdersScreen({
 
                   <View style={styles.cardBody}>
                     <Text style={styles.meta}>
-                      {formatTime(order.createdAt)} ·{' '}
+                      {formatOrderTime(order.createdAt)} ·{' '}
                       {order.fulfillmentType === 'pickup' ? '到店自取' : '送货上门'}
                       {paymentNote(order) ? ` · ${paymentNote(order)}` : ''}
                     </Text>
 
-                    <View style={styles.items}>
-                      {order.items.map((item) => (
-                        <View key={item.id} style={styles.itemRow}>
-                          <Text style={styles.itemName} numberOfLines={1}>
-                            {item.name}
-                            <Text style={styles.itemSpec}>
-                              {item.specName ? ` ${item.specName}` : ''}
-                            </Text>
-                          </Text>
-                          <Text style={styles.itemQty}>
-                            ×{formatQuantity(item.quantity, item.quantityMode)}
-                          </Text>
-                          <Text style={styles.itemSubtotal}>¥{item.subtotal}</Text>
-                        </View>
-                      ))}
-                    </View>
-
-                    {order.addressText ? (
-                      <Text style={styles.address} numberOfLines={2}>
-                        送到：{order.addressText}
-                      </Text>
-                    ) : null}
-                    {order.remark ? (
-                      <Text style={styles.remark} numberOfLines={2}>
-                        备注：{order.remark}
-                      </Text>
-                    ) : null}
-                    {order.cancelledReason ? (
-                      <Text style={styles.cancelled}>取消原因：{order.cancelledReason}</Text>
-                    ) : null}
-                    {order.status === 'refund_pending' ? (
-                      <Text style={styles.refundNote}>
-                        退款申请已经交给店长，确认后会退回 ¥{order.totalAmount}。
-                      </Text>
-                    ) : null}
-                    {order.status === 'refunded' && order.refundAmount ? (
-                      <Text style={styles.refundNote}>
-                        已退款 ¥{order.refundAmount}，钱会回到您付款的账户。
-                      </Text>
-                    ) : null}
-                    {order.refundRejectedReason && order.status !== 'refunded' ? (
-                      <Text style={styles.cancelled}>
-                        店长没有同意退款：{order.refundRejectedReason}
-                      </Text>
-                    ) : null}
+                    <Text style={styles.summary} numberOfLines={2}>
+                      {summaryOf(order)}
+                    </Text>
 
                     <View style={styles.cardFooter}>
-                      <Text style={styles.orderNo} numberOfLines={1}>
-                        单号 {order.orderNo}
-                      </Text>
-                      <Text style={styles.total}>
-                        共 {countLabel} 件 · ¥{order.totalAmount}
-                      </Text>
+                      <Text style={styles.total}>¥{order.totalAmount}</Text>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`查看 ${order.shopName} 的订单详情`}
+                        hitSlop={8}
+                        onPress={() => onOpenOrder(order)}
+                        style={styles.detailLink}
+                      >
+                        <Text style={styles.detailText}>查看详情</Text>
+                        <Ionicons name="chevron-forward" size={18} color={colors.greenDeep} />
+                      </Pressable>
                     </View>
 
-                    {order.canPay || order.canCancel ? (
+                    <Text
+                      style={styles.orderNo}
+                      numberOfLines={1}
+                      ellipsizeMode="middle"
+                      selectable
+                    >
+                      订单号 {order.orderNo}
+                    </Text>
+
+                    {order.canPay ? (
                       <View style={styles.actions}>
-                        {order.canPay ? (
-                          <PrimaryButton
-                            compact
-                            label={`现在付钱 ¥${order.totalAmount}`}
-                            icon="wallet-outline"
-                            loading={actingId === order.id}
-                            disabled={actingId !== '' && actingId !== order.id}
-                            onPress={() => askPay(order)}
-                          />
-                        ) : null}
-                        {order.canCancel ? (
-                          <DangerButton
-                            compact
-                            label="不要了，取消订单"
-                            disabled={actingId !== ''}
-                            onPress={() => askCancel(order)}
-                          />
-                        ) : null}
+                        <PrimaryButton
+                          compact
+                          label={`现在付钱 ¥${order.totalAmount}`}
+                          icon="wallet-outline"
+                          loading={actingId === order.id}
+                          disabled={actingId !== '' && actingId !== order.id}
+                          onPress={() => askPay(order)}
+                        />
                       </View>
                     ) : null}
                   </View>
@@ -285,6 +269,7 @@ export default function OrdersScreen({
 
       <TabBar
         active="orders"
+        cartCount={cartCount ?? 0}
         onHome={onGoHome}
         onCart={onOpenCart}
         onOrders={() => undefined}
@@ -299,11 +284,41 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.paper
   },
+  tabWrap: {
+    paddingBottom: spacing.sm
+  },
+  tabContent: {
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md
+  },
+  tab: {
+    minHeight: tap.min,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.lg,
+    borderRadius: tap.min / 2,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.card
+  },
+  tabActive: {
+    backgroundColor: colors.greenDeep,
+    borderColor: colors.greenDeep
+  },
+  tabText: {
+    fontSize: fontSize.body,
+    fontWeight: '600',
+    color: colors.ink2
+  },
+  tabTextActive: {
+    color: colors.white,
+    fontWeight: '700'
+  },
   body: {
     flex: 1
   },
   content: {
     padding: spacing.md,
+    paddingTop: 0,
     paddingBottom: spacing.lg,
     gap: spacing.md
   },
@@ -364,87 +379,51 @@ const styles = StyleSheet.create({
   },
   cardBody: {
     padding: spacing.md,
-    gap: spacing.xs
+    gap: spacing.sm
   },
   meta: {
     fontSize: fontSize.body,
     color: colors.ink2
   },
-  items: {
-    paddingVertical: spacing.xs
-  },
-  itemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingVertical: 3
-  },
-  itemName: {
-    flex: 1,
-    minWidth: 0,
+  summary: {
     fontSize: fontSize.body,
+    lineHeight: 24,
     color: colors.ink
-  },
-  itemSpec: {
-    fontSize: fontSize.mini,
-    color: colors.ink3
-  },
-  itemQty: {
-    minWidth: 48,
-    textAlign: 'center',
-    fontSize: fontSize.body,
-    color: colors.ink2,
-    fontVariant: ['tabular-nums']
-  },
-  itemSubtotal: {
-    minWidth: 76,
-    textAlign: 'right',
-    fontSize: fontSize.body,
-    fontWeight: '600',
-    color: colors.ink,
-    fontVariant: ['tabular-nums']
-  },
-  address: {
-    fontSize: fontSize.body,
-    lineHeight: 24,
-    color: colors.ink2
-  },
-  remark: {
-    fontSize: fontSize.body,
-    lineHeight: 24,
-    color: colors.ink2
-  },
-  cancelled: {
-    fontSize: fontSize.body,
-    color: colors.danger
   },
   cardFooter: {
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'center',
     justifyContent: 'space-between',
     gap: spacing.sm,
     borderTopWidth: 1,
     borderTopColor: colors.line,
-    paddingTop: spacing.sm,
-    marginTop: spacing.xs
-  },
-  orderNo: {
-    flexShrink: 1,
-    fontSize: fontSize.mini,
-    color: colors.ink2
+    paddingTop: spacing.sm
   },
   total: {
-    fontSize: fontSize.body,
+    fontSize: fontSize.name,
     fontWeight: '700',
-    color: colors.ink
+    color: colors.ink,
+    fontVariant: ['tabular-nums']
   },
-  refundNote: {
+  detailLink: {
+    minHeight: tap.min,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingLeft: spacing.sm
+  },
+  orderNo: {
     fontSize: fontSize.body,
     lineHeight: 24,
-    color: colors.amber
+    color: colors.ink3,
+    fontVariant: ['tabular-nums']
+  },
+  detailText: {
+    fontSize: fontSize.body,
+    fontWeight: '700',
+    color: colors.greenDeep
   },
   actions: {
-    gap: spacing.sm,
-    marginTop: spacing.sm
+    gap: spacing.sm
   }
 });

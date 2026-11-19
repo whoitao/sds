@@ -268,6 +268,31 @@ mobileOrderRoutes.get('/', async (c) => {
   return c.json({ items: await listOrders(session.customerId, rows.map((row) => row.id)) });
 });
 
+/**
+ * 单笔订单详情：纯追加接口，返回结构与列表条目完全一致，供移动端详情页刷新使用。
+ * 只允许查看自己的订单，别人的订单一律 404，不泄露是否存在。
+ */
+mobileOrderRoutes.get('/:id', async (c) => {
+  const session = await resolveCustomer(c);
+  if (!session) return c.json({ code: 'UNAUTHORIZED', message: '请先登录' }, 401);
+
+  const orderId = c.req.param('id');
+  if (!z.uuid().safeParse(orderId).success) {
+    return c.json({ code: 'INVALID_INPUT', message: '订单不合法' }, 400);
+  }
+
+  const db = await getDb();
+  const found = await db
+    .select({ id: orders.id })
+    .from(orders)
+    .where(and(eq(orders.id, orderId), eq(orders.customerId, session.customerId)))
+    .limit(1);
+  if (!found[0]) return c.json({ code: 'NOT_FOUND', message: '订单不存在' }, 404);
+
+  const [order] = await listOrders(session.customerId, [orderId]);
+  return c.json({ order: order ?? null });
+});
+
 mobileOrderRoutes.post('/', async (c) => {
   const session = await resolveCustomer(c);
   if (!session) return c.json({ code: 'UNAUTHORIZED', message: '请先登录' }, 401);

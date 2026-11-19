@@ -22,7 +22,6 @@ import {
   type CartPayload,
   type CategoryChild,
   type CategoryNode,
-  type CustomerProfile,
   type ProductItem,
   type ProductSkuItem,
   type ShopInfo
@@ -46,26 +45,12 @@ function categoryIcon(name: string): MaterialIconName {
   return CATEGORY_ICON[name] ?? 'basket-outline';
 }
 
-function formatToday() {
-  const now = new Date();
-  const weeks = ['日', '一', '二', '三', '四', '五', '六'];
-  return `${now.getMonth() + 1} 月 ${now.getDate()} 日 星期${weeks[now.getDay()]}`;
-}
-
 function formatPrice(value: string) {
   const amount = Number(value);
   return Number.isFinite(amount) ? amount.toFixed(2) : value;
 }
 
-/** 顾客称呼：优先昵称，其次手机号尾号，避免首页出现空问候 */
-function customerName(customer: CustomerProfile) {
-  const nickname = customer.nickname?.trim();
-  if (nickname) return nickname;
-  return `尾号 ${customer.phone.slice(-4)} 的顾客`;
-}
-
 export default function HomeScreen({
-  customer,
   token,
   onOpenProfile,
   onOpenCart,
@@ -73,9 +58,10 @@ export default function HomeScreen({
   onOpenShops,
   shopId,
   shopNotice,
+  cartCount,
+  onCartCountChange,
   onShopNameChange
 }: {
-  customer: CustomerProfile;
   token: string;
   onOpenProfile: () => void;
   onOpenCart: () => void;
@@ -83,6 +69,8 @@ export default function HomeScreen({
   onOpenShops: () => void;
   shopId: string;
   shopNotice: string;
+  cartCount: number | null;
+  onCartCountChange: (count: number) => void;
   onShopNameChange: (name: string) => void;
 }) {
   const [shop, setShop] = useState<ShopInfo | null>(null);
@@ -90,6 +78,17 @@ export default function HomeScreen({
   const [rootId, setRootId] = useState<string | null>(null);
   const [childId, setChildId] = useState<string | null>(null);
   const [products, setProducts] = useState<ProductItem[]>([]);
+  // 仅调整展示顺序：可购买在前、售罄在后；用原始下标做次级比较，保证同组顺序稳定
+  const sortedProducts = useMemo(
+    () =>
+      products
+        .map((item, index) => ({ item, index }))
+        .sort(
+          (a, b) => Number(a.item.soldOut) - Number(b.item.soldOut) || a.index - b.index
+        )
+        .map(({ item }) => item),
+    [products]
+  );
   const [cart, setCart] = useState<Record<string, number>>({});
   const [cartSummary, setCartSummary] = useState({
     itemCount: 0,
@@ -125,10 +124,10 @@ export default function HomeScreen({
       setShop(home.shop);
       onShopNameChange(home.shop.name);
       setCategories(home.categories);
-      const firstRoot = home.categories[0]?.id ?? null;
-      setRootId(firstRoot);
+      // 默认不选一级分类：与 web 一致先展示「全部」商品
+      setRootId(null);
       setChildId(null);
-      await loadProducts(shopId, firstRoot);
+      await loadProducts(shopId, null);
     } catch (err) {
       setError(err instanceof Error ? err.message : '页面加载失败');
     } finally {
@@ -159,7 +158,9 @@ export default function HomeScreen({
       buyableCount,
       buyableTotal: buyableTotal.toFixed(2)
     });
-  }, []);
+    // 同步到 App 级，其它 tab 的角标共用同一个数字
+    onCartCountChange(payload.itemCount);
+  }, [onCartCountChange]);
 
   useEffect(() => {
     let cancelled = false;
@@ -182,11 +183,12 @@ export default function HomeScreen({
   const buyableCount = cartSummary.buyableCount;
   const buyableTotal = Number(cartSummary.buyableTotal);
 
-  function selectRoot(category: CategoryNode) {
-    if (category.id === rootId) return;
-    setRootId(category.id);
+  function selectRoot(category: CategoryNode | null) {
+    const nextId = category?.id ?? null;
+    if (nextId === rootId) return;
+    setRootId(nextId);
     setChildId(null);
-    if (shop) void loadProducts(shop.id, category.id);
+    if (shop) void loadProducts(shop.id, nextId);
   }
 
   function selectChild(child: CategoryChild | null) {
@@ -234,12 +236,17 @@ export default function HomeScreen({
   }
 
   function callShop() {
-    if (!shop?.phone) {
+    // 门店可能登记多个号码（逗号/顿号/斜杠分隔），拨打第一个
+    const firstPhone = shop?.phone
+      ?.split(/[,，、;；/|\s]+/)
+      .map((item) => item.trim())
+      .find(Boolean);
+    if (!firstPhone) {
       Alert.alert('门店电话暂未公布', '可以到店咨询店员。');
       return;
     }
-    void Linking.openURL(`tel:${shop.phone}`).catch(() => {
-      Alert.alert('拨号失败', `请手动拨打 ${shop.phone}`);
+    void Linking.openURL(`tel:${firstPhone}`).catch(() => {
+      Alert.alert('拨号失败', `请手动拨打 ${firstPhone}`);
     });
   }
 
@@ -287,20 +294,12 @@ export default function HomeScreen({
         shopName={shop.name}
         onShopPress={onOpenShops}
         onHelpPress={callShop}
+        helpLabel="拨打门店电话"
       />
 
-      <ScrollView
-        style={styles.body}
-        contentContainerStyle={styles.bodyContent}
-        showsVerticalScrollIndicator={false}
-      >
+      <View style={styles.body}>
+        <View style={styles.topArea}>
         {shopNotice ? <Text accessibilityRole="alert" style={styles.shopNotice}>{shopNotice}</Text> : null}
-        <View style={styles.greetingRow}>
-          <Text style={styles.greeting} numberOfLines={1}>
-            {customerName(customer)}，您好
-          </Text>
-          <Text style={styles.date}>{formatToday()}</Text>
-        </View>
 
         <View style={styles.shopCard}>
           <View style={styles.shopCover}>
@@ -325,12 +324,33 @@ export default function HomeScreen({
             {shop.address}
           </Text>
         </View>
+        </View>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.level1List}
-        >
+        <View style={styles.split}>
+          <ScrollView
+            style={styles.level1}
+            contentContainerStyle={styles.level1Content}
+            showsVerticalScrollIndicator={false}
+          >
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ selected: rootId === null }}
+              accessibilityLabel="全部商品"
+              style={[styles.level1Item, rootId === null ? styles.level1ItemActive : null]}
+              onPress={() => selectRoot(null)}
+            >
+              <MaterialCommunityIcons
+                name="view-grid-outline"
+                size={20}
+                color={rootId === null ? colors.greenDeep : colors.ink2}
+              />
+              <Text
+                style={[styles.level1Text, rootId === null ? styles.level1TextActive : null]}
+                numberOfLines={1}
+              >
+                全部
+              </Text>
+            </Pressable>
           {categories.map((category) => {
             const active = category.id === rootId;
             return (
@@ -344,7 +364,7 @@ export default function HomeScreen({
               >
                 <MaterialCommunityIcons
                   name={categoryIcon(category.name)}
-                  size={22}
+                  size={20}
                   color={active ? colors.greenDeep : colors.ink2}
                 />
                 <Text
@@ -356,10 +376,16 @@ export default function HomeScreen({
               </Pressable>
             );
           })}
-        </ScrollView>
+          </ScrollView>
 
-        <View style={styles.split}>
-          <View style={styles.level2}>
+          <View style={styles.rightPane}>
+          {rootId ? (
+          <ScrollView
+            horizontal
+            style={styles.level2Bar}
+            contentContainerStyle={styles.level2Content}
+            showsHorizontalScrollIndicator={false}
+          >
             <Pressable
               accessibilityRole="button"
               accessibilityState={{ selected: childId === null }}
@@ -369,9 +395,6 @@ export default function HomeScreen({
             >
               <Text style={[styles.level2Text, childId === null ? styles.level2TextActive : null]}>
                 全部
-              </Text>
-              <Text style={[styles.level2Count, childId === null ? styles.level2TextActive : null]}>
-                {activeRoot?.productCount ?? 0}
               </Text>
             </Pressable>
             {(activeRoot?.children ?? []).map((child) => {
@@ -391,15 +414,17 @@ export default function HomeScreen({
                   >
                     {child.name}
                   </Text>
-                  <Text style={[styles.level2Count, active ? styles.level2TextActive : null]}>
-                    {child.productCount}
-                  </Text>
                 </Pressable>
               );
             })}
-          </View>
+          </ScrollView>
+          ) : null}
 
-          <View style={styles.goods}>
+          <ScrollView
+            style={styles.goods}
+            contentContainerStyle={styles.goodsContent}
+            showsVerticalScrollIndicator={false}
+          >
             {goodsLoading ? (
               <View style={styles.goodsState}>
                 <ActivityIndicator color={colors.green} />
@@ -418,10 +443,12 @@ export default function HomeScreen({
               </View>
             ) : products.length === 0 ? (
               <View style={styles.goodsState}>
-                <Text style={styles.goodsStateText}>这个分类今天还没有菜</Text>
+                <Text style={styles.goodsStateText}>
+                  {rootId === null ? '这家店今天还没有上架商品' : '这个分类今天还没有菜'}
+                </Text>
               </View>
             ) : (
-              products.map((item) => {
+              sortedProducts.map((item) => {
                 const qty = cart[item.id] ?? 0;
                 const hasRange = Number(item.priceTo) > Number(item.priceFrom);
                 const specHint = item.skus.length > 1 ? ` · ${item.skus.length} 规格` : '';
@@ -472,16 +499,10 @@ export default function HomeScreen({
                 );
               })
             )}
+          </ScrollView>
           </View>
         </View>
-
-        <View style={styles.tip}>
-          <Ionicons name="call-outline" size={20} color={colors.blueInk} />
-          <Text style={styles.tipText}>
-            不会点？右上角<Text style={styles.tipStrong}>「帮助」</Text>直接接通店里。
-          </Text>
-        </View>
-      </ScrollView>
+      </View>
 
       <BottomDock
         label={
@@ -499,7 +520,7 @@ export default function HomeScreen({
 
       <TabBar
         active="home"
-        cartCount={cartBadge}
+        cartCount={cartCount ?? cartBadge}
         onHome={() => undefined}
         onCart={onOpenCart}
         onOrders={onOpenOrders}
@@ -545,25 +566,10 @@ const styles = StyleSheet.create({
   body: {
     flex: 1
   },
-  bodyContent: {
+  topArea: {
     paddingHorizontal: spacing.md,
-    paddingBottom: spacing.lg,
+    paddingBottom: spacing.sm,
     gap: 10
-  },
-  greetingRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-    gap: spacing.sm
-  },
-  greeting: {
-    fontSize: fontSize.hero,
-    fontWeight: '700',
-    color: colors.ink
-  },
-  date: {
-    fontSize: fontSize.body,
-    color: colors.ink2
   },
   shopCard: {
     backgroundColor: colors.card,
@@ -613,23 +619,25 @@ const styles = StyleSheet.create({
     fontSize: fontSize.body,
     color: colors.ink2
   },
-  level1List: {
-    gap: spacing.sm,
-    paddingRight: spacing.md
+  level1: {
+    width: 80,
+    flexGrow: 0
+  },
+  level1Content: {
+    gap: 6,
+    paddingBottom: spacing.lg
   },
   level1Item: {
-    minWidth: 88,
-    height: 56,
+    minHeight: 48,
     flexDirection: 'row',
-    paddingHorizontal: 12,
-    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    gap: 6,
+    paddingHorizontal: 8,
+    borderRadius: 12,
     backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: colors.line,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    ...cardShadow
+    borderColor: colors.line
   },
   level1ItemActive: {
     backgroundColor: colors.greenSoft,
@@ -637,8 +645,9 @@ const styles = StyleSheet.create({
     borderWidth: 1.5
   },
   level1Text: {
-    fontSize: fontSize.body,
-    lineHeight: 22,
+    flexShrink: 1,
+    fontSize: fontSize.mini,
+    lineHeight: 20,
     fontWeight: '600',
     color: colors.ink2
   },
@@ -647,31 +656,43 @@ const styles = StyleSheet.create({
     fontWeight: '700'
   },
   split: {
+    flex: 1,
     flexDirection: 'row',
-    gap: 10
+    gap: 8,
+    paddingHorizontal: spacing.md
   },
-  level2: {
-    width: 84,
-    gap: 6
+  rightPane: {
+    flex: 1,
+    minWidth: 0,
+    gap: spacing.sm
+  },
+  level2Bar: {
+    flexGrow: 0,
+    flexShrink: 0,
+    height: 48
+  },
+  level2Content: {
+    gap: 6,
+    paddingRight: spacing.sm,
+    alignItems: 'center',
+    height: 48
   },
   level2Item: {
-    minHeight: tap.min,
-    paddingHorizontal: spacing.sm,
-    borderRadius: radius.md,
+    minHeight: 40,
+    paddingHorizontal: 12,
+    borderRadius: 999,
     backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.line,
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 4
+    justifyContent: 'center'
   },
   level2ItemActive: {
     backgroundColor: colors.greenSoft,
     borderColor: colors.green
   },
   level2Text: {
-    flexShrink: 1,
-    fontSize: fontSize.body,
+    fontSize: fontSize.mini,
     fontWeight: '600',
     color: colors.ink
   },
@@ -679,14 +700,12 @@ const styles = StyleSheet.create({
     color: colors.greenDeep,
     fontWeight: '700'
   },
-  level2Count: {
-    marginLeft: 'auto',
-    fontSize: 16,
-    color: colors.ink2
-  },
   goods: {
-    flex: 1,
-    gap: spacing.sm
+    flex: 1
+  },
+  goodsContent: {
+    gap: spacing.sm,
+    paddingBottom: spacing.sm
   },
   goodsState: {
     minHeight: 120,
@@ -774,25 +793,5 @@ const styles = StyleSheet.create({
     fontSize: fontSize.body,
     fontWeight: '700',
     color: colors.ink3
-  },
-  tip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    padding: spacing.md,
-    borderRadius: radius.md,
-    backgroundColor: colors.blueSoft,
-    borderWidth: 1,
-    borderColor: '#C9DBEE'
-  },
-  tipText: {
-    flex: 1,
-    fontSize: fontSize.body,
-    lineHeight: 24,
-    color: colors.blueInk
-  },
-  tipStrong: {
-    fontWeight: '700',
-    color: '#1E3F63'
   }
 });

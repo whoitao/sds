@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AuthScreen from './src/screens/AuthScreen';
@@ -7,14 +7,17 @@ import CartScreen from './src/screens/CartScreen';
 import CheckoutScreen from './src/screens/CheckoutScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import OrdersScreen from './src/screens/OrdersScreen';
+import OrderDetailScreen from './src/screens/OrderDetailScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import ShopsScreen from './src/screens/ShopsScreen';
 import {
+  fetchCart,
   fetchMe,
   logout,
   type AuthSession,
   type CheckoutGroup,
-  type CustomerProfile
+  type CustomerProfile,
+  type OrderPayload
 } from './src/api';
 import { colors, fontSize, spacing } from './src/theme';
 
@@ -23,7 +26,15 @@ const TOKEN_KEY = 'sds.customer.token';
 
 const shopKey = (customerId: string) => `sds.customer.shop.${customerId}`;
 
-type Tab = 'home' | 'cart' | 'profile' | 'addresses' | 'checkout' | 'orders' | 'shops';
+type Tab =
+  | 'home'
+  | 'cart'
+  | 'profile'
+  | 'addresses'
+  | 'checkout'
+  | 'orders'
+  | 'orderDetail'
+  | 'shops';
 
 export default function App() {
   const [booting, setBooting] = useState(true);
@@ -36,6 +47,23 @@ export default function App() {
   const [shopNotice, setShopNotice] = useState('');
   const [checkoutGroups, setCheckoutGroups] = useState<CheckoutGroup[] | null>(null);
   const [addressesBackTo, setAddressesBackTo] = useState<'profile' | 'checkout'>('profile');
+  const [openOrder, setOpenOrder] = useState<OrderPayload | null>(null);
+  // 购物车件数挂在 App 级：四个一级页共用，切 tab 时不会因为页面卸载而丢失
+  const [cartCount, setCartCount] = useState<number | null>(null);
+
+  const refreshCartCount = useCallback(async () => {
+    if (!token) return;
+    try {
+      const payload = await fetchCart(token);
+      setCartCount(payload.itemCount);
+    } catch {
+      // 取数失败时保留上一次已知数量，不退化成 0
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (token) void refreshCartCount();
+  }, [token, refreshCartCount]);
 
   useEffect(() => {
     let alive = true;
@@ -82,6 +110,7 @@ export default function App() {
     setSelectedShopName('');
     setShopNotice('');
     setCheckoutGroups(null);
+    setCartCount(null);
     setTab('home');
     await AsyncStorage.removeItem(TOKEN_KEY);
     if (current) void logout(current).catch(() => undefined);
@@ -116,6 +145,18 @@ export default function App() {
           setAddressesBackTo('checkout');
           setTab('addresses');
         }}
+        onOrderPlaced={() => void refreshCartCount()}
+      />
+    );
+  }
+
+  if (tab === 'orderDetail' && openOrder) {
+    return (
+      <OrderDetailScreen
+        token={token}
+        orderId={openOrder.id}
+        initial={openOrder}
+        onBack={() => setTab('orders')}
       />
     );
   }
@@ -124,9 +165,14 @@ export default function App() {
     return (
       <OrdersScreen
         token={token}
+        cartCount={cartCount}
         onGoHome={() => setTab('home')}
         onOpenCart={() => setTab('cart')}
         onOpenProfile={() => setTab('profile')}
+        onOpenOrder={(order) => {
+          setOpenOrder(order);
+          setTab('orderDetail');
+        }}
       />
     );
   }
@@ -135,6 +181,7 @@ export default function App() {
     return (
       <ProfileScreen
         customer={customer}
+        cartCount={cartCount}
         onLogout={() => void handleLogout()}
         onGoHome={() => setTab('home')}
         onOpenCart={() => setTab('cart')}
@@ -152,6 +199,8 @@ export default function App() {
       <CartScreen
         token={token}
         shopName={selectedShopName}
+        cartCount={cartCount}
+        onCartCountChange={setCartCount}
         onGoHome={() => setTab('home')}
         onOpenProfile={() => setTab('profile')}
         onOpenOrders={() => setTab('orders')}
@@ -182,10 +231,11 @@ export default function App() {
 
   return (
     <HomeScreen
-      customer={customer}
       token={token}
       shopId={selectedShopId}
       shopNotice={shopNotice}
+      cartCount={cartCount}
+      onCartCountChange={setCartCount}
       onShopNameChange={setSelectedShopName}
       onOpenProfile={() => setTab('profile')}
       onOpenCart={() => setTab('cart')}

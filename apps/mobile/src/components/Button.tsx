@@ -1,7 +1,7 @@
 import type { ComponentProps } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, fontSize, radius, tap } from '../theme';
+import { colors, fontSize, tap } from '../theme';
 
 type IoniconName = ComponentProps<typeof Ionicons>['name'];
 
@@ -88,7 +88,7 @@ export function DangerButton(props: Omit<ComponentProps<typeof ButtonBase>, 'ton
 const styles = StyleSheet.create({
   base: {
     minHeight: tap.primary,
-    borderRadius: radius.md,
+    borderRadius: tap.primary / 2,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 16

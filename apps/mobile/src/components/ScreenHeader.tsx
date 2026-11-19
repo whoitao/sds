@@ -16,7 +16,7 @@ export default function ScreenHeader({
   shopLocked = false,
   onShopPress,
   onHelpPress,
-  helpLabel = '帮助',
+  helpLabel = '需要帮忙？',
   right
 }: {
   left?: 'back' | 'bell' | 'none';
@@ -87,17 +87,18 @@ export default function ScreenHeader({
         )}
       </View>
 
-      {right ?? (
+      {right ?? (onHelpPress ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`${helpLabel}，有问题可以点这里`}
-          style={styles.helpButton}
+          accessibilityLabel={helpLabel}
+          style={styles.helpRound}
           onPress={onHelpPress}
         >
-          <Ionicons name="help-circle-outline" size={20} color={colors.greenDeep} />
-          <Text style={styles.helpText}>{helpLabel}</Text>
+          <Ionicons name="help-circle-outline" size={22} color={colors.greenDeep} />
         </Pressable>
-      )}
+      ) : (
+        <View style={styles.roundPlaceholder} />
+      ))}
     </View>
   );
 }
@@ -166,21 +167,14 @@ const styles = StyleSheet.create({
     color: colors.ink,
     letterSpacing: -0.2
   },
-  helpButton: {
-    flexShrink: 0,
-    minHeight: tap.min,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 12,
+  helpRound: {
+    width: tap.min,
+    height: tap.min,
     borderRadius: tap.min / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: colors.greenSoft,
     borderWidth: 1,
     borderColor: '#BFE0CB'
-  },
-  helpText: {
-    fontSize: fontSize.body,
-    fontWeight: '700',
-    color: colors.greenDeep
   }
 });

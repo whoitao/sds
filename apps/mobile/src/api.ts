@@ -3,12 +3,12 @@ import { Platform } from 'react-native';
 /**
  * 顾客端接口基地址。
  * - iOS 模拟器 / Expo Go（本机）：localhost；
- * - Android 模拟器：10.0.2.2 映射到宿主机；
+ * - Android 模拟器：ADB reverse 将设备 localhost 映射到宿主机；
  * - 真机调试：改成电脑的局域网 IP（如 http://192.168.3.16:19852）。
  */
 export const API_BASE_URL =
   Platform.select({
-    android: 'http://10.0.2.2:19852',
+    android: 'http://127.0.0.1:19852',
     default: 'http://localhost:19852'
   }) ?? 'http://localhost:19852';
 
@@ -429,4 +429,12 @@ export function cancelOrder(token: string, orderId: string, reason?: string) {
 
 export function fetchOrders(token: string) {
   return request<{ items: OrderPayload[] }>('/api/mobile/orders', { token });
+}
+
+/** 单笔订单详情：与列表条目同结构，详情页打开时刷新一次 */
+export function fetchOrder(token: string, orderId: string) {
+  return request<{ order: OrderPayload | null }>(
+    `/api/mobile/orders/${encodeURIComponent(orderId)}`,
+    { token }
+  );
 }

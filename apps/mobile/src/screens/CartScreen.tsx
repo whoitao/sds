@@ -55,6 +55,8 @@ function canChoose(item: CartItem) {
 export default function CartScreen({
   token,
   shopName,
+  cartCount,
+  onCartCountChange,
   onGoHome,
   onOpenProfile,
   onOpenOrders,
@@ -63,6 +65,8 @@ export default function CartScreen({
 }: {
   token: string;
   shopName: string;
+  cartCount: number | null;
+  onCartCountChange: (count: number) => void;
   onGoHome: () => void;
   onOpenProfile: () => void;
   onOpenOrders: () => void;
@@ -78,6 +82,7 @@ export default function CartScreen({
 
   const apply = useCallback((next: CartPayload) => {
     setPayload(next);
+    onCartCountChange(next.itemCount);
     setRemarks((prev) => {
       const merged: Record<string, string> = {};
       for (const group of next.carts) {
@@ -85,7 +90,7 @@ export default function CartScreen({
       }
       return merged;
     });
-  }, []);
+  }, [onCartCountChange]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -198,9 +203,6 @@ export default function CartScreen({
         onLeftPress={() => Alert.alert('暂无新消息', '订单进度变化时会显示在这里。')}
         shopName={shopName || '选择门店'}
         onShopPress={onOpenShops}
-        onHelpPress={() =>
-          Alert.alert('需要帮忙？', '可以到「我的」里联系客服，或者直接拨打门店电话。')
-        }
       />
 
       {loading ? (
@@ -447,7 +449,7 @@ export default function CartScreen({
 
       <TabBar
         active="cart"
-        cartCount={itemCount}
+        cartCount={cartCount ?? itemCount}
         onHome={onGoHome}
         onCart={() => undefined}
         onOrders={onOpenOrders}
@@ -488,7 +490,7 @@ const styles = StyleSheet.create({
     minHeight: tap.primary,
     minWidth: 200,
     paddingHorizontal: spacing.lg,
-    borderRadius: radius.md,
+    borderRadius: tap.primary / 2,
     backgroundColor: colors.greenDeep,
     alignItems: 'center',
     justifyContent: 'center'
@@ -529,9 +531,13 @@ const styles = StyleSheet.create({
   clearButton: {
     minHeight: tap.min,
     minWidth: 56,
-    paddingHorizontal: spacing.sm,
+    paddingHorizontal: 10,
     alignItems: 'center',
-    justifyContent: 'center'
+    justifyContent: 'center',
+    borderRadius: tap.min / 2,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.card
   },
   clearButtonText: {
     fontSize: fontSize.body,
@@ -604,7 +610,9 @@ const styles = StyleSheet.create({
     width: tap.min,
     height: tap.min,
     alignItems: 'center',
-    justifyContent: 'center'
+    justifyContent: 'center',
+    borderRadius: tap.min / 2,
+    backgroundColor: '#FDF4F3'
   },
   itemBottom: {
     flexDirection: 'row',
@@ -645,7 +653,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     borderWidth: 1.5,
     borderColor: '#BFE0CB',
-    borderRadius: 11
+    borderRadius: 19
   },
   stepperButtonPlus: {
     backgroundColor: colors.green,
@@ -695,7 +703,7 @@ const styles = StyleSheet.create({
   remarkSave: {
     minHeight: tap.min,
     paddingHorizontal: spacing.md,
-    borderRadius: radius.sm,
+    borderRadius: tap.min / 2,
     borderWidth: 1,
     borderColor: colors.green,
     alignItems: 'center',

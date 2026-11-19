@@ -219,9 +219,6 @@ export default function AddressScreen({
           left="back"
           onLeftPress={() => setEditing(null)}
           title={editing.mode === 'create' ? '新增地址' : '编辑地址'}
-          onHelpPress={() =>
-            Alert.alert('需要帮忙？', '可以到店里找店员，或者让家人帮忙填写。')
-          }
         />
         <KeyboardAvoidingView
           style={styles.flex}
@@ -330,9 +327,6 @@ export default function AddressScreen({
         left="back"
         onLeftPress={onBack}
         title="收货地址"
-        onHelpPress={() =>
-          Alert.alert('需要帮忙？', '地址只用填一次，以后下单直接选，不用再打字。')
-        }
       />
 
       <ScrollView
@@ -385,34 +379,35 @@ export default function AddressScreen({
                   style={styles.actionButton}
                   onPress={() => openEdit(address)}
                 >
-                  <Ionicons name="create-outline" size={20} color={colors.greenDeep} />
-                  <Text style={styles.actionText}>编辑</Text>
+                  <Ionicons name="create-outline" size={18} color={colors.greenDeep} />
+                  <Text style={styles.actionText} numberOfLines={1}>编辑</Text>
                 </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`设为默认 ${address.detail}`}
-                  style={[styles.actionButton, address.isDefault && styles.actionDisabled]}
-                  disabled={address.isDefault || busy}
-                  onPress={() => void makeThisDefault(address)}
-                >
-                  <Ionicons
-                    name={address.isDefault ? 'checkmark-circle' : 'checkmark-circle-outline'}
-                    size={20}
-                    color={address.isDefault ? colors.ink3 : colors.greenDeep}
-                  />
-                  <Text style={[styles.actionText, address.isDefault && styles.actionTextMuted]}>
-                    {address.isDefault ? '已是默认' : '设为默认'}
-                  </Text>
-                </Pressable>
+                {address.isDefault ? (
+                  <View style={styles.defaultState}>
+                    <Ionicons name="checkmark-circle" size={18} color={colors.ink3} />
+                    <Text style={[styles.actionText, styles.actionTextMuted]} numberOfLines={1}>已是默认</Text>
+                  </View>
+                ) : (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`设为默认 ${address.detail}`}
+                    style={styles.actionButton}
+                    disabled={busy}
+                    onPress={() => void makeThisDefault(address)}
+                  >
+                    <Ionicons name="checkmark-circle-outline" size={18} color={colors.greenDeep} />
+                    <Text style={styles.actionText} numberOfLines={1}>设为默认</Text>
+                  </Pressable>
+                )}
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={`删除 ${address.detail}`}
-                  style={styles.actionButton}
+                  style={[styles.actionButton, styles.actionDanger]}
                   disabled={busy}
                   onPress={() => confirmDelete(address)}
                 >
-                  <Ionicons name="trash-outline" size={20} color={colors.danger} />
-                  <Text style={[styles.actionText, styles.actionTextDanger]}>删除</Text>
+                  <Ionicons name="trash-outline" size={18} color={colors.danger} />
+                  <Text style={[styles.actionText, styles.actionTextDanger]} numberOfLines={1}>删除</Text>
                 </Pressable>
               </View>
             </View>
@@ -502,7 +497,7 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
+    gap: spacing.xs,
     borderTopWidth: 1,
     borderTopColor: colors.line,
     marginTop: spacing.xs,
@@ -512,14 +507,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    minHeight: tap.min,
+    minHeight: 44,
+    paddingHorizontal: 8,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: '#BFE0CB',
+    backgroundColor: colors.card
+  },
+  actionDanger: {
+    borderColor: '#E7C4BF',
+    backgroundColor: '#FDF4F3'
+  },
+  defaultState: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    minHeight: 44,
     paddingHorizontal: 4
   },
-  actionDisabled: {
-    opacity: 0.7
-  },
   actionText: {
-    fontSize: fontSize.body,
+    fontSize: fontSize.mini,
     color: colors.greenDeep,
     fontWeight: '600'
   },
@@ -542,7 +549,7 @@ const styles = StyleSheet.create({
     minHeight: tap.min,
     paddingHorizontal: spacing.lg,
     justifyContent: 'center',
-    borderRadius: radius.md,
+    borderRadius: tap.min / 2,
     borderWidth: 1.5,
     borderColor: colors.green
   },

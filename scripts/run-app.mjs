@@ -5,7 +5,7 @@
  *
  * 用法：node scripts/run-app.mjs <api|web|admin|mobile> <dev|start> [...额外参数]
  */
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -85,6 +85,19 @@ if (appName === 'admin' && !env.API_BASE_URL) {
 }
 
 console.log(`[sds] ${appName} ${mode} → 端口 ${port}`);
+
+// Android 模拟器通过设备 localhost 访问宿主机 API，启动 Expo 前建立端口转发。
+if (appName === 'mobile' && rest.includes('--android')) {
+  const apiPort = String(process.env.PORT_API || APPS.api.fallback);
+  const result = spawnSync('adb', ['reverse', `tcp:${apiPort}`, `tcp:${apiPort}`], {
+    stdio: 'inherit'
+  });
+  if (result.status === 0) {
+    console.log(`[sds] Android API 转发 → localhost:${apiPort}`);
+  } else {
+    console.warn('[sds] ADB 端口转发未建立，请确认 Android 模拟器已启动且 adb 可用');
+  }
+}
 
 const child = spawn(command, args, { cwd, env, stdio: 'inherit' });
 child.on('error', (err) => {

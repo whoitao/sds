@@ -1,5 +1,5 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, fontSize, radius, spacing, tap } from '../theme';
+import { colors, fontSize, spacing, tap } from '../theme';
 
 /**
  * 底部结算条：左侧一句话 + 合计金额，右侧深绿主按钮。
@@ -76,7 +76,7 @@ const styles = StyleSheet.create({
     minHeight: tap.primary,
     minWidth: 130,
     paddingHorizontal: 22,
-    borderRadius: radius.md,
+    borderRadius: tap.primary / 2,
     backgroundColor: colors.greenDeep,
     alignItems: 'center',
     justifyContent: 'center'

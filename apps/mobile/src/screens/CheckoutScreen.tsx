@@ -52,7 +52,8 @@ export default function CheckoutScreen({
   onBack,
   onOrders,
   onGoHome,
-  onManageAddresses
+  onManageAddresses,
+  onOrderPlaced
 }: {
   token: string;
   groups: CheckoutGroup[];
@@ -60,6 +61,8 @@ export default function CheckoutScreen({
   onOrders: () => void;
   onGoHome: () => void;
   onManageAddresses: () => void;
+  /** 下单成功后刷新 App 级购物车角标 */
+  onOrderPlaced?: () => void;
 }) {
   const [addresses, setAddresses] = useState<AddressItem[]>([]);
   const [addressId, setAddressId] = useState<string | undefined>();
@@ -105,10 +108,6 @@ export default function CheckoutScreen({
 
   const selectedAddress = addresses.find((address) => address.id === addressId);
 
-  function showHelp() {
-    Alert.alert('需要帮忙？', '可以到「我的」里联系客服，或者直接拨打门店电话。');
-  }
-
   async function submit() {
     if (busy) return;
     if (fulfillmentType === 'delivery' && !addressId) {
@@ -128,6 +127,7 @@ export default function CheckoutScreen({
         }))
       });
       setSubmitted(payload.orders);
+      onOrderPlaced?.();
       if (paymentMethod === 'wechat') setPaySheetOpen(true);
     } catch (err) {
       Alert.alert('没有下单成功', err instanceof Error ? err.message : '请稍后再试');
@@ -216,7 +216,6 @@ export default function CheckoutScreen({
         <ScreenHeader
           shopName={submitted.length === 1 ? first.shopName : '下单好了'}
           shopLocked
-          onHelpPress={showHelp}
         />
 
         <ScrollView
@@ -361,7 +360,6 @@ export default function CheckoutScreen({
         shopName={groups.length === 1 ? groups[0].shopName : undefined}
         title={groups.length === 1 ? undefined : '确认订单'}
         shopLocked
-        onHelpPress={showHelp}
       />
 
       <ScrollView

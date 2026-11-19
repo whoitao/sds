@@ -66,6 +66,7 @@ function MenuRow({
 
 export default function ProfileScreen({
   customer,
+  cartCount,
   onLogout,
   onGoHome,
   onOpenCart,
@@ -73,6 +74,7 @@ export default function ProfileScreen({
   onOpenOrders
 }: {
   customer: CustomerProfile;
+  cartCount: number | null;
   onLogout: () => void;
   onGoHome: () => void;
   onOpenCart: () => void;
@@ -100,7 +102,6 @@ export default function ProfileScreen({
         left="bell"
         onLeftPress={() => Alert.alert('暂无新消息', '订单进度和优惠会显示在这里。')}
         title="我的"
-        onHelpPress={() => comingSoon('联系客服')}
       />
 
       <ScrollView
@@ -176,6 +177,7 @@ export default function ProfileScreen({
 
       <TabBar
         active="profile"
+        cartCount={cartCount ?? 0}
         onHome={onGoHome}
         onCart={onOpenCart}
         onOrders={onOpenOrders}

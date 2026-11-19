@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { Tooltip, Upload } from 'antd';
 import {
@@ -64,6 +64,16 @@ export function AdminImageUpload({
   const [error, setError] = useState('');
   /** 新上传文件的本地球预览；表单里存的是相对路径，不能直接用于 <img src> */
   const [localPreview, setLocalPreview] = useState<string | null>(null);
+  /** 本次上传回写的相对路径；用于区分「自己触发的 value 变化」和「切换商品/重置」 */
+  const pendingPathRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    // 表单值被外部改写（切换商品、新建重置、取消后重开）时，丢弃上一个商品的临时预览
+    if (pendingPathRef.current && value === pendingPathRef.current) return;
+    pendingPathRef.current = null;
+    setLocalPreview(null);
+    setError('');
+  }, [value]);
 
   useEffect(() => {
     return () => {
@@ -102,6 +112,7 @@ export function AdminImageUpload({
         onError?.(new Error(message));
         return;
       }
+      pendingPathRef.current = payload.path;
       setLocalPreview(URL.createObjectURL(body));
       onChange?.(payload.path);
       onSuccess?.(payload);
@@ -132,6 +143,7 @@ export function AdminImageUpload({
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
         <Upload
+          style={{ width, height: boxHeight }}
           className={`admin-image-upload${url ? ' admin-image-upload--filled' : ''}`}
           listType="picture-card"
           accept={ACCEPT}

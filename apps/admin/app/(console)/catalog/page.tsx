@@ -451,6 +451,8 @@ export default function CatalogPage() {
 
   function openEdit(row: CatalogRow) {
     setEditing(row);
+    // 先重置再回填，避免上一次编辑残留的字段（尤其是图片）
+    form.resetFields();
     form.setFieldsValue({
       categoryId: row.categoryId ?? undefined,
       name: row.name,
@@ -1299,7 +1301,8 @@ export default function CatalogPage() {
               <Form.Item name="description" label="商品描述" rules={[{ max: 1000, message: '最多 1000 字' }]}>
                 <Input.TextArea rows={3} maxLength={1000} placeholder="选填" />
               </Form.Item>
-              <Form.Item name="imageUrl" label="商品图片">
+              {/* 按商品重建上传组件，切换商品时清掉上一次未保存的本地预览 */}
+              <Form.Item key={editing?.id ?? 'new'} name="imageUrl" label="商品图片">
                 <AdminImageUpload
                   width={120}
                   aspectRatio={1}
