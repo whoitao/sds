@@ -143,6 +143,7 @@ export function TestDataCleanupButton({ onCleaned, danger = true }: TestDataClea
             <Table<CleanupCount>
               rowKey="table"
               size="small"
+              sticky
               pagination={false}
               columns={tableColumns}
               dataSource={counts}

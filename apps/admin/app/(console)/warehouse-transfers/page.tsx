@@ -1251,6 +1251,7 @@ export default function WarehouseTransfersPage() {
           <Table<FromDemandLine>
             rowKey="catalogSkuId"
             size="small"
+            sticky
             pagination={false}
             dataSource={shop.lines}
             columns={[

@@ -28,6 +28,8 @@ import { mobileOrderRoutes } from './routes/mobile-orders.js';
 import { customerSummaryRoutes } from './routes/customer-summary.js';
 import { adminOrderRoutes } from './routes/admin-orders.js';
 import { dashboardRoutes } from './routes/dashboard.js';
+import { siteSettingsRoutes } from './routes/site-settings.js';
+import { publicSiteSettingsRoutes } from './routes/public-site-settings.js';
 import { authRoutes } from './routes/auth.js';
 import { addressRoutes } from './routes/addresses.js';
 import { regionRoutes } from './routes/regions.js';
@@ -68,6 +70,8 @@ app.get('/api/hello', (c) => c.text('Hello from Hono API'));
 
 app.route('/api/shops', publicShopRoutes);
 app.route('/api/mobile/shops', publicShopRoutes);
+// 站点设置：顾客端公开只读（只含维护开关与 SEO 公开字段）
+app.route('/api/settings', publicSiteSettingsRoutes);
 
 app.route('/api/admin/auth', adminAuthRoutes);
 app.route('/api/admin', adminAccountRoutes);
@@ -89,6 +93,7 @@ app.route('/api/admin/test-data', testDataRoutes);
 app.route('/api/admin/carts', adminCartRoutes);
 app.route('/api/admin/orders', adminOrderRoutes);
 app.route('/api/admin/dashboard', dashboardRoutes);
+app.route('/api/admin/settings', siteSettingsRoutes);
 // 顾客端：移动端首页使用，独立于 admin 路径与权限
 app.route('/api/mobile', mobileRoutes);
 // 顾客购物车：需登录（Bearer 会话），与后台共享同一份 carts / cart_items

@@ -241,6 +241,7 @@ export function AdminPermissionPanel() {
       <Table<AdminItem>
         rowKey="id"
         size="small"
+        sticky
         loading={loading}
         dataSource={admins}
         pagination={false}
@@ -361,6 +362,7 @@ export function AdminPermissionPanel() {
               <Table<PermissionItem>
                 rowKey="id"
                 size="small"
+                sticky
                 pagination={false}
                 dataSource={permissions}
                 scroll={{ x: 'max-content' }}

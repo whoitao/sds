@@ -32,12 +32,13 @@ function normalizeColumns<RecordType>(
   });
 }
 
-/** admin 列表统一：普通列左对齐并省略溢出内容，操作列固定右侧，超宽时横向滚动。 */
+/** admin 列表统一：普通列左对齐并省略溢出内容，操作列固定右侧，超宽时横向滚动，表头随所在滚动容器吸顶。 */
 export function getAdminTableProps<RecordType>(
   columns: TableColumnsType<RecordType>
-): Pick<TableProps<RecordType>, 'columns' | 'scroll'> {
+): Pick<TableProps<RecordType>, 'columns' | 'scroll' | 'sticky'> {
   return {
     columns: normalizeColumns(columns),
-    scroll: { x: 'max-content' }
+    scroll: { x: 'max-content' },
+    sticky: true
   };
 }

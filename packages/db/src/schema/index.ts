@@ -18,3 +18,4 @@ export * from './customers.ts';
 export * from './carts.ts';
 export * from './regions.ts';
 export * from './orders.ts';
+export * from './site-settings.ts';

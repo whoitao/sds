@@ -14,8 +14,7 @@ import {
   Select,
   Space,
   Table,
-  Tag,
-  Tooltip
+  Tag
 } from 'antd';
 import type { TableColumnsType } from 'antd';
 import {
@@ -390,18 +389,15 @@ export default function DemandPlansPage() {
       title: '操作',
       key: 'action',
       render: (_value, row) => (
-        <Space size={4}>
-          <Tooltip title="进入汇总工作台">
-            <Button
-              variant="text"
-              color="primary"
-              size="small"
-              icon={<EyeOutlined />}
-              aria-label="进入汇总工作台"
-              onClick={() => void openWorkbench(row)}
-            />
-          </Tooltip>
-        </Space>
+        <Button
+          variant="text"
+          color="primary"
+          size="small"
+          icon={<EyeOutlined />}
+          title="进入汇总工作台"
+          aria-label="进入汇总工作台"
+          onClick={() => void openWorkbench(row)}
+        />
       )
     }
   ];
@@ -536,6 +532,7 @@ export default function DemandPlansPage() {
               <Table<ShopBreakdown>
                 rowKey={(breakdown) => `${breakdown.requisitionId}-${breakdown.shopId}`}
                 size="small"
+                sticky
                 pagination={false}
                 dataSource={row.shopBreakdown}
                 columns={[

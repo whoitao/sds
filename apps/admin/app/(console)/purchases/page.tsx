@@ -1552,6 +1552,7 @@ export default function PurchasesPage() {
                     <Table
                       rowKey="id"
                       size="small"
+                      sticky
                       columns={receiptItemColumns}
                       dataSource={receipt.items}
                       pagination={false}
@@ -1606,6 +1607,7 @@ export default function PurchasesPage() {
         <Table
           rowKey="id"
           size="small"
+          sticky
           columns={receiptColumns}
           dataSource={receiptDrafts}
           pagination={false}

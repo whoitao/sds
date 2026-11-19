@@ -779,6 +779,7 @@ export default function DashboardPage() {
                 <Table
                   rowKey="skuId"
                   size="small"
+                  sticky
                   columns={topSkuColumns}
                   dataSource={data.topSkus}
                   pagination={false}
@@ -794,6 +795,7 @@ export default function DashboardPage() {
                 <Table
                   rowKey="shopId"
                   size="small"
+                  sticky
                   columns={shopRankColumns}
                   dataSource={data.shopRanking}
                   pagination={false}

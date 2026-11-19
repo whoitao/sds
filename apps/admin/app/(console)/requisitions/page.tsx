@@ -955,6 +955,7 @@ export default function RequisitionsPage() {
             <Table<RequisitionItem>
               rowKey="id"
               size="small"
+              sticky
               columns={detailColumns}
               dataSource={detail.items}
               pagination={false}

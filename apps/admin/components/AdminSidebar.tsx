@@ -67,7 +67,8 @@ const MAIN_ITEMS = [
   { href: '/demand-plans', label: '需求汇总', icon: <ContainerOutlined /> },
   { href: '/suppliers', label: '供应商档案', icon: <ContactsOutlined /> },
   { href: '/warehouses', label: '仓库管理', icon: <HomeOutlined /> },
-  { href: '/reports', label: '报表统计', icon: <BarChartOutlined /> }
+  { href: '/reports', label: '报表统计', icon: <BarChartOutlined /> },
+  { href: '/settings', label: '系统设置', icon: <SettingOutlined /> }
 ];
 
 const SECONDARY_ITEMS = [{ href: '/about', label: '关于', icon: <InfoCircleOutlined /> }];
