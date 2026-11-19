@@ -12,7 +12,6 @@ import {
   Input,
   InputNumber,
   Modal,
-  Popconfirm,
   Select,
   Space,
   Switch,
@@ -24,6 +23,7 @@ import {
 } from 'antd';
 import type { TableColumnsType } from 'antd';
 import { TestDataCleanupButton } from '../../../components/TestDataCleanupButton';
+import { useConfirmDanger } from '../../../components/AdminConfirmProvider';
 import {
   ArrowDownOutlined,
   ArrowUpOutlined,
@@ -160,6 +160,7 @@ function formatTime(value: string | null) {
 
 export default function CatalogPage() {
   const { pageSize } = useAdminSettings();
+  const confirmDanger = useConfirmDanger();
   const [mounted, setMounted] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -370,6 +371,14 @@ export default function CatalogPage() {
   }
 
   async function toggleCategoryActive(row: CatalogCategoryRow, checked: boolean) {
+    if (!checked) {
+      const confirmed = await confirmDanger({
+        title: `停用分类「${row.name}」？`,
+        content: '停用后该分类及其下商品在顾客端不再显示；可随时重新启用，不影响商品数据。',
+        okText: '确认停用'
+      });
+      if (!confirmed) return;
+    }
     setError('');
     try {
       const response = await fetch(`/api/admin/catalog/categories/${row.id}`, {
@@ -409,6 +418,12 @@ export default function CatalogPage() {
   }
 
   async function deleteCategory(row: CatalogCategoryRow) {
+    const confirmed = await confirmDanger({
+      title: `删除分类「${row.name}」？`,
+      content: '删除后不可恢复。分类下的商品将变为未分类，门店侧也不再显示该分类。',
+      okText: '删除'
+    });
+    if (!confirmed) return;
     setError('');
     try {
       const response = await fetch(`/api/admin/catalog/categories/${row.id}`, {
@@ -537,6 +552,14 @@ export default function CatalogPage() {
   }
 
   async function archive(row: CatalogRow, archived: boolean) {
+    if (archived) {
+      const confirmed = await confirmDanger({
+        title: '归档该商品？',
+        content: '归档后门店侧不再显示，且商品不可编辑；可随时恢复为草稿。',
+        okText: '归档'
+      });
+      if (!confirmed) return;
+    }
     const response = await fetch(`/api/admin/catalog/products/${row.id}`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
@@ -650,26 +673,22 @@ export default function CatalogPage() {
     }
   }
 
-  function deleteSku(row: CatalogSkuRow) {
+  async function deleteSku(row: CatalogSkuRow) {
     if (!skuProduct) return;
-    Modal.confirm({
+    const confirmed = await confirmDanger({
       title: `删除规格「${row.specName}」？`,
-      content: '已同步到门店的规格不能删除，只能停用。',
-      okText: '删除',
-      okButtonProps: { danger: true },
-      onOk: async () => {
-        const response = await fetch(`/api/admin/catalog/skus/${row.id}`, {
-          method: 'DELETE'
-        });
-        const payload = await response.json().catch(() => null);
-        if (!response.ok) {
-          setSkuError(payload?.message ?? '删除失败');
-          return;
-        }
-        await loadSkus(skuProduct.id);
-        void load();
-      }
+      content: '删除后不可恢复。已同步到门店的规格不能删除，只能停用。',
+      okText: '删除'
     });
+    if (!confirmed) return;
+    const response = await fetch(`/api/admin/catalog/skus/${row.id}`, { method: 'DELETE' });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+      setSkuError(payload?.message ?? '删除失败');
+      return;
+    }
+    await loadSkus(skuProduct.id);
+    void load();
   }
 
   const skuColumns: TableColumnsType<CatalogSkuRow> = [
@@ -848,26 +867,15 @@ export default function CatalogPage() {
             />
           </Tooltip>
           <Tooltip title={row.childCount > 0 ? '请先删除该分类下的子分类' : '删除'}>
-            <span>
-              <Popconfirm
-                title={`删除分类「${row.name}」？`}
-                description="分类下的商品将变为未分类，门店侧也不再显示该分类"
-                okText="删除"
-                okButtonProps={{ danger: true }}
-                cancelText="取消"
-                disabled={row.childCount > 0}
-                onConfirm={() => void deleteCategory(row)}
-              >
-                <Button
-                  variant="text"
-                  color="danger"
-                  size="small"
-                  icon={<DeleteOutlined />}
-                  aria-label="删除"
-                  disabled={row.childCount > 0}
-                />
-              </Popconfirm>
-            </span>
+            <Button
+              variant="text"
+              color="danger"
+              size="small"
+              icon={<DeleteOutlined />}
+              aria-label="删除"
+              disabled={row.childCount > 0}
+              onClick={() => void deleteCategory(row)}
+            />
           </Tooltip>
         </Space>
       )
@@ -1000,26 +1008,23 @@ export default function CatalogPage() {
             )
           ) : null}
           {row.status === 'archived' ? (
-            <Popconfirm
-              title="恢复为草稿？"
-              okText="恢复"
-              cancelText="取消"
-              onConfirm={() => void archive(row, false)}
-            >
-              <Button variant="text" size="small" icon={<UndoOutlined />} aria-label="恢复为草稿" />
-            </Popconfirm>
+            <Button
+              variant="text"
+              size="small"
+              icon={<UndoOutlined />}
+              aria-label="恢复为草稿"
+              onClick={() => void archive(row, false)}
+            />
           ) : (
-            <Popconfirm
-              title="归档该商品？"
-              description="归档后门店侧不再显示，且不可编辑"
-              okText="归档"
-              cancelText="取消"
-              onConfirm={() => void archive(row, true)}
+            <Button
+              variant="text"
+              color="danger"
+              size="small"
+              aria-label="归档"
+              onClick={() => void archive(row, true)}
             >
-              <Button variant="text" color="danger" size="small" aria-label="归档">
-                归档
-              </Button>
-            </Popconfirm>
+              归档
+            </Button>
           )}
         </Space>
       )
@@ -1046,6 +1051,12 @@ export default function CatalogPage() {
                 setTab(key as 'products' | 'categories');
                 setError('');
                 setNotice('');
+                // 商品管理的关键词/分类/状态筛选只属于该页签，分类管理不使用
+                setSearchText('');
+                setKeyword('');
+                setCategoryFilter(undefined);
+                setStatusFilter(undefined);
+                setPage(1);
               }}
               tabBarStyle={{ margin: 0 }}
               items={[

@@ -84,6 +84,7 @@ async function listVisibleCategoryCounts(shopId: string) {
      where p.shop_id = ${shopId}::uuid
        and p.is_available
        and not p.is_blocked
+       and (p.catalog_product_id is null or cp.status = 'published')
        and coalesce(cp.category_id, p.category_id) is not null
        and exists (
          select 1
@@ -215,6 +216,7 @@ mobileRoutes.get('/shops/:shopId/products', async (c) => {
        where p.shop_id = ${shopId}::uuid
          and p.is_available
          and not p.is_blocked
+         and (p.catalog_product_id is null or cp.status = 'published')
          and coalesce(cp.category_id, p.category_id) in (${idList})
          and exists (
            select 1
@@ -234,6 +236,7 @@ mobileRoutes.get('/shops/:shopId/products', async (c) => {
        where p.shop_id = ${shopId}::uuid
          and p.is_available
          and not p.is_blocked
+         and (p.catalog_product_id is null or cp.status = 'published')
          and coalesce(cp.category_id, p.category_id) in (${idList})
          and exists (
            select 1
@@ -267,6 +270,7 @@ mobileRoutes.get('/shops/:shopId/products', async (c) => {
              (ps.stock_type = 'tracked' and coalesce(st.quantity, 0) <= 0) as "soldOut"
         from product_skus ps
         join products p on p.id = ps.product_id and p.shop_id = ps.shop_id
+        left join catalog_products cp on cp.id = p.catalog_product_id
         left join catalog_skus cs on cs.id = ps.catalog_sku_id
         left join product_sku_stocks st on st.product_sku_id = ps.id
        where ps.shop_id = ${shopId}::uuid
@@ -274,6 +278,7 @@ mobileRoutes.get('/shops/:shopId/products', async (c) => {
          and ps.is_available
          and p.is_available
          and not p.is_blocked
+         and (p.catalog_product_id is null or cp.status = 'published')
          and (ps.catalog_sku_id is null or cs.status = 'active')
        order by ps.sort_order, ps.created_at
     `);

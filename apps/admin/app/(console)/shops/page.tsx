@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { Button, Checkbox, Empty, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, TreeSelect } from 'antd';
+import { Button, Checkbox, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, TreeSelect } from 'antd';
 import type { FormInstance, TableColumnsType } from 'antd';
 import {
   EditOutlined,
@@ -10,8 +10,7 @@ import {
   PlayCircleOutlined,
   PlusOutlined,
   SearchOutlined,
-  StopOutlined,
-  TeamOutlined
+  StopOutlined
 } from '@ant-design/icons';
 import { adminColors as colors } from '../../../lib/theme';
 import { ADMIN_FILTER_FIELD_WIDTH, getAdminTableProps } from '../../../lib/table';
@@ -19,6 +18,7 @@ import { AdminImageUpload } from '../../../components/AdminImageUpload';
 import { deleteUploadedImage } from '../../../lib/upload-cleanup';
 import { useAdminSettings } from '../../../components/AdminSettingsProvider';
 import { TestDataCleanupButton } from '../../../components/TestDataCleanupButton';
+import { useConfirmDanger } from '../../../components/AdminConfirmProvider';
 
 interface ShopRow {
   id: string;
@@ -31,7 +31,6 @@ interface ShopRow {
   announcement: string | null;
   coverUrl: string | null;
   businessHours: ShopBusinessHours | null;
-  managerCount: number;
   createdAt: string;
 }
 
@@ -51,25 +50,10 @@ const WEEKDAYS = [
 type WeekdayKey = (typeof WEEKDAYS)[number][0];
 type ShopBusinessHours = Partial<Record<WeekdayKey, DayHours>>;
 
-interface MemberRow {
-  id: string;
-  userId: string;
-  role: 'shop_manager' | 'shop_staff' | 'delivery';
-  phone: string;
-  name: string | null;
-  createdAt: string;
-}
-
 const STATUS_META: Record<ShopRow['status'], { label: string; color: string }> = {
   open: { label: '营业中', color: 'success' },
   closed: { label: '已打烊', color: 'default' },
   suspended: { label: '已暂停', color: 'warning' }
-};
-
-const MEMBER_ROLE_LABELS: Record<MemberRow['role'], string> = {
-  shop_manager: '店长',
-  shop_staff: '店员',
-  delivery: '配送员'
 };
 
 function formatTime(value: string | null) {
@@ -212,6 +196,7 @@ function ShopLocationField({ form }: { form: FormInstance }) {
 
 export default function ShopsPage() {
   const { pageSize } = useAdminSettings();
+  const confirmDanger = useConfirmDanger();
   const [keyword, setKeyword] = useState('');
   const [searchText, setSearchText] = useState('');
   const [status, setStatus] = useState<string | undefined>();
@@ -221,15 +206,31 @@ export default function ShopsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // 按钮级权限：店长只有 shops.read，写操作入口不渲染
+  const [permissions, setPermissions] = useState<string[]>([]);
+  useEffect(() => {
+    let active = true;
+    fetch('/api/admin/me/permissions', { cache: 'no-store' })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload) => {
+        if (active) setPermissions(payload?.permissions ?? []);
+      })
+      .catch(() => {
+        if (active) setPermissions([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+  const canWrite = permissions.includes('shops.write');
+  const canCatalogPush = permissions.includes('shops.catalog_push');
+  const canOperate = canWrite || canCatalogPush;
+
   const [formOpen, setFormOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [editing, setEditing] = useState<ShopRow | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [form] = Form.useForm();
-
-  const [memberShop, setMemberShop] = useState<ShopRow | null>(null);
-  const [members, setMembers] = useState<MemberRow[]>([]);
-  const [memberLoading, setMemberLoading] = useState(false);
 
   // 一键铺货：把已发布的总部商品补到该门店（只补缺，不覆盖门店价格）
   const [importShop, setImportShop] = useState<ShopRow | null>(null);
@@ -237,7 +238,6 @@ export default function ShopsPage() {
   const [importing, setImporting] = useState(false);
   const [importTree, setImportTree] = useState<{ value: string; title: string; children?: { value: string; title: string }[] }[]>([]);
   const [notice, setNotice] = useState('');
-  const [memberForm] = Form.useForm();
 
   // 全局「每页条数」变化后回到第 1 页重新加载
   const [appliedPageSize, setAppliedPageSize] = useState(pageSize);
@@ -277,19 +277,6 @@ export default function ShopsPage() {
   // 一份 DOM 造成 hydration 不一致。等客户端挂载后再渲染表单 Modal（第 368 行门控）。
   useEffect(() => {
     setMounted(true);
-  }, []);
-
-  const loadMembers = useCallback(async (shopId: string) => {
-    setMemberLoading(true);
-    try {
-      const response = await fetch(`/api/admin/shops/${shopId}/members`, { cache: 'no-store' });
-      const payload = await response.json();
-      setMembers(response.ok ? (payload.items ?? []) : []);
-    } catch {
-      setMembers([]);
-    } finally {
-      setMemberLoading(false);
-    }
   }, []);
 
   function openCreate() {
@@ -371,42 +358,20 @@ export default function ShopsPage() {
   }
 
   async function changeStatus(row: ShopRow, next: ShopRow['status']) {
+    if (next === 'suspended' && row.status !== 'suspended') {
+      const confirmed = await confirmDanger({
+        title: `暂停门店「${row.name}」？`,
+        content: '暂停后顾客端将无法下单，门店商品与数据保留；可随时恢复营业。',
+        okText: '确认暂停'
+      });
+      if (!confirmed) return;
+    }
     const response = await fetch(`/api/admin/shops/${row.id}/status`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ status: next })
     });
     if (response.ok) void load();
-  }
-
-  async function addMember() {
-    if (!memberShop) return;
-    const values = await memberForm.validateFields();
-    const response = await fetch(`/api/admin/shops/${memberShop.id}/members`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(values)
-    });
-    const payload = await response.json();
-    if (!response.ok) {
-      setMemberLoading(false);
-      setError(payload?.message ?? '添加成员失败');
-      return;
-    }
-    memberForm.resetFields();
-    void loadMembers(memberShop.id);
-    void load();
-  }
-
-  async function removeMember(member: MemberRow) {
-    if (!memberShop) return;
-    const response = await fetch(`/api/admin/shops/${memberShop.id}/members/${member.id}`, {
-      method: 'DELETE'
-    });
-    if (response.ok) {
-      void loadMembers(memberShop.id);
-      void load();
-    }
   }
 
   async function openImport(row: ShopRow) {
@@ -488,12 +453,6 @@ export default function ShopsPage() {
       render: (value: ShopRow['businessHours']) => formatBusinessHours(value)
     },
     {
-      title: '店长',
-      dataIndex: 'managerCount',
-      width: 76,
-      render: (value: number) => (value > 0 ? `${value} 人` : '未绑定')
-    },
-    {
       title: '状态',
       dataIndex: 'status',
       width: 96,
@@ -508,50 +467,46 @@ export default function ShopsPage() {
       fixed: 'right',
       render: (_: unknown, row: ShopRow) => (
         <Space size={4}>
-          <Button
-            variant="text"
-            color="primary"
-            size="small"
-            icon={<EditOutlined />}
-            title="编辑"
-            aria-label="编辑"
-            onClick={() => openEdit(row)}
-          />
-          <Button
-            variant="text"
-            size="small"
-            icon={<TeamOutlined />}
-            title="店长"
-            aria-label="店长"
-            onClick={() => {
-              setMemberShop(row);
-              setMembers([]);
-              void loadMembers(row.id);
-            }}
-          />
-          <Button
-            variant="text"
-            size="small"
-            icon={<ImportOutlined />}
-            title="一键铺货"
-            aria-label="一键铺货"
-            onClick={() => void openImport(row)}
-          />
-          <Button
-            variant="text"
-            color={row.status === 'suspended' ? 'primary' : 'danger'}
-            size="small"
-            icon={row.status === 'suspended' ? <PlayCircleOutlined /> : <StopOutlined />}
-            title={row.status === 'suspended' ? '恢复' : '暂停'}
-            aria-label={row.status === 'suspended' ? '恢复' : '暂停'}
-            onClick={() =>
-              void changeStatus(row, row.status === 'suspended' ? 'open' : 'suspended')
-            }
-          />
+          {canWrite ? (
+            <Button
+              variant="text"
+              color="primary"
+              size="small"
+              icon={<EditOutlined />}
+              title="编辑"
+              aria-label="编辑"
+              onClick={() => openEdit(row)}
+            />
+          ) : null}
+          {canCatalogPush ? (
+            <Button
+              variant="text"
+              size="small"
+              icon={<ImportOutlined />}
+              title="一键铺货"
+              aria-label="一键铺货"
+              onClick={() => void openImport(row)}
+            />
+          ) : null}
+          {canWrite ? (
+            <Button
+              variant="text"
+              color={row.status === 'suspended' ? 'primary' : 'danger'}
+              size="small"
+              icon={row.status === 'suspended' ? <PlayCircleOutlined /> : <StopOutlined />}
+              title={row.status === 'suspended' ? '恢复' : '暂停'}
+              aria-label={row.status === 'suspended' ? '恢复' : '暂停'}
+              onClick={() =>
+                void changeStatus(row, row.status === 'suspended' ? 'open' : 'suspended')
+              }
+            />
+          ) : null}
         </Space>
       )
     }
   ];
+
+  const visibleColumns = canOperate ? columns : columns.filter((column) => column.key !== 'action');
 
   return (
     <div>
@@ -565,9 +520,11 @@ export default function ShopsPage() {
           <span style={{ fontSize: 14, fontWeight: 600, color: colors.text }}>店铺列表</span>
           <Space size={8}>
             <TestDataCleanupButton onCleaned={() => void load()} />
-            <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
-              新建店铺
-            </Button>
+            {canWrite ? (
+              <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
+                新建店铺
+              </Button>
+            ) : null}
           </Space>
         </div>
 
@@ -635,7 +592,7 @@ export default function ShopsPage() {
         <Table<ShopRow>
           rowKey="id"
           loading={loading}
-          {...getAdminTableProps(columns)}
+          {...getAdminTableProps(visibleColumns)}
           dataSource={rows}
           scroll={{ x: 'max-content' }}
           pagination={{
@@ -755,67 +712,6 @@ export default function ShopsPage() {
       </Modal>
       </>
       ) : null}
-
-      <Modal
-        open={Boolean(memberShop)}
-        title={`店长绑定 · ${memberShop?.name ?? ''}`}
-        footer={null}
-        onCancel={() => setMemberShop(null)}
-        destroyOnHidden
-      >
-        <Form form={memberForm} layout="inline" style={{ margin: '8px 0 16px' }} onFinish={() => void addMember()}>
-          <Form.Item name="phone" rules={[{ required: true, pattern: /^1\d{10}$/, message: '11 位手机号' }]}>
-            <Input placeholder="业务用户手机号" style={{ width: 180 }} maxLength={11} />
-          </Form.Item>
-          <Form.Item name="role" initialValue="shop_manager" rules={[{ required: true }]}>
-            <Select
-              style={{ width: 120 }}
-              options={[
-                { value: 'shop_manager', label: '店长' },
-                { value: 'shop_staff', label: '店员' },
-                { value: 'delivery', label: '配送员' }
-              ]}
-            />
-          </Form.Item>
-          <Button type="primary" htmlType="submit">
-            添加
-          </Button>
-        </Form>
-
-        {members.length === 0 && !memberLoading ? (
-          <Empty description="还没有绑定成员" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-        ) : (
-          // antd 6.6 起 List 已弃用，这里用普通列表结构保持原有信息层级
-          <div>
-            {memberLoading ? (
-              <div style={{ padding: '8px 0', fontSize: 13, color: colors.textTertiary }}>加载中…</div>
-            ) : null}
-            {members.map((member) => (
-              <div
-                key={member.id}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 12,
-                  padding: '8px 0',
-                  borderBottom: `1px solid ${colors.border}`
-                }}
-              >
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 13, color: colors.text }}>
-                    {member.name || '未命名'} · {member.phone}
-                  </div>
-                  <div style={{ fontSize: 12, color: colors.textTertiary, marginTop: 2 }}>
-                    {MEMBER_ROLE_LABELS[member.role]} · {formatTime(member.createdAt)}
-                  </div>
-                </div>
-                <a onClick={() => void removeMember(member)}>解绑</a>
-              </div>
-            ))}
-          </div>
-        )}
-      </Modal>
     </div>
   );
 }

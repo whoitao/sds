@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Alert, Button, Descriptions, Empty, Input, Modal, Segmented, Select, Space, Table, Tag } from 'antd';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { Alert, Button, Descriptions, Empty, Input, Modal, Select, Space, Table, Tabs, Tag } from 'antd';
 import type { TableColumnsType } from 'antd';
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { getAdminTableProps } from '../../../lib/table';
@@ -11,6 +12,7 @@ import {
   AdminListPage
 } from '../../../components/AdminListPage';
 import { TestDataCleanupButton } from '../../../components/TestDataCleanupButton';
+import { useConfirmDanger } from '../../../components/AdminConfirmProvider';
 
 interface ShopOption {
   id: string;
@@ -20,6 +22,8 @@ interface ShopOption {
 interface SupplierRow {
   id: string;
   name: string;
+  contactName: string | null;
+  phone: string | null;
   status: 'active' | 'disabled';
 }
 
@@ -202,10 +206,16 @@ function newDraftItem(): PurchaseItemDraft {
 
 export default function PurchasesPage() {
   const [modal, contextHolder] = Modal.useModal();
+  const confirmDanger = useConfirmDanger();
   const [mounted, setMounted] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [shops, setShops] = useState<ShopOption[]>([]);
   const [shopId, setShopId] = useState<string | undefined>();
-  const [subjectType, setSubjectType] = useState<PurchaseSubjectType>('shop');
+  // 页签写在 ?tab= 里：warehouse（默认）| shop，刷新/分享/前进后退保持当前页签
+  const subjectType: PurchaseSubjectType =
+    searchParams.get('tab') === 'shop' ? 'shop' : 'warehouse';
   const [warehouses, setWarehouses] = useState<ShopOption[]>([]);
   const [warehouseId, setWarehouseId] = useState<string | undefined>();
   const [error, setError] = useState('');
@@ -223,8 +233,6 @@ export default function PurchasesPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [createSubmitting, setCreateSubmitting] = useState(false);
   const [supplierId, setSupplierId] = useState<string | undefined>();
-  const [supplierName, setSupplierName] = useState('');
-  const [supplierPhone, setSupplierPhone] = useState('');
   const [expectedAt, setExpectedAt] = useState('');
   const [purchaseRemark, setPurchaseRemark] = useState('');
   const [draftItems, setDraftItems] = useState<PurchaseItemDraft[]>([newDraftItem()]);
@@ -282,6 +290,19 @@ export default function PurchasesPage() {
     }
     void loadWarehouses();
   }, []);
+
+  /** 页签切换：门店/仓库各自独立保留，清掉新建单已选的供应商与页码 */
+  const changeTab = useCallback(
+    (key: string) => {
+      setError('');
+      setPurchasePage(1);
+      setSupplierId(undefined);
+      const params = new URLSearchParams(searchParams.toString());
+      params.set('tab', key === 'shop' ? 'shop' : 'warehouse');
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    },
+    [pathname, router, searchParams]
+  );
 
   const loadPurchases = useCallback(async () => {
     const subjectParam =
@@ -403,8 +424,6 @@ export default function PurchasesPage() {
 
   async function openCreate() {
     setSupplierId(undefined);
-    setSupplierName('');
-    setSupplierPhone('');
     setExpectedAt('');
     setPurchaseRemark('');
     setDraftItems([newDraftItem()]);
@@ -489,8 +508,12 @@ export default function PurchasesPage() {
       setError('进价不合法');
       return;
     }
-    if (!supplierId && !supplierName.trim()) {
-      setError('请选择供应商或填写供应商名称');
+    if (!supplierId) {
+      setError('请选择供应商（供应商必须来自供应商档案，未建档供应商不能下单）');
+      return;
+    }
+    if (!activeSuppliers.some((supplier) => supplier.id === supplierId)) {
+      setError('所选供应商不可用，请从供应商档案中重新选择');
       return;
     }
 
@@ -502,9 +525,7 @@ export default function PurchasesPage() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           ...(isWarehouse ? { warehouseId } : { shopId }),
-          supplierId: supplierId ?? null,
-          supplierName: supplierName.trim() || null,
-          supplierPhone: supplierPhone.trim() || null,
+          supplierId,
           demandPlanId: isWarehouse ? null : planId,
           expectedAt: expectedAt || null,
           remark: purchaseRemark.trim() || null,
@@ -519,7 +540,11 @@ export default function PurchasesPage() {
       setCreateOpen(false);
       if (planId) {
         setPlanId(null);
-        window.history.replaceState({}, '', '/purchases');
+        window.history.replaceState(
+          {},
+          '',
+          subjectType === 'shop' ? '/purchases?tab=shop' : '/purchases?tab=warehouse'
+        );
       }
       void loadPurchases();
     } catch {
@@ -544,26 +569,24 @@ export default function PurchasesPage() {
     }
   }
 
-  function cancelPurchase(row: PurchaseRow) {
-    Modal.confirm({
+  async function cancelPurchase(row: PurchaseRow) {
+    const confirmed = await confirmDanger({
       title: `取消采购单 ${row.poNo}？`,
-      content: '取消后不能再入库。',
-      okText: '确认取消',
-      okButtonProps: { danger: true },
-      onOk: async () => {
-        const response = await fetch(`/api/admin/purchases/${row.id}/cancel`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({})
-        });
-        const payload = await response.json();
-        if (!response.ok) {
-          setError(payload?.message ?? '取消失败');
-          return;
-        }
-        void loadPurchases();
-      }
+      content: '取消后该采购单不能再入库，已发生的入库与结算记录不受影响；不可撤销。',
+      okText: '确认取消'
     });
+    if (!confirmed) return;
+    const response = await fetch(`/api/admin/purchases/${row.id}/cancel`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({})
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      setError(payload?.message ?? '取消失败');
+      return;
+    }
+    void loadPurchases();
   }
 
   async function openView(row: PurchaseRow) {
@@ -1177,10 +1200,21 @@ export default function PurchasesPage() {
   if (!mounted) return null;
 
   const activeSuppliers = suppliers.filter((supplier) => supplier.status === 'active');
+  const selectedSupplier = activeSuppliers.find((supplier) => supplier.id === supplierId);
 
   return (
     <AdminListPage
-      title="采购管理"
+      header={
+        <Tabs
+          activeKey={subjectType}
+          onChange={changeTab}
+          tabBarStyle={{ margin: 0 }}
+          items={[
+            { key: 'warehouse', label: '仓库采购' },
+            { key: 'shop', label: '门店采购' }
+          ]}
+        />
+      }
       actions={
         <Space size={8}>
           <Button icon={<ReloadOutlined />} onClick={() => void loadPurchases()}>
@@ -1195,24 +1229,6 @@ export default function PurchasesPage() {
       filters={
         <>
           <AdminFilterField>
-            <Segmented
-              block
-              value={subjectType}
-              onChange={(value) => {
-                const next = value as PurchaseSubjectType;
-                setSubjectType(next);
-                setPurchasePage(1);
-                setSupplierId(undefined);
-                setSupplierName('');
-                setSupplierPhone('');
-              }}
-              options={[
-                { value: 'shop', label: '门店采购' },
-                { value: 'warehouse', label: '总部仓采购' }
-              ]}
-            />
-          </AdminFilterField>
-          <AdminFilterField>
             {subjectType === 'shop' ? (
               <Select
                 placeholder="选择门店"
@@ -1222,8 +1238,6 @@ export default function PurchasesPage() {
                   setPurchasePage(1);
                   // 供应商按门店供货关系限定，切店后清空已选供应商，避免沿用其他门店的选择
                   setSupplierId(undefined);
-                  setSupplierName('');
-                  setSupplierPhone('');
                 }}
                 options={shops.map((shop) => ({ value: shop.id, label: shop.name }))}
               />
@@ -1235,8 +1249,6 @@ export default function PurchasesPage() {
                   setWarehouseId(value);
                   setPurchasePage(1);
                   setSupplierId(undefined);
-                  setSupplierName('');
-                  setSupplierPhone('');
                 }}
                 options={warehouses.map((warehouse) => ({
                   value: warehouse.id,
@@ -1312,11 +1324,12 @@ export default function PurchasesPage() {
           ) : null}
           <Space wrap>
             <Select
-              allowClear
               style={{ width: 260 }}
-              placeholder="选择供应商"
+              placeholder="选择供应商（仅档案中启用的供应商）"
               value={supplierId}
               onChange={(value) => setSupplierId(value)}
+              optionFilterProp="label"
+              showSearch
               options={activeSuppliers.map((supplier) => ({
                 value: supplier.id,
                 label: supplier.name
@@ -1328,25 +1341,14 @@ export default function PurchasesPage() {
                   ? '暂无绑定该仓库的供应商，请先到'
                   : '该门店暂无可选供应商，请先到'}
                 <Link href="/suppliers">供应商档案</Link>
-                配置供货范围并启用，或直接填写名称
+                配置供货范围并启用
               </span>
             ) : null}
-            {!supplierId ? (
-              <>
-                <Input
-                  style={{ width: 220 }}
-                  placeholder="或直接填写供应商名称"
-                  value={supplierName}
-                  onChange={(event) => setSupplierName(event.target.value)}
-                />
-                <Input
-                  style={{ width: 180 }}
-                  placeholder="供应商电话"
-                  value={supplierPhone}
-                  onChange={(event) => setSupplierPhone(event.target.value)}
-                />
-                {supplierName.trim() ? <Tag color="warning">未建档</Tag> : null}
-              </>
+            {selectedSupplier ? (
+              <span style={{ fontSize: 12, color: 'var(--admin-text-tertiary)' }}>
+                联系人：{selectedSupplier.contactName || '—'} · 电话：
+                {selectedSupplier.phone || '—'}
+              </span>
             ) : null}
             <Input
               type="date"

@@ -14,6 +14,7 @@ import {
 } from '../../../components/AdminListPage';
 import { useAdminSettings } from '../../../components/AdminSettingsProvider';
 import { TestDataCleanupButton } from '../../../components/TestDataCleanupButton';
+import { useConfirmDanger } from '../../../components/AdminConfirmProvider';
 
 interface AdminOption {
   id: string;
@@ -52,6 +53,7 @@ function formatTime(value: string | null) {
 /** 仓库管理页第一个 Tab：仓库列表与成员维护 */
 export function WarehouseListPanel({ header }: { header: ReactNode }) {
   const { pageSize } = useAdminSettings();
+  const confirmDanger = useConfirmDanger();
   const [rows, setRows] = useState<WarehouseRow[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -143,6 +145,14 @@ export function WarehouseListPanel({ header }: { header: ReactNode }) {
 
   async function submitWarehouse() {
     const values = await form.validateFields();
+    if (editing && editing.status === 'active' && values.status === 'disabled') {
+      const confirmed = await confirmDanger({
+        title: `停用仓库「${values.name}」？`,
+        content: '停用后该仓库不能再入库、分拨或盘点，已有库存与单据保留；可重新启用。',
+        okText: '确认停用'
+      });
+      if (!confirmed) return;
+    }
     setSubmitting(true);
     setError('');
     try {

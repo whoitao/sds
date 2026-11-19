@@ -1,9 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button, Checkbox, Form, Input, Modal, Popconfirm, Select, Space, Table, Tag, message } from 'antd';
+import { Button, Checkbox, Form, Input, Modal, Select, Space, Table, Tag, message } from 'antd';
 import { DeleteOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { adminColors as colors } from '../lib/theme';
+import { useConfirmDanger } from './AdminConfirmProvider';
 
 interface PermissionItem {
   id: string;
@@ -55,6 +56,7 @@ const CONDITION_PLACEHOLDER = '{"attr":"resource.status","op":"neq","value":"sus
 
 /** 管理员权限（ABAC）：管理员-角色绑定 + 角色权限授予与属性条件 */
 export function AdminPermissionPanel() {
+  const confirmDanger = useConfirmDanger();
   const [roles, setRoles] = useState<RoleItem[]>([]);
   const [permissions, setPermissions] = useState<PermissionItem[]>([]);
   const [admins, setAdmins] = useState<AdminItem[]>([]);
@@ -195,6 +197,12 @@ export function AdminPermissionPanel() {
   }
 
   async function removeRole(role: RoleItem) {
+    const confirmed = await confirmDanger({
+      title: `删除角色「${role.name}」？`,
+      content: '删除后不可恢复，已绑定该角色的管理员会立即失去对应权限。',
+      okText: '删除角色'
+    });
+    if (!confirmed) return;
     const response = await fetch(`/api/admin/roles/${role.id}`, { method: 'DELETE' });
     if (!response.ok) {
       const body = (await response.json().catch(() => null)) as { message?: string } | null;
@@ -348,11 +356,15 @@ export function AdminPermissionPanel() {
                 </span>
                 <div style={{ flex: 1 }} />
                 {selectedRole.isSystem ? null : (
-                  <Popconfirm title="删除该角色？" onConfirm={() => void removeRole(selectedRole)}>
-                    <Button size="small" danger variant="text" icon={<DeleteOutlined />}>
-                      删除
-                    </Button>
-                  </Popconfirm>
+                  <Button
+                    size="small"
+                    danger
+                    variant="text"
+                    icon={<DeleteOutlined />}
+                    onClick={() => void removeRole(selectedRole)}
+                  >
+                    删除
+                  </Button>
                 )}
                 <Button size="small" type="primary" loading={savingRole} onClick={() => void saveGrants()}>
                   保存授予

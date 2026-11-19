@@ -9,7 +9,12 @@ import { LoadingOverlay } from '@/components/LoadingOverlay';
 import ProgressSteps from '@/components/ProgressSteps';
 import { setDefaultAddressAction } from '@/app/(site)/addresses/actions';
 import type { AddressItem } from '@/lib/api';
-import type { CartGroup, CartPayload } from '@/lib/cart';
+import {
+  cartItemAvailability,
+  isCartItemUnavailable,
+  type CartGroup,
+  type CartPayload
+} from '@/lib/cart-model';
 import type { RegionTreeNode } from '@/lib/regions';
 import { placeOrderAction, type CheckoutOrder } from '@/lib/checkout-actions';
 
@@ -155,7 +160,7 @@ export default function Checkout({
       cart.carts.find((group) => group.shopId === backShop?.id)?.id ?? cart.carts[0]?.id ?? null;
     for (const group of cart.carts) {
       initial[group.id] =
-        group.id === preferred ? group.items.filter((item) => !item.soldOut).map((item) => item.id) : [];
+        group.id === preferred ? group.items.filter((item) => !isCartItemUnavailable(item)).map((item) => item.id) : [];
     }
     return initial;
   });
@@ -165,7 +170,7 @@ export default function Checkout({
     setSelection((previous) => {
       const next: Record<string, string[]> = {};
       for (const group of cart.carts) {
-        const availableIds = group.items.filter((item) => !item.soldOut).map((item) => item.id);
+        const availableIds = group.items.filter((item) => !isCartItemUnavailable(item)).map((item) => item.id);
         const previousIds = previous[group.id];
         next[group.id] =
           previousIds === undefined
@@ -192,7 +197,7 @@ export default function Checkout({
   const groups = cart.carts;
   const selectedIdsOf = (group: CartGroup) => selection[group.id] ?? [];
   const selectedItemsOf = (group: CartGroup) =>
-    group.items.filter((item) => !item.soldOut && selectedIdsOf(group).includes(item.id));
+    group.items.filter((item) => !isCartItemUnavailable(item) && selectedIdsOf(group).includes(item.id));
 
   // 一家店一单：优先结有勾选商品的店，没有勾选时回落到顶栏/店内选中的店
   const currentGroup: CartGroup | null =
@@ -205,12 +210,12 @@ export default function Checkout({
     : [];
 
   const address = addresses.find((item) => item.id === selectedAddressId) ?? null;
-  const shopInfo = currentGroup ? shops[currentGroup.shopId] : undefined;
-  // 售罄商品不参与选择、合计与提交
-  const availableItems = currentGroup ? currentGroup.items.filter((item) => !item.soldOut) : [];
+  // 已下架/已售罄的商品不参与选择、合计与提交
+  const availableItems = currentGroup ? currentGroup.items.filter((item) => !isCartItemUnavailable(item)) : [];
+  const unavailableItems = currentGroup ? currentGroup.items.filter(isCartItemUnavailable) : [];
   const selectedItems = currentGroup ? selectedItemsOf(currentGroup) : [];
-  const allSoldOut = Boolean(currentGroup) && currentGroup.items.length > 0 && availableItems.length === 0;
-  const nothingSelected = Boolean(currentGroup) && !allSoldOut && selectedItems.length === 0;
+  const allUnavailable = Boolean(currentGroup) && currentGroup.items.length > 0 && availableItems.length === 0;
+  const nothingSelected = Boolean(currentGroup) && !allUnavailable && selectedItems.length === 0;
   const needsAddress = fulfillment === 'delivery' && !address;
   const canSubmit = selectedItems.length > 0 && !pending && !needsAddress;
 
@@ -232,7 +237,7 @@ export default function Checkout({
   }
 
   function toggleGroup(group: CartGroup) {
-    const availableIds = group.items.filter((item) => !item.soldOut).map((item) => item.id);
+    const availableIds = group.items.filter((item) => !isCartItemUnavailable(item)).map((item) => item.id);
     setSelection((previous) => {
       const current = previous[group.id] ?? [];
       const allSelected = availableIds.length > 0 && availableIds.every((id) => current.includes(id));
@@ -277,7 +282,14 @@ export default function Checkout({
         ]
       });
       if (!result.ok) {
-        setError(result.error);
+        // 服务端已按门店实时状态拦截：把错误码翻成「怎么处理」，避免只看到一句「暂时不能购买」
+        const hint =
+          result.code === 'SKU_UNAVAILABLE'
+            ? '（已下架，请回到选菜页把它从购物车移除后再结算）'
+            : result.code === 'STOCK_INSUFFICIENT'
+              ? '（已售罄或库存不足，请移除或减少数量后再结算）'
+              : '';
+        setError(`${result.error}${hint}`);
         return;
       }
       setPlaced({
@@ -446,17 +458,17 @@ export default function Checkout({
   }
 
   return (
-    <div className="flex w-full min-w-0 flex-col gap-3">
+    <div className="flex w-full min-w-0 flex-col gap-3 lg:min-h-0 lg:flex-1 lg:overflow-hidden">
       <LoadingOverlay show={pending} text="正在提交，请稍候…" />
       <h1 className="sr-only">确认订单</h1>
       <ProgressSteps current={3} />
 
-      <div className="grid w-full min-w-0 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_400px]">
+      <div className="grid w-full min-w-0 items-start gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_400px] lg:overflow-x-hidden lg:overflow-y-auto">
         <div className="flex min-w-0 flex-col gap-3">
           {groups.map((group) => {
             const isCurrent = group.id === currentGroup.id;
             // 组头勾选与「已选 N 样」都只算可售商品，售罄项一律不计入
-            const availableIds = group.items.filter((item) => !item.soldOut).map((item) => item.id);
+            const availableIds = group.items.filter((item) => !isCartItemUnavailable(item)).map((item) => item.id);
             const selectedIds = selectedIdsOf(group);
             const selectedCount = availableIds.filter((id) => selectedIds.includes(id)).length;
             const noAvailable = availableIds.length === 0;
@@ -511,7 +523,10 @@ export default function Checkout({
 
                 <ul className="m-0 mt-3 flex list-none flex-col p-0">
                   {group.items.map((item) => {
-                    const isSelected = !item.soldOut && selectedIds.includes(item.id);
+                    const availability = cartItemAvailability(item);
+                    const unavailable = availability !== 'available';
+                    const isSelected = !unavailable && selectedIds.includes(item.id);
+                    const blockLabel = availability === 'off_shelf' ? '已下架' : '已售罄';
                     return (
                       <li
                         key={item.id}
@@ -521,20 +536,20 @@ export default function Checkout({
                           type="button"
                           role="checkbox"
                           aria-checked={isSelected}
-                          aria-disabled={item.soldOut || undefined}
-                          aria-label={`${item.soldOut ? '已售罄，无法选择：' : '选择：'}${item.name}`}
-                          title={item.soldOut ? '已售罄，无法选择' : undefined}
-                          disabled={item.soldOut}
+                          aria-disabled={unavailable || undefined}
+                          aria-label={`${unavailable ? `${blockLabel}，无法选择：` : '选择：'}${item.name}`}
+                          title={unavailable ? `${blockLabel}，无法选择` : undefined}
+                          disabled={unavailable}
                           onClick={() => toggleItem(group.id, item.id)}
                           className={`relative grid h-5 w-5 shrink-0 place-items-center rounded-full border-[1.5px] transition-colors before:absolute before:-inset-2 before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:ring-offset-1 disabled:cursor-not-allowed ${
-                            item.soldOut
+                            unavailable
                               ? 'border-line bg-segment text-ink-3'
                               : isSelected
                                 ? 'border-brand-500 bg-brand-500 text-white'
                                 : 'border-line bg-card text-transparent hover:border-brand-300'
                           }`}
                         >
-                          {item.soldOut ? (
+                          {unavailable ? (
                             <span className="h-[2px] w-2 rounded-full bg-ink-3" />
                           ) : isSelected ? (
                             <Icon name="check" className="h-3 w-3" />
@@ -557,7 +572,11 @@ export default function Checkout({
                           )}
                         </span>
                         <div className="min-w-0 flex-1">
-                          <p className="m-0 truncate text-[15px] font-bold text-ink sm:text-[16px]">
+                          <p
+                            className={`m-0 truncate text-[15px] font-bold sm:text-[16px] ${
+                              unavailable ? 'text-ink-3' : 'text-ink'
+                            }`}
+                          >
                             {item.name}
                           </p>
                           <p className="m-0 mt-0.5 text-[12px] leading-[1.45] text-ink-3 sm:text-[13px]">
@@ -574,20 +593,30 @@ export default function Checkout({
                               /{item.unit}
                             </span>
                           </p>
-                          {item.soldOut ? (
-                            <span className="mt-1 inline-flex rounded bg-danger-soft px-2 py-0.5 text-[12px] font-bold text-danger">
-                              已售罄
+                          {unavailable ? (
+                            <span
+                              className={`mt-1 inline-flex rounded px-2 py-0.5 text-[12px] font-bold ${
+                                availability === 'off_shelf'
+                                  ? 'bg-danger-soft text-danger'
+                                  : 'bg-segment text-ink-3'
+                              }`}
+                            >
+                              {blockLabel}
                             </span>
                           ) : null}
                         </div>
-                        <span className="shrink-0 whitespace-nowrap text-[16px] font-bold tabular-nums text-ink sm:text-[17px]">
+                        <span
+                          className={`shrink-0 whitespace-nowrap text-[16px] font-bold tabular-nums sm:text-[17px] ${
+                            unavailable ? 'text-ink-3' : 'text-ink'
+                          }`}
+                        >
                           ×{quantityOf(item.quantityText)}
                         </span>
                         <Price
                           as="b"
                           className="ml-1.5 w-[64px] shrink-0 text-right text-[15px] sm:ml-2 sm:w-[74px] sm:text-[17px]"
                           value={item.subtotal}
-                          color="ink"
+                          color={unavailable ? 'ink-3' : 'ink'}
                           weight={800}
                           symbolSize="1em"
                         />
@@ -610,7 +639,8 @@ export default function Checkout({
           })}
         </div>
 
-        <aside className={`${CARD} lg:sticky lg:top-0`}>
+        <aside className={`${CARD} lg:sticky lg:top-0 lg:flex lg:max-h-full lg:flex-col lg:overflow-hidden lg:p-0`}>
+          <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:p-5">
           <h2 className="m-0 text-[19px] font-extrabold text-ink">怎么拿菜</h2>
           <div className="mt-3 grid grid-cols-2 gap-2.5">
             <Choice
@@ -659,17 +689,34 @@ export default function Checkout({
               </button>
             </div>
           ) : (
-            <div className="mt-2.5 flex items-start gap-2.5 rounded-xl border border-line px-3.5 py-3">
-              <Icon name="pin" className="mt-0.5 h-5 w-5 shrink-0 text-brand-700" />
-              <div className="min-w-0 flex-1">
-                <p className="m-0 text-[14px] font-bold text-ink">{currentGroup.shopName}</p>
-                <p className="m-0 mt-0.5 text-[13px] leading-[1.5] text-ink-2">
-                  {shopInfo?.address ?? '门店地址待补充'}
-                </p>
-                <p className="m-0 mt-0.5 text-[13px] text-ink-3">
-                  取货人：{customerName || '当前账号'} {maskPhone(customerPhone)}
-                </p>
-              </div>
+            <div className="mt-2.5 flex flex-col gap-2">
+              {groups.map((group) => {
+                const isCurrent = group.id === currentGroup.id;
+                return (
+                  <div
+                    key={group.id}
+                    className={`flex items-start gap-2.5 rounded-xl border px-3.5 py-3 ${
+                      isCurrent ? 'border-brand-300 bg-brand-50/40' : 'border-line'
+                    }`}
+                  >
+                    <Icon name="pin" className="mt-0.5 h-5 w-5 shrink-0 text-brand-700" />
+                    <div className="min-w-0 flex-1">
+                      <p className="m-0 flex flex-wrap items-center gap-x-2 text-[14px] font-bold text-ink">
+                        {group.shopName}
+                        <span className="text-[12px] font-normal text-ink-3">
+                          {isCurrent ? '本次自提' : '下一单再结'}
+                        </span>
+                      </p>
+                      <p className="m-0 mt-0.5 text-[13px] leading-[1.5] text-ink-2">
+                        {shops[group.shopId]?.address ?? '门店地址待补充'}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+              <p className="m-0 px-1 text-[13px] text-ink-3">
+                取货人：{customerName || '当前账号'} {maskPhone(customerPhone)}
+              </p>
             </div>
           )}
 
@@ -694,7 +741,17 @@ export default function Checkout({
             </p>
           ) : null}
 
-          <div className="mt-4 border-t border-dashed border-line pt-4">
+          {unavailableItems.length > 0 ? (
+            <p className="m-0 mt-3 rounded-xl bg-amber-soft px-3 py-2 text-[12px] leading-[1.55] text-amber-ink">
+              {unavailableItems
+                .map((item) => `「${item.name}」${item.offShelf ? '已下架' : '已售罄'}`)
+                .join('、')}
+              暂不能购买，已自动排除、不计入合计；如需清理请回选菜页移除。
+            </p>
+          ) : null}
+          </div>
+
+          <div className="mt-4 shrink-0 border-t border-dashed border-line pt-4 lg:m-0 lg:border-solid lg:px-5 lg:pb-5">
             <div className="flex items-baseline justify-between gap-3">
               <span className="text-[15px] text-ink-2">一共 {pickedCount} 样，合计</span>
               <Price as="b" value={totalAmount} color="ink" size={28} weight={800} symbolSize="1em" />
@@ -724,8 +781,8 @@ export default function Checkout({
                   : '确认下单，收货再付'}
             </button>
             <p className="m-0 mt-2 min-h-[18px] text-center text-[12px] leading-[1.5] text-ink-3">
-              {allSoldOut
-                ? '这家店的菜都售罄了，暂时无法下单。'
+              {allUnavailable
+                ? '这家店的菜都已下架或售罄，暂时无法下单。'
                 : needsAddress
                   ? '请先选择一个收货地址'
                   : nothingSelected

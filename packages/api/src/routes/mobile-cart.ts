@@ -4,6 +4,7 @@ import { z } from 'zod';
 import {
   cartItems,
   carts,
+  catalogProducts,
   catalogSkus,
   getDb,
   productSkuStocks,
@@ -49,6 +50,7 @@ type CartSku = {
   productAvailable: boolean;
   productBlocked: boolean;
   catalogStatus: string | null;
+  catalogProductStatus: string | null;
 };
 
 type CartRow = {
@@ -69,6 +71,11 @@ type CartRow = {
   stock_type: 'tracked' | 'untracked' | null;
   stock_quantity: string | null;
   unit_price: string | null;
+  sku_available: boolean | null;
+  product_available: boolean | null;
+  product_blocked: boolean | null;
+  catalog_status: string | null;
+  catalog_product_status: string | null;
 };
 
 class CartError extends Error {
@@ -94,7 +101,8 @@ function ensureSkuBuyable(sku: CartSku) {
     !sku.skuAvailable ||
     !sku.productAvailable ||
     sku.productBlocked ||
-    (sku.catalogStatus && sku.catalogStatus !== 'active')
+    (sku.catalogStatus && sku.catalogStatus !== 'active') ||
+    (sku.catalogProductStatus && sku.catalogProductStatus !== 'published')
   ) {
     throw new CartError('SKU_UNAVAILABLE', '该规格暂时不能购买', 400);
   }
@@ -120,10 +128,12 @@ async function resolveCartSku(skuId?: string, productId?: string) {
            coalesce(st.quantity, 0) as "stockQuantity",
            p.is_available as "productAvailable",
            p.is_blocked as "productBlocked",
-           cs.status as "catalogStatus"
+           cs.status as "catalogStatus",
+           cp.status as "catalogProductStatus"
       from product_skus ps
       join products p on p.id = ps.product_id and p.shop_id = ps.shop_id
       left join catalog_skus cs on cs.id = ps.catalog_sku_id
+      left join catalog_products cp on cp.id = p.catalog_product_id
       left join product_sku_stocks st on st.product_sku_id = ps.id
      where ${condition}
      order by ps.is_default desc, ps.sort_order, ps.created_at
@@ -143,6 +153,11 @@ async function buildPayload(customerId: string) {
            ps.spec_name,
            ps.quantity_mode,
            ps.stock_type,
+           ps.is_available as sku_available,
+           p.is_available as product_available,
+           p.is_blocked as product_blocked,
+           cs.status as catalog_status,
+           cp.status as catalog_product_status,
            coalesce(st.quantity, 0) as stock_quantity,
            coalesce(ps.price, cs.default_price, p.price) as unit_price
       from carts c
@@ -182,6 +197,8 @@ async function buildPayload(customerId: string) {
         quantityMode: QuantityMode;
         stockQuantity: number;
         soldOut: boolean;
+        /** 已下架：门店停售、总部强制下架或目录规格非 active，与售罄分开标记 */
+        offShelf: boolean;
         subtotal: string;
       }[];
     }
@@ -208,6 +225,13 @@ async function buildPayload(customerId: string) {
     const unitPrice = money(row.unit_price);
     const quantityMode = row.quantity_mode ?? 'integer';
     const stockQuantity = quantityNumber(row.stock_quantity);
+    // 与下单校验（ensureBuyable）保持同一口径：任一可用性标记不通过即视为已下架
+    const offShelf =
+      !row.sku_available ||
+      !row.product_available ||
+      row.product_blocked === true ||
+      (row.catalog_status !== null && row.catalog_status !== 'active') ||
+      (row.catalog_product_status !== null && row.catalog_product_status !== 'published');
     group.items.push({
       id: row.item_id,
       productId: row.product_id,
@@ -222,6 +246,7 @@ async function buildPayload(customerId: string) {
       quantityMode,
       stockQuantity,
       soldOut: row.stock_type === 'tracked' && stockQuantity <= 0,
+      offShelf,
       subtotal: money(Number(unitPrice) * quantity)
     });
     group.itemCount += quantity;
@@ -372,13 +397,15 @@ cartRoutes.patch('/items/:itemId', async (c) => {
       skuAvailable: productSkus.isAvailable,
       productAvailable: products.isAvailable,
       productBlocked: products.isBlocked,
-      catalogStatus: catalogSkus.status
+      catalogStatus: catalogSkus.status,
+      catalogProductStatus: catalogProducts.status
     })
     .from(cartItems)
     .innerJoin(carts, eq(carts.id, cartItems.cartId))
     .innerJoin(productSkus, eq(productSkus.id, cartItems.productSkuId))
     .innerJoin(products, eq(products.id, productSkus.productId))
     .leftJoin(catalogSkus, eq(catalogSkus.id, productSkus.catalogSkuId))
+    .leftJoin(catalogProducts, eq(catalogProducts.id, products.catalogProductId))
     .leftJoin(productSkuStocks, eq(productSkuStocks.productSkuId, productSkus.id))
     .where(eq(cartItems.id, c.req.param('itemId')))
     .limit(1);
@@ -407,7 +434,8 @@ cartRoutes.patch('/items/:itemId', async (c) => {
     !row.skuAvailable ||
     !row.productAvailable ||
     row.productBlocked ||
-    (row.catalogStatus && row.catalogStatus !== 'active')
+    (row.catalogStatus && row.catalogStatus !== 'active') ||
+    (row.catalogProductStatus && row.catalogProductStatus !== 'published')
   ) {
     return c.json({ code: 'SKU_UNAVAILABLE', message: '该规格暂时不能购买' }, 400);
   }

@@ -2,8 +2,6 @@ import { Hono } from 'hono';
 import { and, asc, desc, eq, ilike, inArray, ne, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
-  adminUserShops,
-  adminUsers,
   catalogCategories,
   catalogProducts,
   catalogSkus,
@@ -18,7 +16,7 @@ import {
 } from '@sds/db';
 import { requireAdmin, type AdminEnv } from '../middleware/admin-auth.js';
 import { guardPermission } from '../lib/admin-access.js';
-import { accessibleShopIds, canAccessShop, isSuperAdmin } from '../lib/shop-scope.js';
+import { accessibleShopIds, canAccessShop } from '../lib/shop-scope.js';
 import {
   DOCUMENT_NEW_STATE,
   DocumentRuleError,
@@ -74,10 +72,6 @@ const updateSchema = z
 
 const actionSchema = z.object({
   reason: z.string().trim().max(200).nullish()
-});
-
-const shopScopeSchema = z.object({
-  shopIds: z.array(z.uuid('门店 ID 不合法')).max(200)
 });
 
 function parsePaging(query: Record<string, string | undefined>) {
@@ -344,90 +338,6 @@ requisitionRoutes.get('/suggestions', async (c) => {
   `);
 
   return c.json({ items: result.rows });
-});
-
-/** 门店范围管理：仅 super_admin 可查看和调整。 */
-requisitionRoutes.get('/shop-scope', async (c) => {
-  const admin = c.get('admin');
-  if (!(await isSuperAdmin(admin.sub))) {
-    return c.json({ code: 'FORBIDDEN', message: '只有超级管理员可以管理门店范围' }, 403);
-  }
-
-  const db = await getDb();
-  const [admins, shopRows, bindings] = await Promise.all([
-    db
-      .select({
-        id: adminUsers.id,
-        username: adminUsers.username,
-        displayName: adminUsers.displayName,
-        status: adminUsers.status
-      })
-      .from(adminUsers)
-      .where(eq(adminUsers.status, 1))
-      .orderBy(asc(adminUsers.username)),
-    db
-      .select({ id: shops.id, name: shops.name, status: shops.status })
-      .from(shops)
-      .orderBy(asc(shops.name)),
-    db
-      .select({ adminUserId: adminUserShops.adminUserId, shopId: adminUserShops.shopId })
-      .from(adminUserShops)
-  ]);
-
-  return c.json({
-    admins,
-    shops: shopRows,
-    items: admins.map((row) => ({
-      ...row,
-      shopIds: bindings.filter((bind) => bind.adminUserId === row.id).map((bind) => bind.shopId)
-    }))
-  });
-});
-
-requisitionRoutes.put('/shop-scope/:adminId', async (c) => {
-  const admin = c.get('admin');
-  if (!(await isSuperAdmin(admin.sub))) {
-    return c.json({ code: 'FORBIDDEN', message: '只有超级管理员可以管理门店范围' }, 403);
-  }
-
-  const parsed = shopScopeSchema.safeParse(await c.req.json().catch(() => null));
-  if (!parsed.success) {
-    return c.json(
-      { code: 'INVALID_BODY', message: parsed.error.issues[0]?.message ?? '参数不合法' },
-      400
-    );
-  }
-
-  const db = await getDb();
-  const targetAdminId = c.req.param('adminId');
-  const [target] = await db
-    .select({ id: adminUsers.id })
-    .from(adminUsers)
-    .where(eq(adminUsers.id, targetAdminId))
-    .limit(1);
-  if (!target) return c.json({ code: 'NOT_FOUND', message: '管理员不存在' }, 404);
-
-  const shopIds = [...new Set(parsed.data.shopIds)];
-  if (shopIds.length > 0) {
-    const found = await db
-      .select({ id: shops.id })
-      .from(shops)
-      .where(inArray(shops.id, shopIds));
-    if (found.length !== shopIds.length) {
-      return c.json({ code: 'SHOP_NOT_FOUND', message: '包含不存在的门店' }, 400);
-    }
-  }
-
-  await db.transaction(async (tx) => {
-    await tx.delete(adminUserShops).where(eq(adminUserShops.adminUserId, targetAdminId));
-    if (shopIds.length > 0) {
-      await tx
-        .insert(adminUserShops)
-        .values(shopIds.map((shopId) => ({ adminUserId: targetAdminId, shopId })));
-    }
-  });
-
-  return c.json({ item: { adminUserId: targetAdminId, shopIds } });
 });
 
 requisitionRoutes.get('/:id', async (c) => {

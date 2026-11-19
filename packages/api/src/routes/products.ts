@@ -18,6 +18,7 @@ import {
 } from '@sds/db';
 import { requireAdmin, type AdminEnv } from '../middleware/admin-auth.js';
 import { guardPermission } from '../lib/admin-access.js';
+import { canAccessShop } from '../lib/shop-scope.js';
 import { resolveCategoryScope } from '../lib/category-scope.js';
 import { inferQuantityMode } from '../lib/quantity.js';
 
@@ -662,6 +663,8 @@ productRoutes.get('/products', async (c) => {
         catalogCategoryId: catalogProducts.categoryId,
         catalogCategoryName: catalogCategories.name,
         catalogPrice: catalogProducts.defaultPrice,
+        // 总部商品状态：draft/archived 时顾客端不可见，店长不能自行上架
+        catalogStatus: catalogProducts.status,
         // 门店级库存：库存挂在 SKU 上，这里汇总展示
         stockQuantity: sql<number>`coalesce((
           select sum(st.quantity)
@@ -886,16 +889,25 @@ productRoutes.patch('/products/:id/availability', async (c) => {
     .select({
       shopId: products.shopId,
       isBlocked: products.isBlocked,
-      blockedReason: products.blockedReason
+      blockedReason: products.blockedReason,
+      catalogStatus: catalogProducts.status
     })
     .from(products)
+    .leftJoin(catalogProducts, eq(catalogProducts.id, products.catalogProductId))
     .where(eq(products.id, id))
     .limit(1);
 
   if (!current) return c.json({ code: 'NOT_FOUND', message: '商品不存在' }, 404);
 
-  const denied = await guardPermission(c, 'products.write', { shopId: current.shopId, productId: id });
+  // 店长使用窄权限下架/上架本店商品，不依赖 products.write（改价/规格）
+  const denied = await guardPermission(c, 'products.off_shelf', {
+    shopId: current.shopId,
+    productId: id
+  });
   if (denied) return denied;
+  if (!(await canAccessShop(c.get('admin').sub, current.shopId))) {
+    return c.json({ code: 'FORBIDDEN', message: '无权操作该店铺' }, 403);
+  }
 
   const body = await c.req.json<{ isAvailable?: boolean }>().catch(() => null);
   if (!body || typeof body.isAvailable !== 'boolean') {
@@ -907,6 +919,15 @@ productRoutes.patch('/products/:id/availability', async (c) => {
       {
         code: 'PRODUCT_BLOCKED',
         message: `商品已被总部强制下架，需总部解除后才能上架${current.blockedReason ? `：${current.blockedReason}` : ''}`
+      },
+      409
+    );
+  }
+  if (body.isAvailable && current.catalogStatus && current.catalogStatus !== 'published') {
+    return c.json(
+      {
+        code: 'CATALOG_PRODUCT_OFFLINE',
+        message: '总部已下架或归档该商品，需总部重新发布后才能上架'
       },
       409
     );

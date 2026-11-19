@@ -4,6 +4,7 @@ import { AdminSidebar } from '../../components/AdminSidebar';
 import { adminColors, THEME_COOKIE, isResolvedTheme, type ResolvedTheme } from '../../lib/theme';
 import { DEFAULT_DISPLAY_DENSITY, isDisplayDensity } from '../../lib/display';
 import { requireAdmin } from '../../lib/session';
+import { AdminConfirmProvider } from '../../components/AdminConfirmProvider';
 import { ConsoleProviders } from '../providers';
 
 export default async function ConsoleLayout({ children }: { children: ReactNode }) {
@@ -26,11 +27,21 @@ export default async function ConsoleLayout({ children }: { children: ReactNode 
       initialPageSize={pageSize}
       initialDisplayDensity={displayDensity}
     >
-      <div style={{ display: 'flex', minHeight: '100vh', background: adminColors.page }}>
-        {/* html[data-theme] 由根布局按主题 cookie 在服务端写入，这里不再插 <script> */}
-        <AdminSidebar displayName={admin.displayName} />
-        <main className="admin-main" style={{ flex: 1, minWidth: 0 }}>{children}</main>
-      </div>
+      <AdminConfirmProvider>
+        <div
+          style={{
+            display: 'flex',
+            minHeight: '100vh',
+            // 账号多级菜单向右伸出侧边栏，不参与页面横向滚动区域的计算
+            overflowX: 'clip',
+            background: adminColors.page
+          }}
+        >
+          {/* html[data-theme] 由根布局按主题 cookie 在服务端写入，这里不再插 <script> */}
+          <AdminSidebar displayName={admin.displayName} />
+          <main className="admin-main" style={{ flex: 1, minWidth: 0 }}>{children}</main>
+        </div>
+      </AdminConfirmProvider>
     </ConsoleProviders>
   );
 }

@@ -1,10 +1,21 @@
 import { Hono } from 'hono';
-import { and, desc, eq, ilike, sql } from 'drizzle-orm';
+import { and, desc, eq, ilike, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { adminRoles, adminUserRoles, adminUsers, addresses, customers, getDb, users, userRoleEnum } from '@sds/db';
+import {
+  adminRoles,
+  adminUserRoles,
+  adminUsers,
+  adminUserShops,
+  addresses,
+  customers,
+  getDb,
+  shops,
+  users,
+  userRoleEnum
+} from '@sds/db';
 import { hashPassword } from '../lib/password.js';
 import { requireAdmin, type AdminEnv } from '../middleware/admin-auth.js';
-import { guardPermission } from '../lib/admin-access.js';
+import { guardPermission, loadAdminAccess } from '../lib/admin-access.js';
 
 /**
  * 平台侧账号管理。
@@ -39,6 +50,8 @@ const updateUserSchema = z
   })
   .refine((value) => Object.keys(value).length > 0, '至少需要一个字段');
 
+const shopIdsSchema = z.array(z.string().uuid()).max(200).optional();
+
 const createAdminSchema = z.object({
   username: z
     .string()
@@ -49,6 +62,8 @@ const createAdminSchema = z.object({
   password: z.string().min(8, '密码至少 8 位').max(72),
   displayName: z.string().trim().min(1, '显示名必填').max(50),
   role: z.string().trim().max(32).optional(),
+  roleCode: z.string().trim().max(50).optional(),
+  shopIds: shopIdsSchema,
   status: z.number().int().min(0).max(1).optional()
 });
 
@@ -56,9 +71,38 @@ const updateAdminSchema = z
   .object({
     displayName: z.string().trim().min(1).max(50).optional(),
     role: z.string().trim().max(32).optional(),
+    roleCode: z.string().trim().max(50).optional(),
+    shopIds: shopIdsSchema,
     status: z.number().int().min(0).max(1).optional()
   })
   .refine((value) => Object.keys(value).length > 0, '至少需要一个字段');
+
+async function requireSuperAdmin(c: Parameters<typeof guardPermission>[0]) {
+  const { roles } = await loadAdminAccess(c.get('admin').sub);
+  return roles.some((role) => role.code === 'super_admin');
+}
+
+/** 覆盖管理员门店范围；super_admin 不受范围限制，直接清空绑定 */
+async function replaceAdminShops(
+  tx: Parameters<Parameters<Awaited<ReturnType<typeof getDb>>['transaction']>[0]>[0],
+  adminUserId: string,
+  roleCode: string | null,
+  shopIds: string[]
+) {
+  await tx.delete(adminUserShops).where(eq(adminUserShops.adminUserId, adminUserId));
+  if (roleCode === 'super_admin' || shopIds.length === 0) return;
+
+  const existed = await tx
+    .select({ id: shops.id })
+    .from(shops)
+    .where(inArray(shops.id, shopIds));
+  if (existed.length !== shopIds.length) {
+    throw new Error('INVALID_SHOP');
+  }
+  await tx
+    .insert(adminUserShops)
+    .values(shopIds.map((shopId) => ({ adminUserId, shopId })));
+}
 
 function isUniqueViolation(error: unknown) {
   return typeof error === 'object' && error !== null && (error as { code?: string }).code === '23505';
@@ -260,42 +304,101 @@ adminAccountRoutes.get('/admins', async (c) => {
     db.select({ total: sql<number>`count(*)::int` }).from(adminUsers).where(where)
   ]);
 
-  return c.json({ items, total: totalRows[0]?.total ?? 0, page, pageSize });
+  // 管理员的实际角色与管辖门店：列表里直接展示，编辑表单也用它回填
+  const ids = items.map((item) => item.id);
+  const roleRows = ids.length
+    ? await db
+        .select({
+          adminUserId: adminUserRoles.adminUserId,
+          id: adminRoles.id,
+          code: adminRoles.code,
+          name: adminRoles.name
+        })
+        .from(adminUserRoles)
+        .innerJoin(adminRoles, eq(adminRoles.id, adminUserRoles.roleId))
+        .where(inArray(adminUserRoles.adminUserId, ids))
+    : [];
+  const shopRows = ids.length
+    ? await db
+        .select({ adminUserId: adminUserShops.adminUserId, id: shops.id, name: shops.name })
+        .from(adminUserShops)
+        .innerJoin(shops, eq(shops.id, adminUserShops.shopId))
+        .where(inArray(adminUserShops.adminUserId, ids))
+    : [];
+
+  const roleMap = new Map<string, { id: string; code: string; name: string }[]>();
+  for (const row of roleRows) {
+    const list = roleMap.get(row.adminUserId) ?? [];
+    list.push({ id: row.id, code: row.code, name: row.name });
+    roleMap.set(row.adminUserId, list);
+  }
+  const shopMap = new Map<string, { id: string; name: string }[]>();
+  for (const row of shopRows) {
+    const list = shopMap.get(row.adminUserId) ?? [];
+    list.push({ id: row.id, name: row.name });
+    shopMap.set(row.adminUserId, list);
+  }
+
+  return c.json({
+    items: items.map((item) => ({
+      ...item,
+      roles: roleMap.get(item.id) ?? [],
+      shops: shopMap.get(item.id) ?? []
+    })),
+    total: totalRows[0]?.total ?? 0,
+    page,
+    pageSize
+  });
 });
 
 adminAccountRoutes.post('/admins', async (c) => {
   const denied = await guardPermission(c, 'admins.write');
   if (denied) return denied;
+  if (!(await requireSuperAdmin(c))) {
+    return c.json({ code: 'FORBIDDEN', message: '只有超级管理员可以新建管理员' }, 403);
+  }
 
   const parsed = createAdminSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) {
     return c.json({ code: 'INVALID_BODY', message: parsed.error.issues[0]?.message ?? '参数不合法' }, 400);
   }
 
+  const roleCode = parsed.data.roleCode ?? 'viewer';
+  const shopIds = Array.from(new Set(parsed.data.shopIds ?? []));
+
   try {
     const db = await getDb();
-    const [row] = await db
-      .insert(adminUsers)
-      .values({
-        username: parsed.data.username.toLowerCase(),
-        passwordHash: await hashPassword(parsed.data.password),
-        displayName: parsed.data.displayName,
-        role: parsed.data.role ?? 'platform_admin',
-        status: parsed.data.status ?? 1
-      })
-      .returning({ id: adminUsers.id });
+    const row = await db.transaction(async (tx) => {
+      const [role] = await tx
+        .select({ id: adminRoles.id, code: adminRoles.code })
+        .from(adminRoles)
+        .where(eq(adminRoles.code, roleCode));
+      if (!role) throw new Error('INVALID_ROLE');
 
-    // 新建管理员默认授予只读角色，具体权限在「管理员权限」tab 里调整
-    const [viewerRole] = await db
-      .select({ id: adminRoles.id })
-      .from(adminRoles)
-      .where(eq(adminRoles.code, 'viewer'));
-    if (viewerRole) {
-      await db.insert(adminUserRoles).values({ adminUserId: row.id, roleId: viewerRole.id });
-    }
+      const [created] = await tx
+        .insert(adminUsers)
+        .values({
+          username: parsed.data.username.toLowerCase(),
+          passwordHash: await hashPassword(parsed.data.password),
+          displayName: parsed.data.displayName,
+          role: parsed.data.role ?? role.code,
+          status: parsed.data.status ?? 1
+        })
+        .returning({ id: adminUsers.id });
+
+      await tx.insert(adminUserRoles).values({ adminUserId: created.id, roleId: role.id });
+      await replaceAdminShops(tx, created.id, role.code, shopIds);
+      return created;
+    });
 
     return c.json({ item: row }, 201);
   } catch (error) {
+    if (error instanceof Error && error.message === 'INVALID_ROLE') {
+      return c.json({ code: 'INVALID_ROLE', message: '角色不存在' }, 400);
+    }
+    if (error instanceof Error && error.message === 'INVALID_SHOP') {
+      return c.json({ code: 'INVALID_SHOP', message: '包含不存在的门店' }, 400);
+    }
     if (isUniqueViolation(error)) {
       return c.json({ code: 'USERNAME_EXISTS', message: '该账号已存在' }, 409);
     }
@@ -306,20 +409,82 @@ adminAccountRoutes.post('/admins', async (c) => {
 adminAccountRoutes.patch('/admins/:id', async (c) => {
   const denied = await guardPermission(c, 'admins.write');
   if (denied) return denied;
+  if (!(await requireSuperAdmin(c))) {
+    return c.json({ code: 'FORBIDDEN', message: '只有超级管理员可以修改管理员' }, 403);
+  }
 
   const parsed = updateAdminSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) {
     return c.json({ code: 'INVALID_BODY', message: parsed.error.issues[0]?.message ?? '参数不合法' }, 400);
   }
 
-  const [row] = await (await getDb())
-    .update(adminUsers)
-    .set({ ...parsed.data, updatedAt: new Date() })
-    .where(eq(adminUsers.id, c.req.param('id')))
-    .returning({ id: adminUsers.id });
+  const adminId = c.req.param('id');
+  const { roleCode, shopIds, role: legacyRole, ...fields } = parsed.data;
+  const nextShopIds = shopIds === undefined ? undefined : Array.from(new Set(shopIds));
 
-  if (!row) return c.json({ code: 'NOT_FOUND', message: '管理员不存在' }, 404);
-  return c.json({ item: row });
+  try {
+    const db = await getDb();
+    const row = await db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(adminUsers)
+        .set({
+          ...fields,
+          ...(legacyRole ? { role: legacyRole } : {}),
+          updatedAt: new Date()
+        })
+        .where(eq(adminUsers.id, adminId))
+        .returning({ id: adminUsers.id });
+
+      if (!updated) return null;
+
+      let currentRoleCode: string | null = null;
+      if (roleCode) {
+        const [role] = await tx
+          .select({ id: adminRoles.id, code: adminRoles.code })
+          .from(adminRoles)
+          .where(eq(adminRoles.code, roleCode));
+        if (!role) throw new Error('INVALID_ROLE');
+        currentRoleCode = role.code;
+
+        // 单选表单：目标角色已在身上时保留其他附加角色，只有切换角色才覆盖重绑
+        const currentRoles = await tx
+          .select({ code: adminRoles.code })
+          .from(adminUserRoles)
+          .innerJoin(adminRoles, eq(adminRoles.id, adminUserRoles.roleId))
+          .where(eq(adminUserRoles.adminUserId, adminId));
+        if (!currentRoles.some((item) => item.code === role.code)) {
+          await tx.delete(adminUserRoles).where(eq(adminUserRoles.adminUserId, adminId));
+          await tx.insert(adminUserRoles).values({ adminUserId: adminId, roleId: role.id });
+        }
+        await tx.update(adminUsers).set({ role: role.code }).where(eq(adminUsers.id, adminId));
+      } else {
+        const [current] = await tx
+          .select({ code: adminRoles.code })
+          .from(adminUserRoles)
+          .innerJoin(adminRoles, eq(adminRoles.id, adminUserRoles.roleId))
+          .where(eq(adminUserRoles.adminUserId, adminId))
+          .limit(1);
+        currentRoleCode = current?.code ?? null;
+      }
+
+      if (nextShopIds !== undefined || (roleCode && currentRoleCode === 'super_admin')) {
+        await replaceAdminShops(tx, adminId, currentRoleCode, nextShopIds ?? []);
+      }
+
+      return updated;
+    });
+
+    if (!row) return c.json({ code: 'NOT_FOUND', message: '管理员不存在' }, 404);
+    return c.json({ item: row });
+  } catch (error) {
+    if (error instanceof Error && error.message === 'INVALID_ROLE') {
+      return c.json({ code: 'INVALID_ROLE', message: '角色不存在' }, 400);
+    }
+    if (error instanceof Error && error.message === 'INVALID_SHOP') {
+      return c.json({ code: 'INVALID_SHOP', message: '包含不存在的门店' }, 400);
+    }
+    throw error;
+  }
 });
 
 adminAccountRoutes.patch('/admins/:id/status', async (c) => {

@@ -42,6 +42,16 @@ export const warehouseTransfers = pgTable(
     handledByAdminId: uuid('handled_by_admin_id').references(() => adminUsers.id, {
       onDelete: 'set null'
     }),
+    /** 建议收货责任人：发货时按目标门店店长自动带出，可修改；为空表示未指派 */
+    receiverAdminId: uuid('receiver_admin_id').references(() => adminUsers.id, {
+      onDelete: 'set null'
+    }),
+    /** 实际收货人：代收时与建议责任人不一致 */
+    receivedByAdminId: uuid('received_by_admin_id').references(() => adminUsers.id, {
+      onDelete: 'set null'
+    }),
+    /** 应收货截止时间：全部发出时按 SLA 写入 */
+    receiveDueAt: timestamp('receive_due_at', { withTimezone: true }),
     allocatedAt: timestamp('allocated_at', { withTimezone: true }),
     shippedAt: timestamp('shipped_at', { withTimezone: true }),
     receivedAt: timestamp('received_at', { withTimezone: true }),
@@ -62,7 +72,12 @@ export const warehouseTransfers = pgTable(
       t.fromWarehouseId,
       t.createdAt
     ),
-    shopIdx: index('warehouse_transfers_shop_idx').on(t.toShopId, t.createdAt)
+    shopIdx: index('warehouse_transfers_shop_idx').on(t.toShopId, t.createdAt),
+    receiverIdx: index('warehouse_transfers_receiver_idx').on(
+      t.receiverAdminId,
+      t.status,
+      t.receiveDueAt
+    )
   })
 );
 

@@ -158,11 +158,36 @@ body {
   background: var(--admin-surface);
 }
 
+/* 页签当页头：页签容器铺满页头，去掉 antd 自带的底部分隔线，
+   让选中下划线压在页头容器底边这条线上，避免「高亮线在上、容器线在下」的双线。 */
+.admin-page-bar > div:first-child {
+  align-self: stretch;
+  min-height: 0;
+}
+
 .admin-page-bar .ant-tabs,
 .admin-page-bar .ant-tabs-nav,
 .admin-page-bar .ant-tabs-nav-wrap,
 .admin-page-bar .ant-tabs-nav-list {
   height: 100%;
+}
+
+/* antd 6 的 nav 默认带 margin-bottom，作为纵向 flex 子项会被压缩，
+   导致 ink bar 与容器底边错位；这里清零并禁止收缩，保持页头总高不变。 */
+.admin-page-bar .ant-tabs-nav {
+  flex: none;
+  margin: 0;
+}
+
+/* 只保留页头容器的 border-bottom，隐藏 antd 的 nav::before 分隔线 */
+.admin-page-bar .ant-tabs-nav::before {
+  content: none;
+}
+
+/* 下划线向下压 1px，正好覆盖容器底边，视觉上合成一条线 */
+.admin-page-bar .ant-tabs-top > .ant-tabs-nav .ant-tabs-ink-bar,
+.admin-page-bar .ant-tabs-top > div > .ant-tabs-nav .ant-tabs-ink-bar {
+  bottom: -1px;
 }
 
 .admin-page-bar .ant-tabs-tab {
@@ -283,6 +308,18 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+/* 区间选择器比单个筛选字段宽，避免日期文字被截断；整组不拆散，窄屏随筛选行换行 */
+.admin-filter-range {
+  flex: 0 0 auto;
+
+  width: var(--admin-filter-date-range-width, 260px);
+  max-width: 100%;
+}
+
+.admin-filter-range .ant-picker {
+  width: 100%;
 }
 
 .admin-filter-field > .ant-space-compact > .ant-input,

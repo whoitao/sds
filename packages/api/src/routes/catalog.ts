@@ -63,13 +63,15 @@ async function resolveCatalogCategoryScope(categoryId: string, includeDescendant
 }
 
 catalogRoutes.get('/catalog/categories', async (c) => {
-  const denied = await guardPermission(c, 'catalog.read');
+  // 带 shopId 是门店维度读取（分类可见性页签），只需 products.read；
+  // 不带 shopId 是总部商品库，仍要求总部级的 catalog.read
+  const shopId = c.req.query('shopId')?.trim() ?? '';
+  const denied = await guardPermission(c, shopId ? 'products.read' : 'catalog.read');
   if (denied) return denied;
 
   const db = await getDb();
   const keyword = c.req.query('keyword')?.trim() ?? '';
   const isActive = c.req.query('isActive')?.trim() ?? '';
-  const shopId = c.req.query('shopId')?.trim() ?? '';
 
   const filters = [];
   if (keyword) filters.push(ilike(catalogCategories.name, `%${keyword}%`));

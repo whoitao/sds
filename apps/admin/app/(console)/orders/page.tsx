@@ -21,6 +21,7 @@ import { ReloadOutlined } from '@ant-design/icons';
 import { ORDER_STATUS_LABELS, type OrderStatus } from '@sds/shared';
 import { useAdminSettings } from '../../../components/AdminSettingsProvider';
 import { TestDataCleanupButton } from '../../../components/TestDataCleanupButton';
+import { useConfirmDanger } from '../../../components/AdminConfirmProvider';
 import { getAdminTableProps } from '../../../lib/table';
 import {
   AdminFilterField,
@@ -151,6 +152,7 @@ const REFUNDABLE_STATUSES: OrderStatus[] = ['paid', 'preparing', 'pickup_ready']
 
 export default function OrdersPage() {
   const [modal, contextHolder] = Modal.useModal();
+  const confirmDanger = useConfirmDanger();
   const { pageSize } = useAdminSettings();
   const [shops, setShops] = useState<ShopOption[]>([]);
   const [rows, setRows] = useState<OrderRow[]>([]);
@@ -265,16 +267,14 @@ export default function OrdersPage() {
     }
   }
 
-  function confirmAction(row: Pick<OrderRow, 'id' | 'orderNo'>, next: OrderStatus) {
+  async function confirmAction(row: Pick<OrderRow, 'id' | 'orderNo'>, next: OrderStatus) {
     if (next === 'cancelled') {
-      modal.confirm({
+      const confirmed = await confirmDanger({
         title: `取消订单 ${row.orderNo}？`,
-        content: '取消后商品数量会回补到门店库存，顾客端会看到「已取消」。',
-        okText: '取消订单',
-        okButtonProps: { danger: true },
-        cancelText: '再想想',
-        onOk: () => changeStatus(row, next)
+        content: '取消后商品数量会回补到门店库存，顾客端会看到「已取消」；不可撤销。',
+        okText: '取消订单'
       });
+      if (confirmed) await changeStatus(row, next);
       return;
     }
     if (next === 'completed') {
@@ -319,15 +319,13 @@ export default function OrdersPage() {
     }
   }
 
-  function confirmRefund(row: Pick<OrderRow, 'id' | 'orderNo' | 'totalAmount'>) {
-    modal.confirm({
+  async function confirmRefund(row: Pick<OrderRow, 'id' | 'orderNo' | 'totalAmount'>) {
+    const confirmed = await confirmDanger({
       title: `给订单 ${row.orderNo} 退款 ¥${row.totalAmount}？`,
-      content: '退款后订单变为「已退款」，商品数量会回补到门店库存，顾客端会看到退款结果。',
-      okText: '同意退款',
-      okButtonProps: { danger: true },
-      cancelText: '再想想',
-      onOk: () => decideRefund(row, 'approve')
+      content: '退款后订单变为「已退款」，商品数量会回补到门店库存，顾客端会看到退款结果；不可撤销。',
+      okText: '同意退款'
     });
+    if (confirmed) await decideRefund(row, 'approve');
   }
 
   function askReject(row: Pick<OrderRow, 'id' | 'orderNo'>) {

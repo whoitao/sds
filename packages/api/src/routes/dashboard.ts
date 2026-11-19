@@ -17,6 +17,7 @@ dashboardRoutes.use('*', requireAdmin);
 
 const SHANGHAI_OFFSET_MS = 8 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * 参与销售口径的订单：用正向状态列表而不是 NOT IN，
@@ -108,10 +109,26 @@ dashboardRoutes.get('/', async (c) => {
   if (denied) return denied;
 
   const admin = c.get('admin');
-  const [shopIds, warehouseIds] = await Promise.all([
+
+  // 门店筛选：不传 = 当前账号范围内全部；传了必须是可访问门店
+  const requestedShopId = c.req.query('shopId')?.trim() || null;
+  if (requestedShopId && !UUID_RE.test(requestedShopId)) {
+    return c.json({ code: 'INVALID_SHOP_ID', message: '门店 ID 不合法' }, 400);
+  }
+
+  let [shopIds, warehouseIds] = await Promise.all([
     accessibleShopIds(admin.sub),
     accessibleWarehouseIds(admin.sub)
   ]);
+
+  if (requestedShopId) {
+    if (shopIds !== null && !shopIds.includes(requestedShopId)) {
+      return c.json({ code: 'FORBIDDEN', message: '无权查看该门店数据' }, 403);
+    }
+    // 单店口径：门店类指标收敛到该店；仓库类指标不属于单店，按 0 处理
+    shopIds = [requestedShopId];
+    warehouseIds = [];
+  }
 
   const db = await getDb();
   const now = new Date();
@@ -346,6 +363,7 @@ dashboardRoutes.get('/', async (c) => {
     scope: {
       allShops: shopIds === null,
       shopCount: shopIds === null ? null : shopIds.length,
+      selectedShopId: requestedShopId,
       allWarehouses: warehouseIds === null,
       warehouseCount: warehouseIds === null ? null : warehouseIds.length
     },

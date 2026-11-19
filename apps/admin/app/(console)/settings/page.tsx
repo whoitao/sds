@@ -244,9 +244,8 @@ export default function SiteSettingsPage() {
             style={{ margin: '0 16px 8px' }}
             type={notice.type}
             showIcon
-            message={notice.text}
-            closable
-            onClose={() => setNotice(null)}
+            title={notice.text}
+            closable={{ onClose: () => setNotice(null) }}
           />
         ) : undefined
       }
@@ -262,7 +261,7 @@ export default function SiteSettingsPage() {
           <Alert
             type="warning"
             showIcon
-            message="没有权限"
+            title="没有权限"
             description="站点设置仅超级管理员可查看和修改，请联系超级管理员。"
           />
         </div>
@@ -271,7 +270,7 @@ export default function SiteSettingsPage() {
           <Alert
             type="error"
             showIcon
-            message="加载失败"
+            title="加载失败"
             description={loadError}
             action={
               <Button size="small" onClick={() => void load()}>

@@ -8,6 +8,8 @@ export type ApiResponse<T> = {
   status: number;
   data: T | null;
   message?: string;
+  /** 接口返回的业务错误码，前端可据此给出更明确的处理提示 */
+  code?: string;
 };
 
 type RequestOptions = {
@@ -38,7 +40,8 @@ export async function apiRequest<T>(
       ok: response.ok,
       status: response.status,
       data,
-      message: (data as { message?: string } | null)?.message
+      message: (data as { message?: string } | null)?.message,
+      code: (data as { code?: string } | null)?.code
     };
   } catch {
     return { ok: false, status: 0, data: null, message: '网络异常，请稍后重试' };

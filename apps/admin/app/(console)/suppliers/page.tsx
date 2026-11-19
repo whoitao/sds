@@ -13,6 +13,7 @@ import {
 } from '../../../components/AdminListPage';
 import { useAdminSettings } from '../../../components/AdminSettingsProvider';
 import { TestDataCleanupButton } from '../../../components/TestDataCleanupButton';
+import { useConfirmDanger } from '../../../components/AdminConfirmProvider';
 
 interface SupplierRow {
   id: string;
@@ -63,6 +64,7 @@ function formatTime(value: string | null) {
 
 export default function SuppliersPage() {
   const { pageSize } = useAdminSettings();
+  const confirmDanger = useConfirmDanger();
   const [rows, setRows] = useState<SupplierRow[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -185,6 +187,14 @@ export default function SuppliersPage() {
 
   async function submitSupplier() {
     const values = await form.validateFields();
+    if (editing && editing.status === 'active' && values.status === 'disabled') {
+      const confirmed = await confirmDanger({
+        title: `停用供应商「${values.name}」？`,
+        content: '停用后该供应商不再出现在采购单选供应商中，已有采购单与结算记录保留；可重新启用。',
+        okText: '确认停用'
+      });
+      if (!confirmed) return;
+    }
     setSubmitting(true);
     setError('');
     const payload = {

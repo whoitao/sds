@@ -35,7 +35,7 @@ export type PlaceOrderInput = {
 
 export type PlaceOrderResult =
   | { ok: true; orders: CheckoutOrder[] }
-  | { ok: false; error: string };
+  | { ok: false; error: string; code?: string };
 
 const CHECKOUT_PATH = '/checkout';
 
@@ -58,7 +58,11 @@ export async function placeOrderAction(input: PlaceOrderInput): Promise<PlaceOrd
 
   if (response.status === 401) redirect(`/login?next=${encodeURIComponent(CHECKOUT_PATH)}`);
   if (!response.ok || !response.data?.orders) {
-    return { ok: false, error: response.message ?? '下单失败，请稍后再试' };
+    return {
+      ok: false,
+      error: response.message ?? '下单失败，请稍后再试',
+      code: response.code
+    };
   }
 
   // 下单成功后购物车条目已被接口清空：刷新布局，让顶栏角标与店内购物车同步

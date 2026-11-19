@@ -27,12 +27,11 @@ import {
   ShoppingCartOutlined,
   ShoppingOutlined,
   SunOutlined,
-  SwapOutlined,
   UnorderedListOutlined,
   UserOutlined,
   ContainerOutlined
 } from '@ant-design/icons';
-import { Tooltip } from 'antd';
+import { Badge, Tooltip } from 'antd';
 import { PAGE_SIZE_OPTIONS, useAdminSettings, type ThemePreference } from './AdminSettingsProvider';
 import { adminColors as palette } from '../lib/theme';
 import type { DisplayDensity } from '../lib/display';
@@ -51,24 +50,37 @@ const DISPLAY_OPTIONS: { value: DisplayDensity; label: string }[] = [
 
 type Flyout = 'none' | 'root' | 'theme' | 'pageSize' | 'display';
 
-const MAIN_ITEMS = [
-  { href: '/dashboard', label: '控制面板', icon: <DashboardOutlined /> },
-  { href: '/shops', label: '店铺管理', icon: <ShopOutlined /> },
-  { href: '/users', label: '用户管理', icon: <UserOutlined /> },
-  { href: '/products', label: '店铺商品', icon: <AppstoreOutlined /> },
-  { href: '/inventory', label: '店铺库存', icon: <InboxOutlined /> },
-  { href: '/catalog', label: '总部商品库', icon: <DatabaseOutlined /> },
-  { href: '/carts', label: '购物车管理', icon: <ShoppingCartOutlined /> },
-  { href: '/orders', label: '订单管理', icon: <FileTextOutlined /> },
-  { href: '/damage-reports', label: '报损管理', icon: <FileExclamationOutlined /> },
-  { href: '/purchases', label: '采购管理', icon: <ShoppingOutlined /> },
-  { href: '/warehouse-transfers', label: '分拨管理', icon: <SwapOutlined /> },
-  { href: '/requisitions', label: '门店要货', icon: <UnorderedListOutlined /> },
-  { href: '/demand-plans', label: '需求汇总', icon: <ContainerOutlined /> },
-  { href: '/suppliers', label: '供应商档案', icon: <ContactsOutlined /> },
-  { href: '/warehouses', label: '仓库管理', icon: <HomeOutlined /> },
-  { href: '/reports', label: '报表统计', icon: <BarChartOutlined /> },
-  { href: '/settings', label: '系统设置', icon: <SettingOutlined /> }
+type MenuItem = {
+  href: string;
+  label: string;
+  icon: React.ReactNode;
+  /** 所需权限码；数组表示任一满足即可。superOnly 项只对超级管理员展示 */
+  permission?: string | string[];
+  superOnly?: boolean;
+};
+
+const MAIN_ITEMS: MenuItem[] = [
+  { href: '/dashboard', label: '控制面板', icon: <DashboardOutlined />, permission: 'reports.read' },
+  { href: '/shops', label: '店铺管理', icon: <ShopOutlined />, permission: 'shops.read' },
+  { href: '/users', label: '用户管理', icon: <UserOutlined />, permission: 'users.read' },
+  { href: '/products', label: '店铺商品', icon: <AppstoreOutlined />, permission: 'products.read' },
+  { href: '/inventory', label: '店铺库存', icon: <InboxOutlined />, permission: 'inventory.read' },
+  { href: '/catalog', label: '总部商品库', icon: <DatabaseOutlined />, permission: 'catalog.read' },
+  { href: '/carts', label: '购物车管理', icon: <ShoppingCartOutlined />, permission: 'carts.read' },
+  { href: '/orders', label: '订单管理', icon: <FileTextOutlined />, permission: 'orders.read' },
+  { href: '/damage-reports', label: '报损管理', icon: <FileExclamationOutlined />, permission: 'inventory.read' },
+  { href: '/purchases', label: '采购管理', icon: <ShoppingOutlined />, permission: 'purchases.read' },
+  { href: '/requisitions', label: '门店要货', icon: <UnorderedListOutlined />, permission: 'requisitions.read' },
+  { href: '/demand-plans', label: '需求汇总', icon: <ContainerOutlined />, permission: 'demand.read' },
+  { href: '/suppliers', label: '供应商档案', icon: <ContactsOutlined />, permission: 'suppliers.read' },
+  {
+    href: '/warehouses',
+    label: '仓库管理',
+    icon: <HomeOutlined />,
+    permission: ['warehouse.read', 'warehouse.transfer_read']
+  },
+  { href: '/reports', label: '报表统计', icon: <BarChartOutlined />, permission: 'reports.read' },
+  { href: '/settings', label: '系统设置', icon: <SettingOutlined />, superOnly: true }
 ];
 
 const SECONDARY_ITEMS = [{ href: '/about', label: '关于', icon: <InfoCircleOutlined /> }];
@@ -161,6 +173,74 @@ export function AdminSidebar({ displayName }: { displayName: string }) {
   const [flyout, setFlyout] = useState<Flyout>('none');
   const accountRef = useRef<HTMLDivElement>(null);
   const flyoutTimer = useRef<number | null>(null);
+
+  // 当前管理员的角色与权限：没权限的菜单不渲染，避免点进去才 403
+  const [access, setAccess] = useState<{ permissions: string[]; isSuperAdmin: boolean } | null>(null);
+  /** 「仓库管理」入口的待我收货角标；只有持有分拨窄权限的店长才请求 */
+  const [pendingReceipts, setPendingReceipts] = useState(0);
+  useEffect(() => {
+    let active = true;
+    fetch('/api/admin/me/permissions', { cache: 'no-store' })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload) => {
+        if (!active) return;
+        setAccess({
+          permissions: payload?.permissions ?? [],
+          isSuperAdmin: (payload?.roles ?? []).some((role: { code?: string }) => role.code === 'super_admin')
+        });
+      })
+      .catch(() => {
+        // 权限接口失败时退化为展示全部常规菜单（接口侧仍会拦截），避免后台无法导航
+        if (active) {
+          setAccess({
+            permissions: MAIN_ITEMS.flatMap((item) =>
+              Array.isArray(item.permission)
+                ? item.permission
+                : item.permission
+                  ? [item.permission]
+                  : []
+            ),
+            isSuperAdmin: false
+          });
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // 角标数据来源与分拨页「待我收货」一致：receiptScope=mine 的总数；路由变化时刷新
+  useEffect(() => {
+    if (!access?.permissions.includes('warehouse.transfer_read')) {
+      setPendingReceipts(0);
+      return;
+    }
+    let active = true;
+    fetch('/api/admin/warehouse-transfers?receiptScope=mine&page=1&pageSize=1', {
+      cache: 'no-store'
+    })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload) => {
+        if (active) setPendingReceipts(Number(payload?.total ?? 0));
+      })
+      .catch(() => {
+        // 角标失败不影响导航
+      });
+    return () => {
+      active = false;
+    };
+  }, [access, pathname]);
+
+  const visibleItems = access
+    ? MAIN_ITEMS.filter((item) =>
+        item.superOnly
+          ? access.isSuperAdmin
+          : !item.permission ||
+            (Array.isArray(item.permission)
+              ? item.permission.some((code) => access.permissions.includes(code))
+              : access.permissions.includes(item.permission))
+      )
+    : [];
 
   // 菜单项的字号、行高与间距由「展示效果」的 CSS 变量统一控制，标准档等于原视觉
   const itemStyle = (active: boolean) => ({
@@ -352,7 +432,7 @@ export function AdminSidebar({ displayName }: { displayName: string }) {
       </div>
 
       <nav style={{ flex: 1, overflowY: 'auto', padding: '6px 0 8px' }}>
-        {MAIN_ITEMS.map((item) => {
+        {visibleItems.map((item) => {
           const link = (
             <Link
               key={item.href}
@@ -360,7 +440,15 @@ export function AdminSidebar({ displayName }: { displayName: string }) {
               style={itemStyle(pathname.startsWith(item.href))}
             >
               <span style={{ fontSize: 16, lineHeight: 1, flex: 'none' }}>{item.icon}</span>
-              {!collapsed ? <span>{item.label}</span> : null}
+              {!collapsed ? <span style={{ flex: 1 }}>{item.label}</span> : null}
+              {item.href === '/warehouses' && pendingReceipts > 0 ? (
+                <Badge
+                  count={pendingReceipts}
+                  size="small"
+                  overflowCount={99}
+                  style={{ flex: 'none', marginLeft: collapsed ? 0 : 4 }}
+                />
+              ) : null}
             </Link>
           );
 

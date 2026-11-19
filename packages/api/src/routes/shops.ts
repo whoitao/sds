@@ -6,14 +6,13 @@ import {
   catalogProducts,
   getDb,
   shopHiddenCategories,
-  shopMembers,
   shops,
-  shopStatusEnum,
-  users
+  shopStatusEnum
 } from '@sds/db';
 import type { BusinessHours } from '@sds/db';
 import { requireAdmin, type AdminEnv } from '../middleware/admin-auth.js';
 import { guardPermission } from '../lib/admin-access.js';
+import { accessibleShopIds, canAccessShop } from '../lib/shop-scope.js';
 import { fanOutCatalogProductsToShop } from '../lib/catalog-fanout.js';
 
 /** 平台侧店铺管理，对应 PRD 5.2 / 5.3 与 6.x 店铺模块 */
@@ -25,10 +24,6 @@ function parsePaging(query: Record<string, string | undefined>) {
   const page = Math.max(1, Number(query.page ?? 1) || 1);
   const pageSize = Math.min(100, Math.max(1, Number(query.pageSize ?? 20) || 20));
   return { page, pageSize, offset: (page - 1) * pageSize };
-}
-
-function isUniqueViolation(error: unknown) {
-  return typeof error === 'object' && error !== null && (error as { code?: string }).code === '23505';
 }
 
 /** 营业时间按「同日时段」存储：每天 open/close，close 必须晚于 open，不支持跨天 */
@@ -97,24 +92,27 @@ async function attachPublishedProducts(
   return result.importedProducts;
 }
 
-const memberSchema = z.object({
-  phone: z.string().regex(/^1\d{10}$/, '手机号需为 11 位'),
-  role: z.enum(['shop_manager', 'shop_staff', 'delivery'])
-});
-
 shopRoutes.get('/', async (c) => {
   const denied = await guardPermission(c, 'shops.read');
   if (denied) return denied;
 
-  const db = await getDb();
-  const keyword = c.req.query('keyword')?.trim() ?? '';
-  const status = c.req.query('status')?.trim() ?? '';
   const { page, pageSize, offset } = parsePaging({
     page: c.req.query('page'),
     pageSize: c.req.query('pageSize')
   });
 
+  // 非超管只能看到 admin_user_shops 绑定的门店；未绑定视为无任何门店
+  const shopIds = await accessibleShopIds(c.get('admin').sub);
+  if (shopIds !== null && shopIds.length === 0) {
+    return c.json({ items: [], total: 0, page, pageSize });
+  }
+
+  const db = await getDb();
+  const keyword = c.req.query('keyword')?.trim() ?? '';
+  const status = c.req.query('status')?.trim() ?? '';
+
   const filters = [];
+  if (shopIds !== null) filters.push(inArray(shops.id, shopIds));
   if (keyword) filters.push(ilike(shops.name, `%${keyword}%`));
   if (status && shopStatusEnum.enumValues.includes(status as (typeof shopStatusEnum.enumValues)[number])) {
     filters.push(eq(shops.status, status as (typeof shopStatusEnum.enumValues)[number]));
@@ -134,13 +132,7 @@ shopRoutes.get('/', async (c) => {
         announcement: shops.announcement,
         coverUrl: shops.coverUrl,
         businessHours: shops.businessHours,
-        createdAt: shops.createdAt,
-        // 注意：单表查询下 drizzle 会把 ${shops.id} 渲染成裸 "id"，
-        // 在子查询里会解析成 shop_members.id，因此这里显式写 "shops"."id"。
-        managerCount: sql<number>`(
-          select count(*) from shop_members m
-          where m.shop_id = "shops"."id" and m.role = 'shop_manager'
-        )::int`
+        createdAt: shops.createdAt
       })
       .from(shops)
       .where(where)
@@ -235,86 +227,6 @@ shopRoutes.patch('/:id/status', async (c) => {
   return c.json({ item: row });
 });
 
-shopRoutes.get('/:id/members', async (c) => {
-  const denied = await guardPermission(c, 'shops.read', { shopId: c.req.param('id') });
-  if (denied) return denied;
-
-  const rows = await (await getDb())
-    .select({
-      id: shopMembers.id,
-      userId: shopMembers.userId,
-      role: shopMembers.role,
-      phone: users.phone,
-      name: users.name,
-      createdAt: shopMembers.createdAt
-    })
-    .from(shopMembers)
-    .innerJoin(users, eq(users.id, shopMembers.userId))
-    .where(eq(shopMembers.shopId, c.req.param('id')))
-    .orderBy(desc(shopMembers.createdAt));
-
-  return c.json({ items: rows });
-});
-
-shopRoutes.post('/:id/members', async (c) => {
-  const parsed = memberSchema.safeParse(await c.req.json().catch(() => null));
-  if (!parsed.success) {
-    return c.json({ code: 'INVALID_BODY', message: parsed.error.issues[0]?.message ?? '参数不合法' }, 400);
-  }
-
-  const db = await getDb();
-  const shopId = c.req.param('id');
-
-  // ABAC 资源条件：已暂停的店铺不允许再改店长（条件来自角色的授予配置）
-  const [targetShop] = await db
-    .select({ status: shops.status })
-    .from(shops)
-    .where(eq(shops.id, shopId))
-    .limit(1);
-  const denied = await guardPermission(c, 'shops.members.write', {
-    shopId,
-    status: targetShop?.status
-  });
-  if (denied) return denied;
-
-  const [user] = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(eq(users.phone, parsed.data.phone))
-    .limit(1);
-
-  if (!user) {
-    return c.json({ code: 'USER_NOT_FOUND', message: '该手机号还没有业务用户' }, 404);
-  }
-
-  try {
-    const [row] = await db
-      .insert(shopMembers)
-      .values({ shopId, userId: user.id, role: parsed.data.role })
-      .returning({ id: shopMembers.id });
-
-    return c.json({ item: row }, 201);
-  } catch (error) {
-    if (isUniqueViolation(error)) {
-      return c.json({ code: 'MEMBER_EXISTS', message: '该用户已是店铺成员' }, 409);
-    }
-    throw error;
-  }
-});
-
-shopRoutes.delete('/:id/members/:memberId', async (c) => {
-  const denied = await guardPermission(c, 'shops.members.write', { shopId: c.req.param('id') });
-  if (denied) return denied;
-
-  const [row] = await (await getDb())
-    .delete(shopMembers)
-    .where(and(eq(shopMembers.id, c.req.param('memberId')), eq(shopMembers.shopId, c.req.param('id'))))
-    .returning({ id: shopMembers.id });
-
-  if (!row) return c.json({ code: 'NOT_FOUND', message: '成员不存在' }, 404);
-  return c.json({ item: row });
-});
-
 const importCatalogSchema = z
   .object({
     // 可选：只铺某个总部分类（含其子分类）；不传则铺全部已发布商品
@@ -330,6 +242,10 @@ shopRoutes.post('/:id/catalog/import', async (c) => {
   const shopId = c.req.param('id');
   const denied = await guardPermission(c, 'shops.catalog_push', { shopId });
   if (denied) return denied;
+  // 店长拥有 shops.catalog_push，必须限制在绑定门店内
+  if (!(await canAccessShop(c.get('admin').sub, shopId))) {
+    return c.json({ code: 'FORBIDDEN', message: '无权操作该店铺' }, 403);
+  }
 
   const parsed = importCatalogSchema.safeParse(await c.req.json().catch(() => ({})));
   if (!parsed.success) {
@@ -383,8 +299,13 @@ const categoryVisibilitySchema = z.object({ hidden: z.boolean() });
 shopRoutes.patch('/:id/catalog/categories/:categoryId', async (c) => {
   const shopId = c.req.param('id');
   const categoryId = c.req.param('categoryId');
-  const denied = await guardPermission(c, 'products.write', { shopId });
+  // 门店分类显隐使用窄权限，不与门店改价/上下架的 products.write 混用
+  const denied = await guardPermission(c, 'products.catalog_visibility', { shopId });
   if (denied) return denied;
+  // 非超管只能操作自己绑定的门店，防止改 shopId 影响其他门店
+  if (!(await canAccessShop(c.get('admin').sub, shopId))) {
+    return c.json({ code: 'FORBIDDEN', message: '无权操作该店铺' }, 403);
+  }
 
   const parsed = categoryVisibilitySchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) {

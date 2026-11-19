@@ -1,3 +1,4 @@
+import 'server-only';
 import { cookies } from 'next/headers';
 
 /** 顾客当前选中的门店：存在 cookie 里，顶栏与「附近的店」页共用 */

@@ -1,7 +1,12 @@
 import { Hono, type Context } from 'hono';
 import { and, asc, desc, eq, ilike, inArray, notInArray, or, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 import {
+  adminRoles,
+  adminUserRoles,
+  adminUserShops,
+  adminUsers,
   adminUserWarehouses,
   catalogProducts,
   catalogSkus,
@@ -46,12 +51,19 @@ import {
  * 总部仓 → 门店分拨单接口。
  * - 仓库侧：warehouse.write + admin_user_warehouses 仓库可见性（创建 / 分配 / 发货 / 取消）；
  * - 门店侧：inventory.write + admin_user_shops 门店范围（收货）；
- * - 列表与详情：warehouse.read 或 inventory.read，并按仓库 / 门店范围过滤。
+ * - 列表与详情：warehouse.read、warehouse.transfer_read 或 inventory.read，并按仓库 / 门店范围过滤。
  * 所有写操作在事务内完成，库存余额、预留、流水、单据事件、幂等结果同事务提交。
  */
 export const warehouseTransferRoutes = new Hono<AdminEnv>();
 
 warehouseTransferRoutes.use('*', requireAdmin);
+
+/** 收货 SLA：全部发出后多少小时内应完成收货。改这里即可调整应收货时间。 */
+const RECEIVE_SLA_HOURS = 24;
+
+/** 列表/详情里并列展示「建议收货人」与「实际收货人」 */
+const receiverAdmin = alias(adminUsers, 'receiver_admin');
+const receivedByAdmin = alias(adminUsers, 'received_by_admin');
 
 type Db = Awaited<ReturnType<typeof getDb>>;
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
@@ -150,12 +162,43 @@ async function canAccessWarehouse(adminId: string, warehouseId: string) {
   return ids === null || ids.includes(warehouseId);
 }
 
-/** 列表 / 详情允许仓库侧（warehouse.read）或门店侧（inventory.read）查看 */
+/**
+ * 列表 / 详情允许仓库侧或门店侧查看：
+ * warehouse.read（仓库管理）、warehouse.transfer_read（仅分拨，给店长）、inventory.read（沿用原门店侧规则）。
+ */
 async function guardTransferRead(c: Context<AdminEnv>) {
   const warehouseDenied = await guardPermission(c, 'warehouse.read');
   if (!warehouseDenied) return null;
+  const transferDenied = await guardPermission(c, 'warehouse.transfer_read');
+  if (!transferDenied) return null;
   const inventoryDenied = await guardPermission(c, 'inventory.read');
   return inventoryDenied ? warehouseDenied : null;
+}
+
+/**
+ * 目标门店的候选收货人：绑定该门店、启用中、角色为店长。
+ * 多个店长时按绑定时间 + 账号稳定排序，发货弹窗默认取第一个。
+ */
+async function resolveShopReceivers(shopId: string, dbc?: DbLike) {
+  const d = (dbc ?? (await getDb())) as Db;
+  return d
+    .select({
+      id: adminUsers.id,
+      username: adminUsers.username,
+      displayName: adminUsers.displayName
+    })
+    .from(adminUserShops)
+    .innerJoin(adminUsers, eq(adminUsers.id, adminUserShops.adminUserId))
+    .innerJoin(adminUserRoles, eq(adminUserRoles.adminUserId, adminUsers.id))
+    .innerJoin(adminRoles, eq(adminRoles.id, adminUserRoles.roleId))
+    .where(
+      and(
+        eq(adminUserShops.shopId, shopId),
+        eq(adminRoles.code, 'store_manager'),
+        eq(adminUsers.status, 1)
+      )
+    )
+    .orderBy(asc(adminUserShops.createdAt), asc(adminUsers.username));
 }
 
 function summarizeItems(
@@ -209,6 +252,11 @@ async function loadTransferDetail(id: string, dbc?: DbLike) {
       deliveryDate: warehouseTransfers.deliveryDate,
       requestedByAdminId: warehouseTransfers.requestedByAdminId,
       handledByAdminId: warehouseTransfers.handledByAdminId,
+      receiverAdminId: warehouseTransfers.receiverAdminId,
+      receiverName: receiverAdmin.displayName,
+      receivedByAdminId: warehouseTransfers.receivedByAdminId,
+      receivedByName: receivedByAdmin.displayName,
+      receiveDueAt: warehouseTransfers.receiveDueAt,
       allocatedAt: warehouseTransfers.allocatedAt,
       shippedAt: warehouseTransfers.shippedAt,
       receivedAt: warehouseTransfers.receivedAt,
@@ -224,6 +272,8 @@ async function loadTransferDetail(id: string, dbc?: DbLike) {
     .from(warehouseTransfers)
     .innerJoin(warehouses, eq(warehouses.id, warehouseTransfers.fromWarehouseId))
     .innerJoin(shops, eq(shops.id, warehouseTransfers.toShopId))
+    .leftJoin(receiverAdmin, eq(receiverAdmin.id, warehouseTransfers.receiverAdminId))
+    .leftJoin(receivedByAdmin, eq(receivedByAdmin.id, warehouseTransfers.receivedByAdminId))
     .where(eq(warehouseTransfers.id, id))
     .limit(1);
   if (!header) return null;
@@ -272,6 +322,10 @@ async function loadTransferDetail(id: string, dbc?: DbLike) {
   return {
     ...header,
     statusLabel: STATUS_LABELS[header.status] ?? header.status,
+    overdue:
+      header.status === 'shipped' &&
+      header.receiveDueAt !== null &&
+      header.receiveDueAt.getTime() < Date.now(),
     differenceClosed: Boolean(header.differenceClosedAt),
     ...summary,
     items: items.map((item) => {
@@ -472,6 +526,8 @@ warehouseTransferRoutes.get('/warehouse-transfers', async (c) => {
   const shopId = c.req.query('shopId')?.trim() ?? '';
   const status = c.req.query('status')?.trim() ?? '';
   const keyword = c.req.query('keyword')?.trim() ?? '';
+  /** 收货视角：mine 仅待我收货（已发出且责任人是自己）；shop 仅本店单据；all / 空为按数据范围取并集 */
+  const receiptScope = c.req.query('receiptScope')?.trim() ?? '';
   const { page, pageSize, offset } = parsePaging({
     page: c.req.query('page'),
     pageSize: c.req.query('pageSize')
@@ -479,6 +535,9 @@ warehouseTransferRoutes.get('/warehouse-transfers', async (c) => {
 
   if (status && !TRANSFER_STATUSES.includes(status as (typeof TRANSFER_STATUSES)[number])) {
     return c.json({ code: 'INVALID_STATUS', message: '分拨单状态不合法' }, 400);
+  }
+  if (receiptScope && !['mine', 'shop', 'all'].includes(receiptScope)) {
+    return c.json({ code: 'INVALID_RECEIPT_SCOPE', message: '收货范围不合法' }, 400);
   }
 
   const conditions = [];
@@ -517,6 +576,17 @@ warehouseTransferRoutes.get('/warehouse-transfers', async (c) => {
   if (status) {
     conditions.push(eq(warehouseTransfers.status, status));
   }
+  if (receiptScope === 'mine') {
+    // 待我收货：责任人是自己且尚未收货（status=shipped 即已全部发出、未收货）
+    conditions.push(eq(warehouseTransfers.receiverAdminId, admin.sub));
+    conditions.push(eq(warehouseTransfers.status, 'shipped'));
+  } else if (receiptScope === 'shop' && shopIds !== null) {
+    // 本店全部：忽略仓库维度，只看绑定门店收到的单据
+    if (shopIds.length === 0) {
+      return c.json({ items: [], total: 0, page, pageSize });
+    }
+    conditions.push(inArray(warehouseTransfers.toShopId, shopIds));
+  }
   if (keyword) {
     conditions.push(
       or(
@@ -540,6 +610,11 @@ warehouseTransferRoutes.get('/warehouse-transfers', async (c) => {
         toShopName: shops.name,
         status: warehouseTransfers.status,
         deliveryDate: warehouseTransfers.deliveryDate,
+        receiverAdminId: warehouseTransfers.receiverAdminId,
+        receiverName: receiverAdmin.displayName,
+        receivedByAdminId: warehouseTransfers.receivedByAdminId,
+        receivedByName: receivedByAdmin.displayName,
+        receiveDueAt: warehouseTransfers.receiveDueAt,
         remark: warehouseTransfers.remark,
         isTest: warehouseTransfers.isTest,
         allocatedAt: warehouseTransfers.allocatedAt,
@@ -577,6 +652,8 @@ warehouseTransferRoutes.get('/warehouse-transfers', async (c) => {
       .from(warehouseTransfers)
       .innerJoin(warehouses, eq(warehouses.id, warehouseTransfers.fromWarehouseId))
       .innerJoin(shops, eq(shops.id, warehouseTransfers.toShopId))
+      .leftJoin(receiverAdmin, eq(receiverAdmin.id, warehouseTransfers.receiverAdminId))
+      .leftJoin(receivedByAdmin, eq(receivedByAdmin.id, warehouseTransfers.receivedByAdminId))
       .where(where)
       .orderBy(desc(warehouseTransfers.createdAt))
       .limit(pageSize)
@@ -589,10 +666,15 @@ warehouseTransferRoutes.get('/warehouse-transfers', async (c) => {
       .where(where)
   ]);
 
+  const now = Date.now();
   return c.json({
     items: items.map((item) => ({
       ...item,
-      statusLabel: STATUS_LABELS[item.status] ?? item.status
+      statusLabel: STATUS_LABELS[item.status] ?? item.status,
+      overdue:
+        item.status === 'shipped' &&
+        item.receiveDueAt !== null &&
+        item.receiveDueAt.getTime() < now
     })),
     total: totalRows[0]?.total ?? 0,
     page,
@@ -696,10 +778,27 @@ warehouseTransferRoutes.get('/warehouse-transfers/options', async (c) => {
   });
 });
 
+/** 发货弹窗的候选收货人：目标门店绑定的店长（启用中）。 */
+warehouseTransferRoutes.get('/warehouse-transfers/receivers', async (c) => {
+  const denied = await guardPermission(c, 'warehouse.write');
+  if (denied) return denied;
+
+  const shopId = c.req.query('shopId')?.trim() ?? '';
+  if (!shopId) return c.json({ code: 'INVALID_QUERY', message: '缺少门店参数' }, 400);
+
+  const rows = await resolveShopReceivers(shopId);
+  return c.json({
+    items: rows.map((row) => ({
+      id: row.id,
+      username: row.username,
+      displayName: row.displayName
+    }))
+  });
+});
+
 /* -------------------------------------------------------------------------- */
 /* 计划联动：已审核要货单 → 按门店生成草稿分拨单                                  */
 /* -------------------------------------------------------------------------- */
-
 const FROM_DEMAND_SCOPE = 'warehouse_transfer_from_demand';
 
 const fromDemandSchema = z.object({
@@ -1577,6 +1676,8 @@ const shipSchema = z.object({
     )
     .min(1, '至少一条发货明细')
     .max(200),
+  /** 收货责任人：为空时按目标门店店长自动推导；显式传入则校验后写入 */
+  receiverAdminId: z.uuid('收货责任人 ID 不合法').nullish(),
   remark: z.string().trim().max(500).nullish(),
   idempotencyKey: z.string().trim().max(120).nullish()
 });
@@ -1600,6 +1701,7 @@ warehouseTransferRoutes.post('/warehouse-transfers/:id/ship', async (c) => {
     .select({
       id: warehouseTransfers.id,
       fromWarehouseId: warehouseTransfers.fromWarehouseId,
+      toShopId: warehouseTransfers.toShopId,
       transferNo: warehouseTransfers.transferNo
     })
     .from(warehouseTransfers)
@@ -1614,6 +1716,7 @@ warehouseTransferRoutes.post('/warehouse-transfers/:id/ship', async (c) => {
     transferId: id,
     kind: 'ship',
     items: parsed.data.items,
+    receiverAdminId: parsed.data.receiverAdminId ?? null,
     remark: parsed.data.remark ?? null
   });
   const idempotencyKey =
@@ -1665,6 +1768,23 @@ warehouseTransferRoutes.post('/warehouse-transfers/:id/ship', async (c) => {
       }
       if (locked.status !== 'allocated') {
         throw new DocumentRuleError('TRANSFER_NOT_ALLOCATED', '请先完成分配后再发货', 409);
+      }
+
+      // 收货责任人：显式指定则校验必须是该门店启用的店长；未指定时按门店自动推导。
+      // 该门店没有绑定店长时留空，不阻断发货。
+      const candidates = await resolveShopReceivers(locked.toShopId, tx);
+      let receiverAdminId: string | null = locked.receiverAdminId;
+      if (parsed.data.receiverAdminId) {
+        if (!candidates.some((row) => row.id === parsed.data.receiverAdminId)) {
+          throw new DocumentRuleError(
+            'TRANSFER_RECEIVER_INVALID',
+            '收货责任人必须是该门店绑定的店长',
+            400
+          );
+        }
+        receiverAdminId = parsed.data.receiverAdminId;
+      } else if (!receiverAdminId) {
+        receiverAdminId = candidates[0]?.id ?? null;
       }
 
       const items = await tx
@@ -1778,11 +1898,18 @@ warehouseTransferRoutes.post('/warehouse-transfers/:id/ship', async (c) => {
         assertWarehouseTransferTransition(locked.status, 'shipped');
       }
 
+      const receiveDueAt = fullyShipped
+        ? new Date(Date.now() + RECEIVE_SLA_HOURS * 60 * 60 * 1000)
+        : locked.receiveDueAt;
+
       await tx
         .update(warehouseTransfers)
         .set({
           status: nextStatus,
           handledByAdminId: admin.sub,
+          receiverAdminId,
+          // 全部发出才进入应收货状态：按 SLA 写入截止时间；部分发货沿用原值
+          receiveDueAt,
           shippedAt: fullyShipped ? new Date() : locked.shippedAt,
           updatedAt: new Date()
         })
@@ -1799,6 +1926,8 @@ warehouseTransferRoutes.post('/warehouse-transfers/:id/ship', async (c) => {
         payload: {
           transferNo: locked.transferNo,
           fullyShipped,
+          receiverAdminId,
+          receiveDueAt: receiveDueAt ? receiveDueAt.toISOString() : null,
           lines: deltaLines
         },
         isTest: locked.isTest
@@ -2085,6 +2214,8 @@ warehouseTransferRoutes.post('/warehouse-transfers/:id/receive', async (c) => {
         .set({
           status: nextStatus,
           handledByAdminId: admin.sub,
+          /** 实际收货人：代收时与建议责任人不一致，用于事后追溯 */
+          receivedByAdminId: admin.sub,
           receivedAt: fullyReceived ? new Date() : locked.receivedAt,
           updatedAt: new Date()
         })

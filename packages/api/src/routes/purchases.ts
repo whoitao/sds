@@ -667,9 +667,8 @@ const createPurchaseSchema = z
   .object({
     shopId: z.uuid('店铺 ID 不合法').nullish(),
     warehouseId: z.uuid('仓库 ID 不合法').nullish(),
+    /** 供应商必须来自档案：不再接受自由文本名称/电话兜底 */
     supplierId: z.uuid('供应商 ID 不合法').nullish(),
-    supplierName: z.string().trim().min(1).max(100).nullish(),
-    supplierPhone: z.string().trim().max(30).nullish(),
     /** 可选关联需求计划：从计划明细生成采购单时带入；手工采购保持为空 */
     demandPlanId: z.uuid('需求计划 ID 不合法').nullish(),
     expectedAt: z.string().trim().nullish(),
@@ -838,49 +837,72 @@ async function resolvePurchaseItems(
   });
 }
 
+/**
+ * 采购单供应商只能来自供应商档案：
+ * - 必须传 supplierId，找不到/已停用/不在主体供货范围一律拒绝；
+ * - 名称与电话保存为快照，便于供应商改名后历史单据仍可追溯。
+ */
 async function resolveSupplierSnapshot(
   db: Awaited<ReturnType<typeof getDb>>,
   subject: { shopId: string | null; warehouseId: string | null },
-  supplierId: string | null | undefined,
-  supplierName: string | null | undefined,
-  supplierPhone: string | null | undefined
+  supplierId: string | null | undefined
 ) {
   if (!supplierId) {
-    if (!supplierName) {
-      throw new PurchaseError('SUPPLIER_REQUIRED', '请选择供应商或填写供应商名称', 400);
-    }
-    return { supplierId: null, supplierName, supplierPhone: supplierPhone ?? null };
-  }
-
-  // 门店采购要求供应商已向该门店供货；总部仓采购要求供应商已绑定该仓库（supplier_scopes）。
-  const conditions = [eq(suppliers.id, supplierId), eq(suppliers.status, 'active')];
-  if (subject.shopId) {
-    conditions.push(scopeExists('shop', subject.shopId));
-  }
-  if (subject.warehouseId) {
-    conditions.push(scopeExists('warehouse', subject.warehouseId));
+    throw new PurchaseError(
+      'SUPPLIER_REQUIRED',
+      '请选择供应商（供应商必须来自供应商档案）',
+      400
+    );
   }
 
   const [supplier] = await db
     .select({
       id: suppliers.id,
       name: suppliers.name,
-      phone: suppliers.phone
+      phone: suppliers.phone,
+      status: suppliers.status
     })
     .from(suppliers)
-    .where(and(...conditions))
+    .where(eq(suppliers.id, supplierId))
     .limit(1);
   if (!supplier) {
-    throw new PurchaseError(
-      'SUPPLIER_NOT_FOUND',
-      subject.shopId
-        ? '供应商不存在、已停用或未向该门店供货'
-        : subject.warehouseId
-          ? '供应商不存在、已停用或未绑定该仓库，请先在供应商档案中配置供货范围'
-          : '供应商不存在或已停用',
-      404
-    );
+    throw new PurchaseError('SUPPLIER_NOT_FOUND', '供应商不存在，请从供应商档案重新选择', 400);
   }
+  if (supplier.status !== 'active') {
+    throw new PurchaseError('SUPPLIER_DISABLED', '供应商已停用，请从供应商档案重新选择', 400);
+  }
+
+  // 门店采购要求供应商已向该门店供货；总部仓采购要求供应商已绑定该仓库（supplier_scopes）。
+  const scopeType: SupplierScopeType | null = subject.shopId
+    ? 'shop'
+    : subject.warehouseId
+      ? 'warehouse'
+      : null;
+  const scopeSubjectId = subject.shopId ?? subject.warehouseId;
+  if (scopeType && scopeSubjectId) {
+    const [scope] = await db
+      .select({ id: supplierScopes.id })
+      .from(supplierScopes)
+      .where(
+        and(
+          eq(supplierScopes.supplierId, supplierId),
+          eq(supplierScopes.subjectType, scopeType),
+          eq(supplierScopes.subjectId, scopeSubjectId),
+          eq(supplierScopes.status, 'active')
+        )
+      )
+      .limit(1);
+    if (!scope) {
+      throw new PurchaseError(
+        'SUPPLIER_NOT_IN_SCOPE',
+        subject.shopId
+          ? '该供应商未向此门店供货，请先在供应商档案中配置供货范围'
+          : '该供应商未绑定此仓库，请先在供应商档案中配置供货范围',
+        403
+      );
+    }
+  }
+
   return {
     supplierId: supplier.id,
     supplierName: supplier.name,
@@ -1248,13 +1270,7 @@ purchaseRoutes.post('/purchases', async (c) => {
   const db = await getDb();
   try {
     const subject = { shopId, warehouseId };
-    const supplier = await resolveSupplierSnapshot(
-      db,
-      subject,
-      data.supplierId,
-      data.supplierName,
-      data.supplierPhone
-    );
+    const supplier = await resolveSupplierSnapshot(db, subject, data.supplierId);
     const items = await resolvePurchaseItems(db, subject, data.items);
     const demandPlanId = await resolveDemandPlanId(db, data.demandPlanId);
     const orderedAmount = addMoney(items.map((item) => item.amount));
@@ -1337,9 +1353,8 @@ purchaseRoutes.post('/purchases', async (c) => {
 
 const updatePurchaseSchema = z
   .object({
+    /** 编辑时允许补选/更换供应商；不传表示沿用当前档案供应商 */
     supplierId: z.uuid('供应商 ID 不合法').nullish(),
-    supplierName: z.string().trim().min(1).max(100).nullish(),
-    supplierPhone: z.string().trim().max(30).nullish(),
     expectedAt: z.string().trim().nullish(),
     remark: z.string().trim().max(500).nullish(),
     items: z.array(purchaseItemInputSchema).min(1).max(200).optional()
@@ -1356,8 +1371,6 @@ purchaseRoutes.patch('/purchases/:id', async (c) => {
       warehouseId: purchaseOrders.warehouseId,
       status: purchaseOrders.status,
       supplierId: purchaseOrders.supplierId,
-      supplierName: purchaseOrders.supplierName,
-      supplierPhone: purchaseOrders.supplierPhone,
       isTest: purchaseOrders.isTest
     })
     .from(purchaseOrders)
@@ -1381,20 +1394,13 @@ purchaseRoutes.patch('/purchases/:id', async (c) => {
   const data = parsed.data;
 
   try {
-    const supplierTouched =
-      data.supplierId !== undefined ||
-      data.supplierName !== undefined ||
-      data.supplierPhone !== undefined;
     const subject = { shopId: current.shopId, warehouseId: current.warehouseId };
-    const supplier = supplierTouched
-      ? await resolveSupplierSnapshot(
-          db,
-          subject,
-          data.supplierId === undefined ? current.supplierId : data.supplierId,
-          data.supplierName === undefined ? current.supplierName : data.supplierName,
-          data.supplierPhone === undefined ? current.supplierPhone : data.supplierPhone
-        )
-      : null;
+    // 历史单据可能只有 supplier_name 快照：编辑时必须先补选档案供应商才能保存。
+    const supplier = await resolveSupplierSnapshot(
+      db,
+      subject,
+      data.supplierId === undefined ? current.supplierId : data.supplierId
+    );
     const items = data.items
       ? await resolvePurchaseItems(db, subject, data.items)
       : null;
@@ -1405,13 +1411,9 @@ purchaseRoutes.patch('/purchases/:id', async (c) => {
       await tx
         .update(purchaseOrders)
         .set({
-          ...(supplier
-            ? {
-                supplierId: supplier.supplierId,
-                supplierName: supplier.supplierName,
-                supplierPhone: supplier.supplierPhone
-              }
-            : {}),
+          supplierId: supplier.supplierId,
+          supplierName: supplier.supplierName,
+          supplierPhone: supplier.supplierPhone,
           ...(data.expectedAt === undefined ? {} : { expectedAt }),
           ...(data.remark === undefined ? {} : { remark: data.remark }),
           ...(orderedAmount === null ? {} : { orderedAmount }),
@@ -1438,13 +1440,10 @@ purchaseRoutes.patch('/purchases/:id', async (c) => {
         );
       }
 
-      const effectiveSupplierId = supplier ? supplier.supplierId : current.supplierId;
-      if (effectiveSupplierId) {
-        await tx
-          .update(suppliers)
-          .set({ lastPurchaseAt: new Date() })
-          .where(eq(suppliers.id, effectiveSupplierId));
-      }
+      await tx
+        .update(suppliers)
+        .set({ lastPurchaseAt: new Date() })
+        .where(eq(suppliers.id, supplier.supplierId));
     });
 
     return c.json({ item: { id, ...(orderedAmount === null ? {} : { orderedAmount }) } });
@@ -1464,7 +1463,8 @@ purchaseRoutes.post('/purchases/:id/submit', async (c) => {
       id: purchaseOrders.id,
       shopId: purchaseOrders.shopId,
       warehouseId: purchaseOrders.warehouseId,
-      status: purchaseOrders.status
+      status: purchaseOrders.status,
+      supplierId: purchaseOrders.supplierId
     })
     .from(purchaseOrders)
     .where(eq(purchaseOrders.id, id))
@@ -1478,6 +1478,14 @@ purchaseRoutes.post('/purchases/:id/submit', async (c) => {
 
   if (current.status !== 'draft') {
     return c.json({ code: 'PURCHASE_NOT_EDITABLE', message: '只有草稿状态的采购单可提交' }, 409);
+  }
+
+  // 历史草稿可能只有供应商名称快照：提交前必须先补选档案供应商
+  if (!current.supplierId) {
+    return c.json(
+      { code: 'SUPPLIER_REQUIRED', message: '请先选择档案供应商后再提交' },
+      400
+    );
   }
 
   const [itemCount] = await db

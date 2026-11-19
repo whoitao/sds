@@ -1,3 +1,4 @@
+import 'server-only';
 import { apiRequest } from './api';
 import { getSessionToken } from './session';
 

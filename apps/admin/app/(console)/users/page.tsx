@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Button, Drawer, Empty, Form, Input, Modal, Select, Space, Switch, Table, Tabs, Tag } from 'antd';
+import { Alert, Button, Drawer, Empty, Form, Input, Modal, Select, Space, Switch, Table, Tabs, Tag, Tooltip } from 'antd';
 import type { TableColumnsType } from 'antd';
 import {
   CheckCircleOutlined,
@@ -16,6 +16,7 @@ import { adminColors as colors } from '../../../lib/theme';
 import { ADMIN_FILTER_FIELD_WIDTH, getAdminTableProps } from '../../../lib/table';
 import { AdminPermissionPanel } from '../../../components/AdminPermissionPanel';
 import { useAdminSettings } from '../../../components/AdminSettingsProvider';
+import { useConfirmDanger } from '../../../components/AdminConfirmProvider';
 import { TabProgress } from '../../../components/TabProgress';
 
 interface UserRow {
@@ -35,6 +36,8 @@ interface AdminRow {
   status: number;
   lastLoginAt: string | null;
   createdAt: string;
+  roles: { id: string; code: string; name: string }[];
+  shops: { id: string; name: string }[];
 }
 
 interface AddressRow {
@@ -63,11 +66,6 @@ const ROLE_OPTIONS = Object.entries(ROLE_LABELS)
   .filter(([value]) => value !== 'platform_admin')
   .map(([value, label]) => ({ value, label }));
 
-const ADMIN_ROLE_OPTIONS = [
-  { value: 'platform_admin', label: ROLE_LABELS.platform_admin },
-  { value: 'shop_manager', label: ROLE_LABELS.shop_manager }
-];
-
 function formatTime(value: string | null) {
   return value ? new Date(value).toLocaleString('zh-CN') : '—';
 }
@@ -78,6 +76,7 @@ function roleLabel(value: string) {
 
 export default function UsersPage() {
   const { pageSize } = useAdminSettings();
+  const confirmDanger = useConfirmDanger();
   const [tab, setTab] = useState('users');
   const [keyword, setKeyword] = useState('');
   const [searchText, setSearchText] = useState('');
@@ -103,6 +102,12 @@ export default function UsersPage() {
   const [editingAdmin, setEditingAdmin] = useState<AdminRow | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [form] = Form.useForm();
+  const roleCode = Form.useWatch('roleCode', form) as string | undefined;
+
+  // 管理员与门店范围只允许超管维护；角色/门店选项来自现有角色表与店铺表
+  const [access, setAccess] = useState<{ permissions: string[]; isSuperAdmin: boolean } | null>(null);
+  const [roleOptions, setRoleOptions] = useState<{ value: string; label: string }[]>([]);
+  const [shopOptions, setShopOptions] = useState<{ value: string; label: string }[]>([]);
 
   // 全局「每页条数」变化后回到第 1 页重新加载
   const [appliedPageSize, setAppliedPageSize] = useState(pageSize);
@@ -152,6 +157,60 @@ export default function UsersPage() {
     setMounted(true);
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    Promise.all([
+      fetch('/api/admin/me/permissions', { cache: 'no-store' }).then((response) =>
+        response.ok ? response.json() : null
+      ),
+      fetch('/api/admin/roles', { cache: 'no-store' }).then((response) =>
+        response.ok ? response.json() : null
+      ),
+      fetch('/api/admin/shops?page=1&pageSize=200', { cache: 'no-store' }).then((response) =>
+        response.ok ? response.json() : null
+      )
+    ])
+      .then(([accessPayload, rolesPayload, shopsPayload]) => {
+        if (!active) return;
+        setAccess({
+          permissions: accessPayload?.permissions ?? [],
+          isSuperAdmin: (accessPayload?.roles ?? []).some(
+            (role: { code?: string }) => role.code === 'super_admin'
+          )
+        });
+        setRoleOptions(
+          (rolesPayload?.items ?? []).map((role: { code: string; name: string }) => ({
+            value: role.code,
+            label: role.name
+          }))
+        );
+        setShopOptions(
+          (shopsPayload?.items ?? []).map((shop: { id: string; name: string }) => ({
+            value: shop.id,
+            label: shop.name
+          }))
+        );
+      })
+      .catch(() => {
+        if (active) setAccess({ permissions: [], isSuperAdmin: false });
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const canManageAdmins = access?.isSuperAdmin ?? false;
+  const canWriteUsers = access?.permissions.includes('users.write') ?? false;
+
+  // 非超管不展示管理员相关 tab
+  useEffect(() => {
+    if (access && !access.isSuperAdmin && tab !== 'users') {
+      setTab('users');
+      setPage(1);
+      setTotal(0);
+    }
+  }, [access, tab]);
+
   function openCreate() {
     setEditingUser(null);
     setEditingAdmin(null);
@@ -159,7 +218,7 @@ export default function UsersPage() {
     if (tab === 'users') {
       form.setFieldsValue({ role: 'customer' });
     } else {
-      form.setFieldsValue({ role: 'platform_admin', status: 1 });
+      form.setFieldsValue({ roleCode: 'viewer', shopIds: [], status: 1 });
     }
     setModalOpen(true);
   }
@@ -174,7 +233,13 @@ export default function UsersPage() {
   function openEditAdmin(row: AdminRow) {
     setEditingAdmin(row);
     setEditingUser(null);
-    form.setFieldsValue({ username: row.username, displayName: row.displayName, role: row.role, status: row.status });
+    form.setFieldsValue({
+      username: row.username,
+      displayName: row.displayName,
+      roleCode: row.roles[0]?.code ?? 'viewer',
+      shopIds: row.shops.map((shop) => shop.id),
+      status: row.status
+    });
     setModalOpen(true);
   }
 
@@ -191,13 +256,19 @@ export default function UsersPage() {
         body = { phone: values.phone, name: values.name || null, role: values.role };
         if (!editingId) delete body.name;
       } else if (editingId) {
-        body = { displayName: values.displayName, role: values.role, status: values.status };
+        body = {
+          displayName: values.displayName,
+          roleCode: values.roleCode,
+          shopIds: values.roleCode === 'super_admin' ? [] : values.shopIds ?? [],
+          status: values.status
+        };
       } else {
         body = {
           username: values.username,
           password: values.password,
           displayName: values.displayName,
-          role: values.role,
+          roleCode: values.roleCode,
+          shopIds: values.roleCode === 'super_admin' ? [] : values.shopIds ?? [],
           status: values.status
         };
       }
@@ -222,6 +293,14 @@ export default function UsersPage() {
   }
 
   async function toggleUser(row: UserRow) {
+    if (row.isActive) {
+      const confirmed = await confirmDanger({
+        title: `禁用账号「${row.name ?? row.phone}」？`,
+        content: '禁用后该账号将无法登录，历史订单与数据保留；可随时重新启用。',
+        okText: '确认禁用'
+      });
+      if (!confirmed) return;
+    }
     const response = await fetch(`/api/admin/users/${row.id}/status`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
@@ -231,6 +310,14 @@ export default function UsersPage() {
   }
 
   async function toggleAdmin(row: AdminRow) {
+    if (row.status === 1) {
+      const confirmed = await confirmDanger({
+        title: `禁用管理员「${row.displayName}」？`,
+        content: '禁用后该管理员将无法登录后台，历史操作记录保留；可随时重新启用。',
+        okText: '确认禁用'
+      });
+      if (!confirmed) return;
+    }
     const response = await fetch(`/api/admin/admins/${row.id}/status`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
@@ -291,24 +378,28 @@ export default function UsersPage() {
             aria-label="收货地址"
             onClick={() => void openAddresses(row)}
           />
-          <Button
-            variant="text"
-            color="primary"
-            size="small"
-            icon={<EditOutlined />}
-            title="编辑"
-            aria-label="编辑"
-            onClick={() => openEditUser(row)}
-          />
-          <Button
-            variant="text"
-            color={row.isActive ? 'danger' : 'primary'}
-            size="small"
-            icon={row.isActive ? <StopOutlined /> : <CheckCircleOutlined />}
-            title={row.isActive ? '停用' : '启用'}
-            aria-label={row.isActive ? '停用' : '启用'}
-            onClick={() => void toggleUser(row)}
-          />
+          {canWriteUsers ? (
+            <>
+              <Button
+                variant="text"
+                color="primary"
+                size="small"
+                icon={<EditOutlined />}
+                title="编辑"
+                aria-label="编辑"
+                onClick={() => openEditUser(row)}
+              />
+              <Button
+                variant="text"
+                color={row.isActive ? 'danger' : 'primary'}
+                size="small"
+                icon={row.isActive ? <StopOutlined /> : <CheckCircleOutlined />}
+                title={row.isActive ? '停用' : '启用'}
+                aria-label={row.isActive ? '停用' : '启用'}
+                onClick={() => void toggleUser(row)}
+              />
+            </>
+          ) : null}
         </Space>
       )
     }
@@ -317,7 +408,44 @@ export default function UsersPage() {
   const adminColumns: TableColumnsType<AdminRow> = [
     { title: '账号', dataIndex: 'username', width: 160 },
     { title: '显示名', dataIndex: 'displayName' },
-    { title: '角色', dataIndex: 'role', width: 140, render: (value: string) => roleLabel(value) },
+    {
+      title: '角色',
+      dataIndex: 'roles',
+      width: 140,
+      render: (_: unknown, row: AdminRow) =>
+        row.roles.length > 0 ? row.roles.map((role) => role.name).join('、') : roleLabel(row.role)
+    },
+    {
+      title: '管辖门店',
+      dataIndex: 'shops',
+      width: 220,
+      render: (_: unknown, row: AdminRow) => {
+        if (row.roles.some((role) => role.code === 'super_admin')) {
+          return <Tag color="blue">全部门店</Tag>;
+        }
+        if (row.shops.length === 0) {
+          return <Tag>未绑定</Tag>;
+        }
+        const names = row.shops.map((shop) => shop.name);
+        const text = names.length <= 2 ? names.join('、') : `${names.length} 家`;
+        return (
+          <Tooltip title={names.join('、')}>
+            <span
+              style={{
+                display: 'inline-block',
+                maxWidth: 190,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                verticalAlign: 'bottom'
+              }}
+            >
+              {text}
+            </span>
+          </Tooltip>
+        );
+      }
+    },
     {
       title: '状态',
       dataIndex: 'status',
@@ -403,6 +531,9 @@ export default function UsersPage() {
             activeKey={tab}
             onChange={(key) => {
               setTab(key);
+              // 用户按手机号搜索、管理员按账号搜索，关键词不跨页签保留
+              setSearchText('');
+              setKeyword('');
               setPage(1);
               setTotal(0);
               setError('');
@@ -411,15 +542,25 @@ export default function UsersPage() {
             tabBarStyle={{ marginBottom: 0 }}
             items={[
               { key: 'users', label: '用户' },
-              { key: 'admins', label: '管理员' },
-              { key: 'rbac', label: '管理员权限' }
+              ...(canManageAdmins
+                ? [
+                    { key: 'admins', label: '管理员' },
+                    { key: 'rbac', label: '管理员权限' }
+                  ]
+                : [])
             ]}
           />
-          {tab === 'rbac' ? null : (
+          {tab === 'rbac' ? null : tab === 'users' ? (
+            canWriteUsers ? (
+              <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
+                新建用户
+              </Button>
+            ) : null
+          ) : canManageAdmins ? (
             <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
-              {tab === 'users' ? '新建用户' : '新建管理员'}
+              新建管理员
             </Button>
-          )}
+          ) : null}
           <TabProgress activeKey={tab} />
         </div>
 
@@ -580,8 +721,41 @@ export default function UsersPage() {
               <Form.Item name="displayName" label="显示名" rules={[{ required: true, message: '请输入显示名' }]}>
                 <Input maxLength={50} />
               </Form.Item>
-              <Form.Item name="role" label="角色" rules={[{ required: true, message: '请选择角色' }]}>
-                <Select options={ADMIN_ROLE_OPTIONS} />
+              <Form.Item name="roleCode" label="角色" rules={[{ required: true, message: '请选择角色' }]}>
+                <Select
+                  options={roleOptions}
+                  placeholder="从角色表中选择"
+                  onChange={(value) => {
+                    if (value === 'super_admin') form.setFieldValue('shopIds', []);
+                  }}
+                />
+              </Form.Item>
+              {roleCode === 'super_admin' ? (
+                <Alert
+                  type="info"
+                  showIcon
+                  style={{ marginBottom: 16 }}
+                  title="超级管理员拥有全部门店权限，不受门店范围限制。"
+                />
+              ) : null}
+              <Form.Item
+                name="shopIds"
+                label="管辖门店"
+                extra={
+                  roleCode === 'super_admin'
+                    ? '全部门店（不可编辑）'
+                    : '可多选；不选择门店 = 未绑定，该管理员将没有任何门店数据权限'
+                }
+              >
+                <Select
+                  mode="multiple"
+                  allowClear
+                  disabled={roleCode === 'super_admin'}
+                  options={shopOptions}
+                  optionFilterProp="label"
+                  maxTagCount="responsive"
+                  placeholder={roleCode === 'super_admin' ? '全部门店' : '选择可管理的门店'}
+                />
               </Form.Item>
               <Form.Item
                 name="status"

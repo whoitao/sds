@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { Button, Input, Space } from 'antd';
+import dayjs, { type Dayjs } from 'dayjs';
+import { Button, DatePicker, Input, Space } from 'antd';
 import { SearchOutlined } from '@ant-design/icons';
 import { adminColors as colors } from '../lib/theme';
 
@@ -80,6 +81,51 @@ export function AdminFilterGroup({ children }: { children: ReactNode }) {
 /** 筛选行内的固定宽度控件容器：统一 160px，内部控件撑满。 */
 export function AdminFilterField({ children }: { children: ReactNode }) {
   return <div className="admin-filter-field">{children}</div>;
+}
+
+const DATE_RANGE_PRESETS: Array<{ label: string; value: () => [Dayjs, Dayjs] }> = [
+  { label: '今天', value: () => [dayjs(), dayjs()] },
+  { label: '近 7 天', value: () => [dayjs().subtract(6, 'day'), dayjs()] },
+  { label: '近 30 天', value: () => [dayjs().subtract(29, 'day'), dayjs()] }
+];
+
+interface AdminFilterDateRangeProps {
+  /** 起始日期，YYYY-MM-DD；空字符串表示未选 */
+  start: string;
+  /** 结束日期，YYYY-MM-DD；空字符串表示未选 */
+  end: string;
+  /** 起止任一变化时回调，清除时两项都返回空字符串 */
+  onChange: (start: string, end: string) => void;
+}
+
+/**
+ * 筛选行内的日期区间：一个控件内选起止，按自然日（含首尾）筛选。
+ * 区间控件比普通筛选字段宽，整组不可拆散；窄屏随筛选行整组换行。
+ */
+export function AdminFilterDateRange({ start, end, onChange }: AdminFilterDateRangeProps) {
+  const value: [Dayjs | null, Dayjs | null] | null =
+    start || end ? [start ? dayjs(start) : null, end ? dayjs(end) : null] : null;
+
+  return (
+    <AdminFilterGroup>
+      <div className="admin-filter-range">
+        <DatePicker.RangePicker
+          needConfirm
+          allowClear
+          format="YYYY-MM-DD"
+          placeholder={['开始日期', '结束日期']}
+          presets={DATE_RANGE_PRESETS}
+          value={value}
+          onChange={(dates) =>
+            onChange(
+              dates?.[0]?.format('YYYY-MM-DD') ?? '',
+              dates?.[1]?.format('YYYY-MM-DD') ?? ''
+            )
+          }
+        />
+      </div>
+    </AdminFilterGroup>
+  );
 }
 
 interface AdminFilterSearchProps {

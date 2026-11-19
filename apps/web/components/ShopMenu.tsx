@@ -6,12 +6,22 @@ import { useEffect, useMemo, useState, useTransition } from 'react';
 import { Price } from '@sds/ui';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
 import { addCartItem, removeCartItem, setCartItemQuantity, type CartActionResult } from '@/lib/cart-actions';
-import type { CartGroup, CartPayload } from '@/lib/cart';
+import {
+  cartItemAvailability,
+  isCartItemUnavailable,
+  type CartGroup,
+  type CartItemAvailability,
+  type CartPayload
+} from '@/lib/cart-model';
 import { selectShop } from '@/lib/shop-actions';
 import {
   defaultSkuOf,
+  hasMultipleSkus,
+  isProductSoldOut,
   priceOf,
+  priceRangeOf,
   quantityText,
+  specsSummaryOf,
   specTextOf,
   stepOf,
   type MenuCategory,
@@ -105,6 +115,7 @@ export default function ShopMenu({
   const [activeChild, setActiveChild] = useState<string | null>(null);
   const [cart, setCart] = useState<CartPayload>(initialCart);
   const [cartOpen, setCartOpen] = useState(false);
+  const [specProduct, setSpecProduct] = useState<MenuProduct | null>(null);
   const [pendingKey, setPendingKey] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [, startTransition] = useTransition();
@@ -112,11 +123,11 @@ export default function ShopMenu({
   const group: CartGroup | null = cart.carts.find((row) => row.shopId === shop.id) ?? null;
   const otherGroups = cart.carts.filter((row) => row.shopId !== shop.id && row.items.length > 0);
   const cartItems = group?.items ?? [];
-  // 售罄商品留在购物车里展示，但不参与合计，也不能结算
-  const availableItems = cartItems.filter((item) => !item.soldOut);
+  // 已下架与已售罄的商品留在购物车里展示，但不参与合计，也不能结算
+  const availableItems = cartItems.filter((item) => !isCartItemUnavailable(item));
   const payableTotal =
     availableItems.reduce((sum, item) => sum + Math.round(Number(item.subtotal) * 100), 0) / 100;
-  const allSoldOut = cartItems.length > 0 && availableItems.length === 0;
+  const allUnavailable = cartItems.length > 0 && availableItems.length === 0;
   const itemsBySku = useMemo(
     () => new Map((group?.items ?? []).map((item) => [item.skuId, item])),
     [group]
@@ -132,15 +143,41 @@ export default function ShopMenu({
     return new Set([activeCategory, ...(category?.children ?? []).map((row) => row.id)]);
   }, [activeCategory, activeChild, categories]);
 
-  function isProductSoldOut(product: MenuProduct) {
-    const sku = defaultSkuOf(product);
-    return product.soldOut || !sku || Boolean(itemsBySku.get(sku.skuId)?.soldOut);
+  // 规格弹层打开时锁住页面滚动，弹层内部自己滚；Esc 关闭
+  useEffect(() => {
+    if (!specProduct) return;
+    const previous = document.body.style.overflow;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSpecProduct(null);
+    };
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.body.style.overflow = previous;
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [specProduct]);
+
+  // 列表与购物车用同一口径：购物车里的下架/售罄标记更及时，优先于菜单数据。
+  // 售罄按规格粒度判断，只有全部规格都卖完才把整行标成售罄。
+  function productAvailability(product: MenuProduct): CartItemAvailability {
+    if (isProductSoldOut(product)) return 'sold_out';
+    // 单规格商品才能把整行标成已下架；多规格只禁用对应规格
+    if (product.skus.length === 1) {
+      const item = itemsBySku.get(product.skus[0].skuId);
+      if (item && cartItemAvailability(item) === 'off_shelf') return 'off_shelf';
+    }
+    return 'available';
   }
 
-  // 保持各组内的原始顺序，只把可购买商品排在售罄商品前面
+  // 保持各组内的原始顺序，只把不可购买的商品排在可购买商品后面
   const visible = products
     .filter((product) => !scope || (product.categoryId && scope.has(product.categoryId)))
-    .sort((a, b) => Number(isProductSoldOut(a)) - Number(isProductSoldOut(b)));
+    .sort(
+      (a, b) =>
+        Number(productAvailability(a) !== 'available') -
+        Number(productAvailability(b) !== 'available')
+    );
 
   const busy = pendingKey !== null;
   const loginHref = `/login?next=${encodeURIComponent(`/shops/${shop.id}`)}`;
@@ -306,14 +343,32 @@ export default function ShopMenu({
           ) : (
             <ul className="m-0 flex list-none flex-col p-0">
               {visible.map((product) => {
+                const multi = hasMultipleSkus(product);
                 const sku = defaultSkuOf(product);
-                const item = sku ? itemsBySku.get(sku.skuId) : undefined;
-                // 商品列表数据可能滞后，购物车里的售罄标记更及时，两边都按售罄处理
-                const soldOut = isProductSoldOut(product);
                 const mode = sku?.quantityMode ?? 'integer';
                 const step = stepOf(mode);
                 const stock = Number(sku?.stockQuantity ?? 0);
+                // 单规格商品沿用行内加减；多规格商品先选规格，不在行上直接加购
+                const item = !multi && sku ? itemsBySku.get(sku.skuId) : undefined;
+                // 列表与购物车状态对齐：购物车里标记下架/售罄的商品，列表侧同样禁用
+                const availability = productAvailability(product);
+                const unavailable = availability !== 'available';
                 const reachedStock = Boolean(item) && sku?.stockType === 'tracked' && item!.quantity + step > stock;
+                const range = multi ? priceRangeOf(product) : null;
+                const showRange = Boolean(multi && range && range.from !== range.to);
+                const inlinePrice = multi && range ? range.from : priceOf(product);
+                const unit = sku?.unit || product.unit;
+                // 多规格行不绑定单一 SKU：角标展示该商品各规格已选数量的合计
+                const picked = multi
+                  ? cartItems.reduce(
+                      (sum, cartItem) =>
+                        product.skus.some((row) => row.skuId === cartItem.skuId)
+                          ? sum + cartItem.quantity
+                          : sum,
+                      0
+                    )
+                  : 0;
+                const pickedText = quantityText(picked, 'decimal_2');
                 return (
                   <li
                     key={product.id}
@@ -323,42 +378,84 @@ export default function ShopMenu({
                     <div className="min-w-0 flex-1">
                       <h2
                         className={`m-0 truncate text-[17px] font-bold sm:text-[18px] ${
-                          soldOut ? 'text-ink-3' : 'text-ink'
+                          unavailable ? 'text-ink-3' : 'text-ink'
                         }`}
                       >
                         {product.name}
                       </h2>
                       <p className="m-0 mt-0.5 flex items-baseline gap-1.5 truncate text-[13px] text-ink-3">
-                        <span className="truncate">{soldOut ? '今天卖完了' : specTextOf(product)}</span>
-                        {soldOut ? null : (
+                        <span className="truncate">
+                          {availability === 'off_shelf'
+                            ? '已下架，暂时买不了'
+                            : availability === 'sold_out'
+                              ? '今天卖完了'
+                              : multi
+                                ? specsSummaryOf(product)
+                                : specTextOf(product)}
+                        </span>
+                        {unavailable ? null : (
                           <span className="shrink-0 font-bold text-ink sm:hidden">
                             <Price
-                              value={priceOf(product)}
+                              value={inlinePrice}
                               color="ink"
                               size={13}
                               weight={700}
                               symbolSize={11}
                             />
+                            {showRange ? ' 起' : null}
                           </span>
                         )}
                       </p>
                     </div>
                     <div className="hidden shrink-0 text-right sm:block">
-                      <Price
-                        value={priceOf(product)}
-                        color="ink"
-                        size={20}
-                        weight={800}
-                        symbolSize={13}
-                        symbolWeight={700}
-                      />
-                      <span className="block text-[12px] text-ink-3">/{sku?.unit || product.unit}</span>
+                      {showRange && range ? (
+                        <span className="flex items-baseline justify-end">
+                          <Price value={range.from} color="ink" size={18} weight={800} symbolSize={12} />
+                          <span className="mx-0.5 text-[14px] text-ink-3">–</span>
+                          <Price value={range.to} color="ink" size={18} weight={800} symbolSize={12} />
+                        </span>
+                      ) : (
+                        <Price
+                          value={inlinePrice}
+                          color="ink"
+                          size={20}
+                          weight={800}
+                          symbolSize={13}
+                          symbolWeight={700}
+                        />
+                      )}
+                      <span className="block text-[12px] text-ink-3">/{unit}</span>
                     </div>
                     <div className="flex w-[108px] shrink-0 items-center justify-end sm:w-[120px]">
-                      {soldOut ? (
-                        <span className="inline-flex h-9 items-center rounded-md bg-segment px-2.5 text-[13px] font-bold text-ink-3">
-                          卖完了
+                      {unavailable ? (
+                        <span
+                          className={`inline-flex h-9 items-center rounded-md px-2.5 text-[13px] font-bold ${
+                            availability === 'off_shelf'
+                              ? 'bg-danger-soft text-danger'
+                              : 'bg-segment text-ink-3'
+                          }`}
+                        >
+                          {availability === 'off_shelf' ? '已下架' : '卖完了'}
                         </span>
+                      ) : multi ? (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => setSpecProduct(product)}
+                          aria-label={
+                            picked > 0
+                              ? `选择${product.name}的规格，已选 ${pickedText}`
+                              : `选择${product.name}的规格`
+                          }
+                          className="flex h-9 shrink-0 items-center gap-1 rounded-full bg-brand-500 px-3.5 text-[14px] font-bold text-white transition-colors hover:bg-brand-600 disabled:opacity-50"
+                        >
+                          选规格
+                          {picked > 0 ? (
+                            <span className="grid h-[18px] min-w-[18px] place-items-center rounded-full bg-white px-1 text-[11px] font-bold leading-none text-brand-700">
+                              {pickedText}
+                            </span>
+                          ) : null}
+                        </button>
                       ) : item ? (
                         <Stepper
                           quantity={quantityText(item.quantity, mode)}
@@ -410,68 +507,94 @@ export default function ShopMenu({
           ) : null}
 
           <ul className="m-0 flex min-h-0 flex-1 list-none flex-col gap-2 overflow-y-auto p-0">
-            {(group?.items ?? []).map((item) => (
-              <li
-                key={item.id}
-                className={`flex flex-col gap-1 border-b border-dashed border-line pb-2 ${
-                  item.soldOut ? 'text-ink-3' : ''
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <span className={`shrink-0 ${item.soldOut ? 'opacity-60' : ''}`}>
-                    <Thumb name={item.name} imageUrl={item.imageUrl} size="sm" />
-                  </span>
-                  <p
-                    className={`m-0 min-w-0 flex-1 truncate text-[15px] font-semibold ${
-                      item.soldOut ? 'text-ink-3' : 'text-ink'
-                    }`}
-                  >
-                    {item.name}
-                  </p>
-                  {item.soldOut ? (
-                    <span className="shrink-0 whitespace-nowrap rounded bg-segment px-1.5 py-0.5 text-[11px] font-bold text-ink-3">
-                      已售罄
+            {(group?.items ?? []).map((item) => {
+              const availability = cartItemAvailability(item);
+              const unavailable = availability !== 'available';
+              const step = stepOf(item.quantityMode);
+              return (
+                <li
+                  key={item.id}
+                  className={`flex flex-col gap-1 border-b border-dashed border-line pb-2 ${
+                    unavailable ? 'text-ink-3' : ''
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className={`shrink-0 ${unavailable ? 'opacity-60' : ''}`}>
+                      <Thumb name={item.name} imageUrl={item.imageUrl} size="sm" />
                     </span>
-                  ) : null}
-                  <Price
-                    className="shrink-0"
-                    value={item.subtotal}
-                    color={item.soldOut ? 'ink-3' : 'ink'}
-                    size={15}
-                    weight={700}
-                    symbolSize="1em"
-                  />
-                </div>
-                <div className="flex items-center justify-between gap-2 pl-[54px]">
-                  <span className="text-[12px] text-ink-3">
+                    <p
+                      className={`m-0 min-w-0 flex-1 truncate text-[15px] font-semibold ${
+                        unavailable ? 'text-ink-3' : 'text-ink'
+                      }`}
+                    >
+                      {item.name}
+                    </p>
+                    {unavailable ? (
+                      <span
+                        className={`shrink-0 whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] font-bold ${
+                          availability === 'off_shelf'
+                            ? 'bg-danger-soft text-danger'
+                            : 'bg-segment text-ink-3'
+                        }`}
+                      >
+                        {availability === 'off_shelf' ? '已下架' : '已售罄'}
+                      </span>
+                    ) : null}
                     <Price
-                      value={item.unitPrice}
-                      color="ink-3"
-                      size={12}
-                      weight={400}
+                      className="shrink-0"
+                      value={item.subtotal}
+                      color={unavailable ? 'ink-3' : 'ink'}
+                      size={15}
+                      weight={700}
                       symbolSize="1em"
-                    />{' '}
-                    / {item.unit}
-                  </span>
-                  <Stepper
-                    quantity={quantityText(item.quantity, item.quantityMode)}
-                    unit={item.unit}
-                    disabled={busy || item.soldOut}
-                    onMinus={() =>
-                      changeItem(item.id, item.quantity - stepOf(item.quantityMode), item.quantityMode)
-                    }
-                    onPlus={() => {
-                      const step = stepOf(item.quantityMode);
-                      if (item.soldOut || item.quantity + step > item.stockQuantity) {
-                        setError(`「${item.name}」只剩 ${item.stockQuantity}${item.unit}`);
-                        return;
-                      }
-                      changeItem(item.id, item.quantity + step, item.quantityMode);
-                    }}
-                  />
-                </div>
-              </li>
-            ))}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between gap-2 pl-[54px]">
+                    {unavailable ? (
+                      <span className="text-[12px] leading-[1.5] text-ink-3">
+                        {availability === 'off_shelf' ? '已下架' : '已售罄'}，不能购买；可移除后结算其它菜
+                      </span>
+                    ) : (
+                      <span className="text-[12px] text-ink-3">
+                        {item.specName ? `${item.specName} · ` : ''}
+                        <Price
+                          value={item.unitPrice}
+                          color="ink-3"
+                          size={12}
+                          weight={400}
+                          symbolSize="1em"
+                        />{' '}
+                        / {item.unit}
+                      </span>
+                    )}
+                    {unavailable ? (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => changeItem(item.id, 0, item.quantityMode)}
+                        className="flex h-8 shrink-0 items-center rounded-full border-[1.5px] border-line px-3 text-[13px] font-bold text-ink-2 transition-colors hover:border-danger hover:text-danger disabled:opacity-50 sm:h-9"
+                      >
+                        移除
+                      </button>
+                    ) : (
+                      <Stepper
+                        quantity={quantityText(item.quantity, item.quantityMode)}
+                        unit={item.unit}
+                        disabled={busy}
+                        onMinus={() => changeItem(item.id, item.quantity - step, item.quantityMode)}
+                        onPlus={() => {
+                          if (item.quantity + step > item.stockQuantity) {
+                            setError(`「${item.name}」只剩 ${item.stockQuantity}${item.unit}`);
+                            return;
+                          }
+                          changeItem(item.id, item.quantity + step, item.quantityMode);
+                        }}
+                      />
+                    )}
+                  </div>
+                </li>
+              );
+            })}
             {!group || group.items.length === 0 ? (
               <li className="py-6 text-center text-[15px] text-ink-3">还没选菜，点右侧的 + 加进来</li>
             ) : null}
@@ -489,9 +612,9 @@ export default function ShopMenu({
             </p>
           ) : null}
 
-          {allSoldOut ? (
+          {allUnavailable ? (
             <p className="m-0 shrink-0 rounded-xl bg-segment px-3 py-2 text-[13px] text-ink-2">
-              购物车里的菜都卖完了，暂时没法结算。
+              购物车里的菜都已下架或售罄，暂时没法结算，先移除再挑别的。
             </p>
           ) : null}
 
@@ -530,6 +653,110 @@ export default function ShopMenu({
           <span className="ml-auto text-[13px] font-bold text-brand-700">{cartOpen ? '收起' : '展开'}</span>
         </button>
       </aside>
+
+      {specProduct ? (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-ink/45 px-0 sm:items-center sm:px-4"
+          onClick={() => setSpecProduct(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={`选择${specProduct.name}的规格`}
+            onClick={(event) => event.stopPropagation()}
+            className="flex max-h-[80dvh] w-full flex-col overflow-hidden rounded-t-[20px] bg-card shadow-perk sm:max-w-[440px] sm:rounded-[20px]"
+          >
+            <div className="flex shrink-0 items-start gap-3 border-b border-line px-4 py-3.5">
+              <Thumb name={specProduct.name} imageUrl={specProduct.imageUrl} size="lg" />
+              <div className="min-w-0 flex-1">
+                <h2 className="m-0 truncate text-[17px] font-extrabold text-ink">{specProduct.name}</h2>
+                <p className="m-0 mt-0.5 text-[13px] text-ink-3">
+                  {specProduct.skus.length} 种规格 · 选好再加入购物车
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSpecProduct(null)}
+                aria-label="关闭规格选择"
+                className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-segment text-[18px] text-ink-2 transition-colors hover:text-ink"
+              >
+                ×
+              </button>
+            </div>
+            <ul className="m-0 flex min-h-0 flex-1 list-none flex-col gap-2 overflow-y-auto p-3.5">
+              {specProduct.skus.map((sku) => {
+                const item = itemsBySku.get(sku.skuId);
+                const soldOut = sku.soldOut;
+                const stockText =
+                  sku.stockType === 'tracked'
+                    ? soldOut
+                      ? '已售罄'
+                      : `剩 ${sku.stockQuantity}${sku.unit}`
+                    : '有货';
+                return (
+                  <li key={sku.skuId}>
+                    <button
+                      type="button"
+                      disabled={soldOut || busy}
+                      onClick={() => {
+                        addToCart(sku.skuId);
+                        setSpecProduct(null);
+                      }}
+                      className={`flex w-full items-center gap-3 rounded-xl border-[1.5px] px-3 py-2.5 text-left transition-colors ${
+                        soldOut
+                          ? 'cursor-not-allowed border-line bg-card-soft'
+                          : 'border-line bg-card hover:border-brand-300'
+                      } disabled:opacity-60`}
+                    >
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-center gap-1.5">
+                          <b
+                            className={`truncate text-[15px] font-bold ${
+                              soldOut ? 'text-ink-3' : 'text-ink'
+                            }`}
+                          >
+                            {sku.specName || '默认规格'}
+                          </b>
+                          {sku.isDefault ? (
+                            <span className="shrink-0 rounded bg-brand-50 px-1.5 py-0.5 text-[11px] font-bold text-brand-700">
+                              默认
+                            </span>
+                          ) : null}
+                        </span>
+                        <span className="mt-0.5 block text-[12px] text-ink-3">{stockText}</span>
+                      </span>
+                      <span className="shrink-0 text-right">
+                        <Price
+                          value={sku.price ?? '0.00'}
+                          color={soldOut ? 'ink-3' : 'ink'}
+                          size={17}
+                          weight={800}
+                          symbolSize={12}
+                        />
+                        <span
+                          className={`mt-0.5 block text-[12px] ${
+                            soldOut
+                              ? 'text-danger'
+                              : item
+                                ? 'font-bold text-brand-700'
+                                : 'text-ink-3'
+                          }`}
+                        >
+                          {soldOut
+                            ? '已售罄'
+                            : item
+                              ? `已选 ${quantityText(item.quantity, sku.quantityMode)}`
+                              : '加入'}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

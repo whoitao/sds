@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { useCallback, useEffect, useState } from 'react';
 import { Button, Input, Modal, Select, Space, Switch, Table, Tabs, Tag, Tooltip } from 'antd';
 import type { TableColumnsType } from 'antd';
-import { EditOutlined, ReloadOutlined } from '@ant-design/icons';
+import { EditOutlined, QuestionCircleOutlined, ReloadOutlined } from '@ant-design/icons';
 import { adminColors as colors } from '../../../lib/theme';
 import { getAdminTableProps } from '../../../lib/table';
 import {
@@ -190,6 +190,19 @@ export function WarehouseStocksPanel({ header }: { header: ReactNode }) {
   useEffect(() => {
     void loadAlerts();
   }, [loadAlerts]);
+
+  /** 页签切换：仓库选择共享，关键词/仅看低库存/分页只属于库存明细 */
+  function changeTab(key: 'stock' | 'alerts') {
+    setTab(key);
+    setError('');
+    setNotice('');
+    if (key !== 'stock') {
+      setSearchText('');
+      setKeyword('');
+      setLowStockOnly(false);
+      setPage(1);
+    }
+  }
 
   function openThreshold(row: WarehouseStockRow) {
     if (!canWrite) {
@@ -422,6 +435,13 @@ export function WarehouseStocksPanel({ header }: { header: ReactNode }) {
                   setPage(1);
                 }}
               />
+              <Tooltip title="仓库预警只看可用量（库存 - 预留），与门店库存按库存数量判断的口径互不影响。">
+                <QuestionCircleOutlined
+                  tabIndex={0}
+                  aria-label="低库存预警口径"
+                  style={{ fontSize: 12, color: colors.textSecondary, cursor: 'help' }}
+                />
+              </Tooltip>
             </Space>
           </>
         }
@@ -440,13 +460,9 @@ export function WarehouseStocksPanel({ header }: { header: ReactNode }) {
           </>
         }
       >
-        <div style={{ padding: '0 12px 8px', fontSize: 12, color: colors.textSecondary }}>
-          仓库预警只看可用量（库存 - 预留），与门店库存按库存数量判断的口径互不影响。
-        </div>
-
         <Tabs
           activeKey={tab}
-          onChange={(key) => setTab(key as 'stock' | 'alerts')}
+          onChange={(key) => changeTab(key as 'stock' | 'alerts')}
           tabBarStyle={{ padding: '0 12px' }}
           items={[
             {

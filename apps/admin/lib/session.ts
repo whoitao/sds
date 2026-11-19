@@ -41,3 +41,36 @@ export async function requireAdmin(): Promise<AdminProfile> {
 
   return admin;
 }
+
+export interface AdminAccess {
+  permissions: string[];
+  isSuperAdmin: boolean;
+}
+
+/**
+ * 服务端读取当前管理员的有效权限，供页面首帧决定可见内容。
+ * 与 /api/admin/me/permissions 同一数据源；失败时返回空权限，按最小可见渲染。
+ */
+export async function getAdminAccess(): Promise<AdminAccess> {
+  const token = (await cookies()).get(ADMIN_COOKIE)?.value;
+  if (!token) return { permissions: [], isSuperAdmin: false };
+
+  try {
+    const response = await fetch(`${getApiBaseUrl()}/api/admin/me/permissions`, {
+      headers: { authorization: `Bearer ${token}` },
+      cache: 'no-store'
+    });
+    if (!response.ok) return { permissions: [], isSuperAdmin: false };
+
+    const data = (await response.json()) as {
+      roles?: Array<{ code?: string }>;
+      permissions?: string[];
+    };
+    return {
+      permissions: data.permissions ?? [],
+      isSuperAdmin: (data.roles ?? []).some((role) => role.code === 'super_admin')
+    };
+  } catch {
+    return { permissions: [], isSuperAdmin: false };
+  }
+}

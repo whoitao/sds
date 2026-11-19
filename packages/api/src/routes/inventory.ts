@@ -24,6 +24,7 @@ import {
 } from '@sds/db';
 import { requireAdmin, type AdminEnv } from '../middleware/admin-auth.js';
 import { guardPermission } from '../lib/admin-access.js';
+import { canAccessShop } from '../lib/shop-scope.js';
 import {
   normalizeQuantity,
   normalizeSignedQuantity,
@@ -176,6 +177,9 @@ inventoryRoutes.get('/inventory', async (c) => {
   if (!shopId) return c.json({ code: 'INVALID_QUERY', message: 'shopId 必填' }, 400);
   const denied = await guardPermission(c, 'inventory.read', { shopId });
   if (denied) return denied;
+  if (!(await canAccessShop(c.get('admin').sub, shopId))) {
+    return c.json({ code: 'FORBIDDEN', message: '无权查看该门店库存' }, 403);
+  }
 
   const db = await getDb();
   const keyword = c.req.query('keyword')?.trim() ?? '';
@@ -236,6 +240,9 @@ inventoryRoutes.get('/inventory/alerts', async (c) => {
   if (!shopId) return c.json({ code: 'INVALID_QUERY', message: 'shopId 必填' }, 400);
   const denied = await guardPermission(c, 'inventory.read', { shopId });
   if (denied) return denied;
+  if (!(await canAccessShop(c.get('admin').sub, shopId))) {
+    return c.json({ code: 'FORBIDDEN', message: '无权查看该门店库存' }, 403);
+  }
 
   const db = await getDb();
   const limit = Math.min(200, Math.max(1, Number(c.req.query('limit') ?? 100) || 100));
@@ -265,6 +272,9 @@ inventoryRoutes.get('/inventory/skus/:skuId', async (c) => {
 
   const denied = await guardPermission(c, 'inventory.read', { shopId: item.shopId, productId: item.productId });
   if (denied) return denied;
+  if (!(await canAccessShop(c.get('admin').sub, item.shopId))) {
+    return c.json({ code: 'FORBIDDEN', message: '无权查看该门店库存' }, 403);
+  }
 
   return c.json({ item });
 });
@@ -281,6 +291,9 @@ inventoryRoutes.get('/inventory/skus/:skuId/movements', async (c) => {
 
   const denied = await guardPermission(c, 'inventory.read', { shopId: sku.shopId });
   if (denied) return denied;
+  if (!(await canAccessShop(c.get('admin').sub, sku.shopId))) {
+    return c.json({ code: 'FORBIDDEN', message: '无权查看该门店库存' }, 403);
+  }
 
   const { page, pageSize, offset } = parsePaging({
     page: c.req.query('page'),
@@ -303,6 +316,9 @@ inventoryRoutes.get('/inventory/movements', async (c) => {
   if (!shopId) return c.json({ code: 'INVALID_QUERY', message: 'shopId 必填' }, 400);
   const denied = await guardPermission(c, 'inventory.read', { shopId });
   if (denied) return denied;
+  if (!(await canAccessShop(c.get('admin').sub, shopId))) {
+    return c.json({ code: 'FORBIDDEN', message: '无权查看该门店库存流水' }, 403);
+  }
 
   const { page, pageSize, offset } = parsePaging({
     page: c.req.query('page'),
@@ -346,6 +362,9 @@ inventoryRoutes.post('/inventory/adjustments', async (c) => {
   const { shopId, operationId, items } = parsed.data;
   const denied = await guardPermission(c, 'inventory.write', { shopId });
   if (denied) return denied;
+  if (!(await canAccessShop(c.get('admin').sub, shopId))) {
+    return c.json({ code: 'FORBIDDEN', message: '无权调整该门店库存' }, 403);
+  }
 
   const uniqueSkuIds = [...new Set(items.map((item) => item.skuId))];
   if (uniqueSkuIds.length !== items.length) {
@@ -528,6 +547,9 @@ inventoryRoutes.patch('/inventory/skus/:skuId/threshold', async (c) => {
     productId: sku.productId
   });
   if (denied) return denied;
+  if (!(await canAccessShop(c.get('admin').sub, sku.shopId))) {
+    return c.json({ code: 'FORBIDDEN', message: '无权调整该门店库存' }, 403);
+  }
 
   if (sku.stockType === 'untracked') {
     return c.json({ code: 'STOCK_NOT_TRACKED', message: '该 SKU 未开启库存追踪' }, 409);

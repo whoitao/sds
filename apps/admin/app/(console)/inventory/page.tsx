@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   Alert,
   Button,
@@ -86,10 +87,16 @@ function quantityModeLabel(mode: InventoryRow['quantityMode']) {
 }
 
 export default function InventoryPage() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [mounted, setMounted] = useState(false);
   const [shops, setShops] = useState<ShopOption[]>([]);
   const [shopId, setShopId] = useState<string | undefined>();
-  const [tab, setTab] = useState('stock');
+  // 页签写在 ?tab= 里：stock | warning | movements，刷新/分享保持当前页签
+  const tabParam = searchParams.get('tab');
+  const tab: 'stock' | 'alerts' | 'movements' =
+    tabParam === 'warning' ? 'alerts' : tabParam === 'movements' ? 'movements' : 'stock';
   const [error, setError] = useState('');
 
   const [rows, setRows] = useState<InventoryRow[]>([]);
@@ -230,6 +237,24 @@ export default function InventoryPage() {
   useEffect(() => {
     if (tab === 'movements') void loadMovements();
   }, [tab, loadMovements]);
+
+  /** 页签切换：门店选择共享，关键词/仅看低库存/分页只属于库存明细，不带到其他页签 */
+  const changeTab = useCallback(
+    (key: string) => {
+      setError('');
+      if (key !== 'stock') {
+        setKeyword('');
+        setSearchText('');
+        setLowStockOnly(false);
+        setPage(1);
+      }
+      if (key !== 'movements') setMovementPage(1);
+      const params = new URLSearchParams(searchParams.toString());
+      params.set('tab', key === 'alerts' ? 'warning' : key);
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    },
+    [pathname, router, searchParams]
+  );
 
   function openAdjust(row: InventoryRow) {
     setAdjustTarget(row);
@@ -495,10 +520,21 @@ export default function InventoryPage() {
   if (!mounted) return null;
 
   return (
-    <div style={{ background: 'var(--admin-surface)', minHeight: '100vh' }}>
+    <div className="admin-list-page">
       <div className="admin-page-bar">
-        <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--admin-text)' }}>店铺库存</span>
-        <Space size={12} wrap>
+        <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+          <Tabs
+            activeKey={tab}
+            onChange={changeTab}
+            tabBarStyle={{ margin: 0 }}
+            items={[
+              { key: 'stock', label: `库存明细 (${total})` },
+              { key: 'alerts', label: `缺货预警 (${alerts.length})` },
+              { key: 'movements', label: '库存流水' }
+            ]}
+          />
+        </div>
+        <Space size={8}>
           <Select
             style={{ width: ADMIN_FILTER_FIELD_WIDTH }}
             placeholder="选择门店"
@@ -510,27 +546,6 @@ export default function InventoryPage() {
             }}
             options={shops.map((shop) => ({ value: shop.id, label: shop.name }))}
           />
-          <Input.Search
-            allowClear
-            style={{ width: ADMIN_FILTER_FIELD_WIDTH }}
-            placeholder="商品名 / 规格 / 条码"
-            value={searchText}
-            onChange={(event) => setSearchText(event.target.value)}
-            onSearch={(value) => {
-              setKeyword(value);
-              setPage(1);
-            }}
-          />
-          <Space>
-            <span style={{ fontSize: 12 }}>仅看低库存</span>
-            <Switch
-              checked={lowStockOnly}
-              onChange={(checked) => {
-                setLowStockOnly(checked);
-                setPage(1);
-              }}
-            />
-          </Space>
           <Button icon={<ReloadOutlined />} onClick={() => void loadInventory()}>
             刷新
           </Button>
@@ -539,6 +554,30 @@ export default function InventoryPage() {
               void loadInventory();
               void loadAlerts();
               void loadMovements();
+            }}
+          />
+        </Space>
+      </div>
+
+      <div className="admin-filter-bar admin-filter-bar--wrap">
+        <Input.Search
+          allowClear
+          style={{ width: ADMIN_FILTER_FIELD_WIDTH }}
+          placeholder="商品名 / 规格 / 条码"
+          value={searchText}
+          onChange={(event) => setSearchText(event.target.value)}
+          onSearch={(value) => {
+            setKeyword(value);
+            setPage(1);
+          }}
+        />
+        <Space>
+          <span style={{ fontSize: 12 }}>仅看低库存</span>
+          <Switch
+            checked={lowStockOnly}
+            onChange={(checked) => {
+              setLowStockOnly(checked);
+              setPage(1);
             }}
           />
         </Space>
@@ -555,69 +594,50 @@ export default function InventoryPage() {
         />
       ) : null}
 
-      <Tabs
-        activeKey={tab}
-        onChange={setTab}
-        tabBarStyle={{ padding: '0 12px' }}
-        items={[
-          {
-            key: 'stock',
-            label: `库存明细 (${total})`,
-            children: (
-              <Table
-                rowKey="skuId"
-                loading={loading}
-                {...getAdminTableProps(columns)}
-                dataSource={rows}
-                pagination={{
-                  current: page,
-                  pageSize,
-                  total,
-                  showSizeChanger: false,
-                  showTotal: (count) => `共 ${count} 条`,
-                  onChange: (nextPage, nextPageSize) => {
-                    setPage(nextPage);
-                    setPageSize(nextPageSize);
-                  }
-                }}
-              />
-            )
-          },
-          {
-            key: 'alerts',
-            label: `缺货预警 (${alerts.length})`,
-            children: (
-              <Table
-                rowKey="skuId"
-                loading={alertsLoading}
-                {...getAdminTableProps(columns)}
-                dataSource={alerts}
-                pagination={false}
-              />
-            )
-          },
-          {
-            key: 'movements',
-            label: '库存流水',
-            children: (
-              <Table
-                rowKey="id"
-                loading={movementLoading}
-                {...getAdminTableProps(movementColumns)}
-                dataSource={movements}
-                pagination={{
-                  current: movementPage,
-                  pageSize: 20,
-                  total: movementTotal,
-                  showSizeChanger: false,
-                  showTotal: (count) => `共 ${count} 条`,
-                  onChange: setMovementPage
-                }}
-              />
-            )
-          }
-        ]}
-      />
+      <div className="admin-list-page-body">
+      {tab === 'stock' ? (
+        <Table
+          rowKey="skuId"
+          loading={loading}
+          {...getAdminTableProps(columns)}
+          dataSource={rows}
+          pagination={{
+            current: page,
+            pageSize,
+            total,
+            showSizeChanger: false,
+            showTotal: (count) => `共 ${count} 条`,
+            onChange: (nextPage, nextPageSize) => {
+              setPage(nextPage);
+              setPageSize(nextPageSize);
+            }
+          }}
+        />
+      ) : tab === 'alerts' ? (
+        <Table
+          rowKey="skuId"
+          loading={alertsLoading}
+          {...getAdminTableProps(columns)}
+          dataSource={alerts}
+          pagination={false}
+        />
+      ) : (
+        <Table
+          rowKey="id"
+          loading={movementLoading}
+          {...getAdminTableProps(movementColumns)}
+          dataSource={movements}
+          pagination={{
+            current: movementPage,
+            pageSize: 20,
+            total: movementTotal,
+            showSizeChanger: false,
+            showTotal: (count) => `共 ${count} 条`,
+            onChange: setMovementPage
+          }}
+        />
+      )}
+      </div>
 
       <Modal
         title={adjustTarget ? `库存调整 · ${adjustTarget.productName} ${adjustTarget.specName}` : '库存调整'}

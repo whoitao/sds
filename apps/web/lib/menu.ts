@@ -65,6 +65,43 @@ export function defaultSkuOf(product: MenuProduct): MenuSku | null {
   return product.skus.find((sku) => sku.skuId === product.defaultSkuId) ?? product.skus[0] ?? null;
 }
 
+/** 多规格商品：>1 个可售规格时，加购前必须先选规格 */
+export function hasMultipleSkus(product: MenuProduct): boolean {
+  return product.skus.length > 1;
+}
+
+/** 未售罄的规格；整行是否可买只看这个集合 */
+export function sellableSkusOf(product: MenuProduct): MenuSku[] {
+  return product.skus.filter((sku) => !sku.soldOut);
+}
+
+/** 售罄判定落到规格粒度：全部规格都售罄（或没有规格）才算整行卖完 */
+export function isProductSoldOut(product: MenuProduct): boolean {
+  return product.skus.length === 0 || product.skus.every((sku) => sku.soldOut);
+}
+
+/** 多规格展示价：取可售规格的最低价与最高价，全部售罄时退回菜单价格 */
+export function priceRangeOf(product: MenuProduct): { from: string; to: string } {
+  const prices = sellableSkusOf(product)
+    .map((sku) => Number(sku.price))
+    .filter((price) => Number.isFinite(price));
+  if (prices.length === 0) {
+    const fallback = product.priceFrom ?? product.price ?? '0.00';
+    return { from: fallback, to: product.priceTo ?? fallback };
+  }
+  return {
+    from: Math.min(...prices).toFixed(2),
+    to: Math.max(...prices).toFixed(2)
+  };
+}
+
+/** 列表副标题：单规格显示规格与单位，多规格显示规格数量与可售数 */
+export function specsSummaryOf(product: MenuProduct): string {
+  if (!hasMultipleSkus(product)) return specTextOf(product);
+  const sellable = sellableSkusOf(product).length;
+  return `共 ${product.skus.length} 种规格，${sellable} 种有货`;
+}
+
 export function specTextOf(product: MenuProduct): string {
   const sku = defaultSkuOf(product);
   const parts = [sku?.specName, sku?.unit || product.unit].filter(Boolean) as string[];

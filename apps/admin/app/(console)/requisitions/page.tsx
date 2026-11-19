@@ -22,7 +22,6 @@ import {
   PlusOutlined,
   ReloadOutlined,
   SendOutlined,
-  SettingOutlined,
   UndoOutlined
 } from '@ant-design/icons';
 import { adminColors as colors } from '../../../lib/theme';
@@ -112,12 +111,6 @@ interface DraftItem {
   quantity: number;
 }
 
-interface ScopeData {
-  admins: { id: string; username: string; displayName: string }[];
-  shops: { id: string; name: string; status: string }[];
-  items: { adminUserId: string; username: string; displayName: string; shopIds: string[] }[];
-}
-
 const STATUS_META: Record<RequisitionStatus, { label: string; color: string }> = {
   draft: { label: '草稿', color: 'default' },
   submitted: { label: '已提交', color: 'processing' },
@@ -158,7 +151,6 @@ export default function RequisitionsPage() {
   const [notice, setNotice] = useState('');
   const [mounted, setMounted] = useState(false);
   const [permissions, setPermissions] = useState<string[]>([]);
-  const [roles, setRoles] = useState<{ code: string }[]>([]);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<RequisitionRow | null>(null);
@@ -174,15 +166,6 @@ export default function RequisitionsPage() {
   const [detail, setDetail] = useState<RequisitionDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
-  const [scopeOpen, setScopeOpen] = useState(false);
-  const [scopeLoading, setScopeLoading] = useState(false);
-  const [scopeData, setScopeData] = useState<ScopeData | null>(null);
-  const [scopeAdminId, setScopeAdminId] = useState<string | undefined>();
-  const [scopeShopIds, setScopeShopIds] = useState<string[]>([]);
-  const [scopeSaving, setScopeSaving] = useState(false);
-  const [scopeError, setScopeError] = useState('');
-
-  const isSuperAdmin = roles.some((role) => role.code === 'super_admin');
   const canReview = permissions.includes('requisitions.review');
 
   const [appliedPageSize, setAppliedPageSize] = useState(pageSize);
@@ -197,7 +180,6 @@ export default function RequisitionsPage() {
       const payload = await response.json();
       if (!response.ok) return;
       setPermissions(payload.permissions ?? []);
-      setRoles(payload.roles ?? []);
     } catch {
       // 权限探测失败时保持只读展示，具体操作仍由服务端兜底
     }
@@ -473,72 +455,6 @@ export default function RequisitionsPage() {
     }
   }
 
-  async function openScope() {
-    setScopeOpen(true);
-    setScopeLoading(true);
-    setScopeError('');
-    try {
-      const response = await fetch('/api/admin/requisitions/shop-scope', { cache: 'no-store' });
-      const payload = await response.json();
-      if (!response.ok) {
-        setScopeError(payload?.message ?? '加载失败');
-        return;
-      }
-      setScopeData(payload);
-      const first = payload.items?.find((item: { shopIds: string[] }) => item.shopIds.length > 0);
-      const target = first ?? payload.items?.[0];
-      if (target) {
-        setScopeAdminId(target.adminUserId);
-        setScopeShopIds(target.shopIds);
-      }
-    } catch {
-      setScopeError('接口不可用');
-    } finally {
-      setScopeLoading(false);
-    }
-  }
-
-  function selectScopeAdmin(adminId: string) {
-    setScopeAdminId(adminId);
-    const target = scopeData?.items.find((item) => item.adminUserId === adminId);
-    setScopeShopIds(target?.shopIds ?? []);
-  }
-
-  async function saveScope() {
-    if (!scopeAdminId) return;
-    setScopeSaving(true);
-    setScopeError('');
-    try {
-      const response = await fetch(`/api/admin/requisitions/shop-scope/${scopeAdminId}`, {
-        method: 'PUT',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ shopIds: scopeShopIds })
-      });
-      const payload = await response.json();
-      if (!response.ok) {
-        setScopeError(payload?.message ?? '保存失败');
-        return;
-      }
-      setScopeData((current) =>
-        current
-          ? {
-              ...current,
-              items: current.items.map((item) =>
-                item.adminUserId === scopeAdminId
-                  ? { ...item, shopIds: scopeShopIds }
-                  : item
-              )
-            }
-          : current
-      );
-      setNotice('门店范围已更新');
-    } catch {
-      setScopeError('保存失败');
-    } finally {
-      setScopeSaving(false);
-    }
-  }
-
   const columns: TableColumnsType<RequisitionRow> = [
     { title: '要货单号', dataIndex: 'requisitionNo', width: 190 },
     { title: '门店', dataIndex: 'shopName', width: 160 },
@@ -672,11 +588,6 @@ export default function RequisitionsPage() {
         title="门店要货"
         actions={
           <Space size={8}>
-            {isSuperAdmin ? (
-              <Button icon={<SettingOutlined />} onClick={() => void openScope()}>
-                门店范围
-              </Button>
-            ) : null}
             <Button icon={<ReloadOutlined />} onClick={() => void load()}>
               刷新
             </Button>
@@ -1013,58 +924,6 @@ export default function RequisitionsPage() {
             </div>
           </>
         )}
-      </Modal>
-
-      <Modal
-        open={scopeOpen}
-        title="门店范围"
-        okText="保存"
-        cancelText="取消"
-        confirmLoading={scopeSaving}
-        onOk={() => void saveScope()}
-        onCancel={() => setScopeOpen(false)}
-        width={640}
-        forceRender
-      >
-        {scopeError ? (
-          <div style={{ marginBottom: 8, fontSize: 13, color: colors.danger }}>{scopeError}</div>
-        ) : null}
-        <div style={{ marginBottom: 8, fontSize: 13, color: colors.textSecondary }}>
-          绑定后，该管理员在要货与需求汇总里只能看到所选门店；不绑定则保持“全部门店”。
-          超级管理员始终不受限制。
-        </div>
-        <Space orientation="vertical" style={{ width: '100%' }} size={12}>
-          <Select
-            showSearch
-            optionFilterProp="label"
-            loading={scopeLoading}
-            placeholder="选择管理员"
-            style={{ width: '100%' }}
-            value={scopeAdminId}
-            onChange={selectScopeAdmin}
-            options={(scopeData?.items ?? []).map((item) => ({
-              value: item.adminUserId,
-              label: `${item.displayName}（${item.username}）`
-            }))}
-          />
-          <Select
-            mode="multiple"
-            allowClear
-            showSearch
-            optionFilterProp="label"
-            placeholder="选择门店；留空表示全部门店"
-            style={{ width: '100%' }}
-            value={scopeShopIds}
-            onChange={setScopeShopIds}
-            options={(scopeData?.shops ?? []).map((shop) => ({
-              value: shop.id,
-              label: shop.status === 'active' ? shop.name : `${shop.name}（停用）`
-            }))}
-          />
-          <div style={{ fontSize: 12, color: colors.textSecondary }}>
-            留空 = 全部门店（适合总部运营）；勾选门店 = 只允许这些门店（适合店长）。
-          </div>
-        </Space>
       </Modal>
     </div>
   );

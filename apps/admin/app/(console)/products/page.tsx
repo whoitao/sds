@@ -7,6 +7,7 @@
 // - 库存只读：只能通过库存台账（调整/采购入库）变更，商品页不再直改库存
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Key } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   Alert,
   Button,
@@ -35,6 +36,7 @@ import {
 import { adminColors as colors } from '../../../lib/theme';
 import { ADMIN_FILTER_FIELD_WIDTH, getAdminTableProps } from '../../../lib/table';
 import { useAdminSettings } from '../../../components/AdminSettingsProvider';
+import { useConfirmDanger } from '../../../components/AdminConfirmProvider';
 import { TabProgress } from '../../../components/TabProgress';
 import { TestDataCleanupButton } from '../../../components/TestDataCleanupButton';
 
@@ -84,6 +86,7 @@ interface ProductRow {
   catalogCategoryId: string | null;
   catalogCategoryName: string | null;
   catalogPrice: string | null;
+  catalogStatus: 'draft' | 'published' | 'archived' | null;
   effectivePrice: string | null;
   priceOverridden: boolean;
 }
@@ -197,11 +200,18 @@ function CategoryTreeIcon({ url }: { url: string | null }) {
 
 export default function ProductsPage() {
   const { pageSize } = useAdminSettings();
+  const confirmDanger = useConfirmDanger();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [mounted, setMounted] = useState(false);
-  const [tab, setTab] = useState<'products' | 'categories'>('products');
+  // 页签写在 ?tab= 里，刷新、分享后保持在同一页签
+  const tabParam = searchParams.get('tab');
   const [shops, setShops] = useState<ShopOption[]>([]);
   const [shopId, setShopId] = useState<string | undefined>();
   const [error, setError] = useState('');
+  // 分类可见性独立错误态：避免分类接口失败被商品列表的加载覆盖成空列表
+  const [catalogError, setCatalogError] = useState('');
   const [notice, setNotice] = useState('');
 
   const [catalogRows, setCatalogRows] = useState<CatalogNode[]>([]);
@@ -216,6 +226,38 @@ export default function ProductsPage() {
   const [searchText, setSearchText] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string | undefined>();
   const [availability, setAvailability] = useState<string | undefined>();
+
+  // 按钮级权限：店长只有 products.read，编辑/规格/上下架入口不渲染
+  const [permissions, setPermissions] = useState<string[]>([]);
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
+  useEffect(() => {
+    let active = true;
+    fetch('/api/admin/me/permissions', { cache: 'no-store' })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload) => {
+        if (active) setPermissions(payload?.permissions ?? []);
+      })
+      .catch(() => {
+        if (active) setPermissions([]);
+      })
+      .finally(() => {
+        if (active) setPermissionsLoaded(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+  const canWrite = permissions.includes('products.write');
+  // 门店上下架：店长用窄权限即可，不需要 products.write
+  const canOffShelf = permissions.includes('products.off_shelf') || canWrite;
+  // 分类可见性页签：门店商品读权限即可查看
+  const canReadProducts = permissions.includes('products.read');
+  const showCategoriesTab = !permissionsLoaded || canReadProducts;
+  // 无 products.read 时即使 URL 指向分类页签，也回落到店铺商品
+  const tab: 'products' | 'categories' =
+    tabParam === 'categories' && showCategoriesTab ? 'categories' : 'products';
+  // 门店分类显隐使用窄权限，不依赖 products.write
+  const canToggleCategoryVisibility = permissions.includes('products.catalog_visibility');
 
   const [productModalOpen, setProductModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] =
@@ -242,6 +284,24 @@ export default function ProductsPage() {
     setMounted(true);
   }, []);
 
+  const changeTab = useCallback(
+    (key: string) => {
+      // 切页签时清掉上一页遗留的提示，避免错误态跨页签显示
+      setError('');
+      setNotice('');
+      // 店铺商品页签的筛选不带到分类可见性；门店选择属于共享条件，保留
+      setKeyword('');
+      setSearchText('');
+      setCategoryFilter(undefined);
+      setAvailability(undefined);
+      setPage(1);
+      const params = new URLSearchParams(searchParams.toString());
+      params.set('tab', key === 'categories' ? 'categories' : 'products');
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    },
+    [pathname, router, searchParams]
+  );
+
   useEffect(() => {
     async function loadShops() {
       try {
@@ -259,6 +319,8 @@ export default function ProductsPage() {
 
   const loadCatalog = useCallback(async () => {
     if (!shopId) return;
+    // 清掉上一次操作/加载遗留的提示，避免正常加载时显示旧错误
+    setCatalogError('');
     setCatalogLoading(true);
     try {
       const response = await fetch(
@@ -267,12 +329,12 @@ export default function ProductsPage() {
       );
       const payload = await response.json();
       if (!response.ok) {
-        setError(payload?.message ?? '分类加载失败');
+        setCatalogError(payload?.message ?? '分类加载失败');
         return;
       }
       setCatalogRows(payload.items ?? []);
     } catch {
-      setError('接口不可用');
+      setCatalogError('分类数据加载失败，请稍后重试');
     } finally {
       setCatalogLoading(false);
     }
@@ -355,7 +417,16 @@ export default function ProductsPage() {
 
   async function toggleCategoryVisibility(row: CatalogTreeRow, visible: boolean) {
     if (!shopId) return;
-    setError('');
+    if (!visible) {
+      const confirmed = await confirmDanger({
+        title: `隐藏分类「${row.name}」？`,
+        content:
+          '隐藏后顾客在本店将看不到该分类及其下商品；可在本页重新显示，不影响总部商品库。',
+        okText: '确认隐藏'
+      });
+      if (!confirmed) return;
+    }
+    setCatalogError('');
     setNotice('');
     try {
       const response = await fetch(
@@ -368,7 +439,7 @@ export default function ProductsPage() {
       );
       const payload = await response.json();
       if (!response.ok) {
-        setError(payload?.message ?? '操作失败');
+        setCatalogError(payload?.message ?? '操作失败');
         return;
       }
       setNotice(
@@ -378,7 +449,7 @@ export default function ProductsPage() {
       );
       void loadCatalog();
     } catch {
-      setError('操作失败');
+      setCatalogError('操作失败');
     }
   }
 
@@ -432,6 +503,19 @@ export default function ProductsPage() {
     if (row.isBlocked) {
       setError(`商品已被总部强制下架${row.blockedReason ? `：${row.blockedReason}` : ''}`);
       return;
+    }
+    if (!row.isAvailable && row.catalogStatus && row.catalogStatus !== 'published') {
+      setError('总部已下架或归档该商品，需总部重新发布后才能上架');
+      return;
+    }
+    if (row.isAvailable) {
+      const confirmed = await confirmDanger({
+        title: '下架该商品？',
+        content:
+          '下架后顾客在本店将看不到此商品，已加入购物车的顾客将无法结算；库存不会变动，可随时重新上架。',
+        okText: '确认下架'
+      });
+      if (!confirmed) return;
     }
     const response = await fetch(`/api/admin/products/${row.id}/availability`, {
       method: 'PATCH',
@@ -552,26 +636,22 @@ export default function ProductsPage() {
     }
   }
 
-  function deleteSku(row: ProductSkuRow) {
+  async function deleteSku(row: ProductSkuRow) {
     if (!skuProduct) return;
-    Modal.confirm({
+    const confirmed = await confirmDanger({
       title: `删除规格「${row.specName}」？`,
-      content: '仅无库存、无流水、无采购记录的非默认本地规格可以删除。',
-      okText: '删除',
-      okButtonProps: { danger: true },
-      onOk: async () => {
-        const response = await fetch(`/api/admin/product-skus/${row.id}`, {
-          method: 'DELETE'
-        });
-        const payload = await response.json().catch(() => null);
-        if (!response.ok) {
-          setSkuError(payload?.message ?? '删除失败');
-          return;
-        }
-        await loadSkus(skuProduct.id);
-        void loadProducts();
-      }
+      content: '删除后不可恢复。仅无库存、无流水、无采购记录的非默认本地规格可以删除。',
+      okText: '删除'
     });
+    if (!confirmed) return;
+    const response = await fetch(`/api/admin/product-skus/${row.id}`, { method: 'DELETE' });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+      setSkuError(payload?.message ?? '删除失败');
+      return;
+    }
+    await loadSkus(skuProduct.id);
+    void loadProducts();
   }
 
   const skuColumns: TableColumnsType<ProductSkuRow> = [
@@ -687,14 +767,19 @@ export default function ProductsPage() {
         const parentHidden =
           row.level === 2 &&
           Boolean(catalogRows.find((item) => item.id === row.parentId)?.hidden);
+        const disabledReason = !canToggleCategoryVisibility
+          ? '无门店分类可见性权限，无法修改'
+          : parentHidden
+            ? '父级分类已隐藏，恢复父级后子分类才会显示'
+            : undefined;
         return (
-          <Tooltip title={parentHidden ? '父级分类已隐藏，恢复父级后子分类才会显示' : undefined}>
+          <Tooltip title={disabledReason}>
             <Switch
               size="small"
               checked={!row.hidden}
               checkedChildren="显示"
               unCheckedChildren="隐藏"
-              disabled={parentHidden}
+              disabled={!canToggleCategoryVisibility || parentHidden}
               onChange={(checked) => void toggleCategoryVisibility(row, checked)}
             />
           </Tooltip>
@@ -783,7 +868,11 @@ export default function ProductsPage() {
       render: (value: boolean, row) =>
         row.isBlocked ? (
           <Tooltip title={row.blockedReason ?? '总部强制下架'}>
-            <Tag color="error">总部下架</Tag>
+            <Tag color="error">强制下架</Tag>
+          </Tooltip>
+        ) : row.catalogStatus && row.catalogStatus !== 'published' ? (
+          <Tooltip title="总部商品未发布，顾客端不可见，需总部重新发布">
+            <Tag color="warning">{row.catalogStatus === 'archived' ? '总部已归档' : '总部已下架'}</Tag>
           </Tooltip>
         ) : value ? (
           <Tag color="success">已上架</Tag>
@@ -802,61 +891,83 @@ export default function ProductsPage() {
       key: 'action',
       align: 'right',
       fixed: 'right',
-      render: (_: unknown, row) => (
-        <Space size={2}>
-          <Tooltip title="编辑售价/上下架/库存策略">
-            <Button
-              variant="text"
-              color="primary"
-              size="small"
-              icon={<EditOutlined />}
-              aria-label="编辑"
-              onClick={() => openProductEdit(row)}
-            />
-          </Tooltip>
-          <Tooltip title="规格与库存">
-            <Button
-              variant="text"
-              color="primary"
-              size="small"
-              icon={<TagsOutlined />}
-              aria-label="规格"
-              onClick={() => openSkuModal(row)}
-            />
-          </Tooltip>
-          <Tooltip
-            title={
-              row.isBlocked ? '总部已强制下架，需总部解除后才能上架' : row.isAvailable ? '下架' : '上架'
-            }
-          >
-            <Button
-              variant="text"
-              color={row.isAvailable ? 'danger' : 'primary'}
-              size="small"
-              icon={row.isAvailable ? <StopOutlined /> : <CheckCircleOutlined />}
-              aria-label={row.isAvailable ? '下架' : '上架'}
-              disabled={row.isBlocked}
-              onClick={() => void toggleAvailability(row)}
-            />
-          </Tooltip>
-        </Space>
-      )
+      render: (_: unknown, row) => {
+        const hqOffline = Boolean(row.catalogStatus && row.catalogStatus !== 'published');
+        const cannotTurnOn = row.isBlocked || (!row.isAvailable && hqOffline);
+        const toggleTooltip = row.isBlocked
+          ? '总部已强制下架，需总部解除后才能上架'
+          : !row.isAvailable && hqOffline
+            ? '总部已下架或归档，需总部重新发布后才能上架'
+            : row.isAvailable
+              ? '下架'
+              : '上架';
+        return (
+          <Space size={2}>
+            {canWrite ? (
+              <Tooltip title="编辑售价/上下架/库存策略">
+                <Button
+                  variant="text"
+                  color="primary"
+                  size="small"
+                  icon={<EditOutlined />}
+                  aria-label="编辑"
+                  onClick={() => openProductEdit(row)}
+                />
+              </Tooltip>
+            ) : null}
+            {canWrite ? (
+              <Tooltip title="规格与库存">
+                <Button
+                  variant="text"
+                  color="primary"
+                  size="small"
+                  icon={<TagsOutlined />}
+                  aria-label="规格"
+                  onClick={() => openSkuModal(row)}
+                />
+              </Tooltip>
+            ) : null}
+            {canOffShelf ? (
+              <Tooltip title={toggleTooltip}>
+                <Button
+                  variant="text"
+                  color={row.isAvailable ? 'danger' : 'primary'}
+                  size="small"
+                  icon={row.isAvailable ? <StopOutlined /> : <CheckCircleOutlined />}
+                  aria-label={row.isAvailable ? '下架' : '上架'}
+                  disabled={cannotTurnOn}
+                  onClick={() => void toggleAvailability(row)}
+                />
+              </Tooltip>
+            ) : null}
+          </Space>
+        );
+      }
     }
   ];
+
+  const visibleColumns =
+    canWrite || canOffShelf ? columns : columns.filter((column) => column.key !== 'action');
 
   const hasShop = Boolean(shopId);
   const editingShared = Boolean(editingProduct?.row.catalogProductId);
   const editingBlocked = Boolean(editingProduct?.row.isBlocked);
 
   return (
-    <div style={{ background: colors.surface, minHeight: '100vh' }}>
+    <div className="admin-list-page" style={{ background: colors.surface }}>
       <div className="admin-page-bar">
-        <Space size={12}>
-          <span style={{ fontSize: 14, fontWeight: 600, color: colors.text }}>店铺商品</span>
-          <span style={{ fontSize: 12, color: colors.textTertiary }}>
-            商品由总部商品库统一发布，门店维护价格与上下架
-          </span>
-        </Space>
+        <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+          <Tabs
+            activeKey={tab}
+            onChange={changeTab}
+            tabBarStyle={{ margin: 0 }}
+            items={[
+              { key: 'products', label: '店铺商品' },
+              ...(showCategoriesTab ? [{ key: 'categories', label: '分类可见性' }] : [])
+            ]}
+          />
+          <TabProgress activeKey={tab} />
+        </div>
         <Space size={8}>
           <Select
             showSearch
@@ -879,34 +990,15 @@ export default function ProductsPage() {
         </Space>
       </div>
 
-      <div style={{ position: 'relative' }}>
-        <Tabs
-          activeKey={tab}
-          onChange={(key) => setTab(key as 'products' | 'categories')}
-          tabBarStyle={{ margin: 0, padding: '0 12px' }}
-          items={[
-            { key: 'products', label: '商品' },
-            { key: 'categories', label: '分类可见性' }
-          ]}
-        />
-        <TabProgress activeKey={tab} />
-      </div>
-
       {!hasShop ? (
-        <div style={{ padding: 48 }}>
-          <Empty description="还没有可用店铺，请先在店铺管理中创建店铺" />
+        <div className="admin-list-page-body">
+          <div style={{ padding: 48 }}>
+            <Empty description="还没有可用店铺，请先在店铺管理中创建店铺" />
+          </div>
         </div>
       ) : (
         <>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-              padding: '12px 12px 8px',
-              flexWrap: 'wrap'
-            }}
-          >
+          <div className="admin-filter-bar admin-filter-bar--wrap">
             <Space.Compact style={{ width: ADMIN_FILTER_FIELD_WIDTH }}>
               <Input
                 allowClear
@@ -970,13 +1062,19 @@ export default function ProductsPage() {
             ) : null}
           </div>
 
-          {error ? (
+          {tab === 'products' && error ? (
             <div style={{ padding: '0 12px 8px', fontSize: 13, color: colors.danger }}>{error}</div>
           ) : null}
-          {notice && !error ? (
+          {tab === 'categories' && catalogError ? (
+            <div style={{ padding: '0 12px 8px', fontSize: 13, color: colors.danger }}>
+              {catalogError}
+            </div>
+          ) : null}
+          {notice && !error && !catalogError ? (
             <div style={{ padding: '0 12px 8px', fontSize: 13, color: colors.textSecondary }}>{notice}</div>
           ) : null}
 
+          <div className="admin-list-page-body">
           {tab === 'categories' ? (
             <Table<CatalogTreeRow>
               rowKey="id"
@@ -991,7 +1089,9 @@ export default function ProductsPage() {
                 indentSize: 20
               }}
               locale={{
-                emptyText: (
+                emptyText: catalogError ? (
+                  <Empty description="分类加载失败，请查看上方错误信息" />
+                ) : (
                   <Empty description="总部尚未配置分类，请到「总部商品库 → 分类管理」中添加" />
                 )
               }}
@@ -1000,7 +1100,7 @@ export default function ProductsPage() {
             <Table<ProductRow>
               rowKey="id"
               loading={loading}
-              {...getAdminTableProps(columns)}
+              {...getAdminTableProps(visibleColumns)}
               dataSource={rows}
               scroll={{ x: 'max-content' }}
               pagination={{
@@ -1018,6 +1118,7 @@ export default function ProductsPage() {
               }}
             />
           )}
+          </div>
         </>
       )}
 

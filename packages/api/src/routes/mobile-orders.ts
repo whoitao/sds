@@ -93,6 +93,7 @@ type CartOrderRow = {
   productAvailable: boolean;
   productBlocked: boolean;
   catalogStatus: string | null;
+  catalogProductStatus: string | null;
 };
 
 class OrderError extends Error {
@@ -132,23 +133,31 @@ async function resolveCustomer(c: Context) {
   return findCustomerSession(token);
 }
 
+/** 报错带上规格名：多规格商品要能定位到具体是哪个规格不可买 */
+function itemLabel(row: { name: string; specName: string | null }) {
+  return row.specName ? `「${row.name}（${row.specName}）」` : `「${row.name}」`;
+}
+
 function ensureBuyable(row: CartOrderRow) {
+  if (row.catalogProductStatus && row.catalogProductStatus !== 'published') {
+    throw new OrderError('SKU_UNAVAILABLE', `${itemLabel(row)}已下架，暂不可购买`, 400);
+  }
   if (
     !row.skuAvailable ||
     !row.productAvailable ||
     row.productBlocked ||
     (row.catalogStatus && row.catalogStatus !== 'active')
   ) {
-    throw new OrderError('SKU_UNAVAILABLE', `「${row.name}」暂时不能购买`, 400);
+    throw new OrderError('SKU_UNAVAILABLE', `${itemLabel(row)}暂时不能购买`, 400);
   }
   if (row.stockType === 'tracked' && cents(row.stockQuantity) <= 0) {
-    throw new OrderError('STOCK_INSUFFICIENT', `「${row.name}」已售罄`, 409);
+    throw new OrderError('STOCK_INSUFFICIENT', `${itemLabel(row)}已售罄`, 409);
   }
   if (row.stockType === 'tracked' && cents(row.quantity) > cents(row.stockQuantity)) {
-    throw new OrderError('STOCK_INSUFFICIENT', `「${row.name}」库存不足`, 409);
+    throw new OrderError('STOCK_INSUFFICIENT', `${itemLabel(row)}库存不足`, 409);
   }
   if (row.unitPrice === null || cents(row.unitPrice) < 0) {
-    throw new OrderError('PRICE_MISSING', `「${row.name}」还没有价格`, 400);
+    throw new OrderError('PRICE_MISSING', `${itemLabel(row)}还没有价格`, 400);
   }
 }
 
@@ -310,7 +319,8 @@ mobileOrderRoutes.post('/', async (c) => {
       skuAvailable: productSkus.isAvailable,
       productAvailable: products.isAvailable,
       productBlocked: products.isBlocked,
-      catalogStatus: catalogSkus.status
+      catalogStatus: catalogSkus.status,
+      catalogProductStatus: catalogProducts.status
     })
     .from(cartItems)
     .innerJoin(carts, eq(carts.id, cartItems.cartId))
@@ -423,10 +433,10 @@ mobileOrderRoutes.post('/', async (c) => {
           if (item.stockType === 'tracked') {
             const available = lockedStocks.get(item.skuId);
             if (available === undefined) {
-              throw new OrderError('STOCK_ROW_MISSING', `「${item.name}」缺少库存记录`, 409);
+              throw new OrderError('STOCK_ROW_MISSING', `${itemLabel(item)}缺少库存记录`, 409);
             }
             if (cents(item.quantity) > available) {
-              throw new OrderError('STOCK_INSUFFICIENT', `「${item.name}」库存不足`, 409);
+              throw new OrderError('STOCK_INSUFFICIENT', `${itemLabel(item)}库存不足`, 409);
             }
           }
           totalCents += cents(item.unitPrice) * quantityNumber(item.quantity);

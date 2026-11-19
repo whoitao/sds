@@ -13,6 +13,8 @@ interface CleanupCount {
 interface TestDataCleanupButtonProps {
   onCleaned?: () => void;
   danger?: boolean;
+  /** 由服务端首帧给出的权限结果；传入后不再客户端探测，避免按钮后出现 */
+  initialAllowed?: boolean;
 }
 
 /**
@@ -21,9 +23,13 @@ interface TestDataCleanupButtonProps {
  * - 仅具备 test_data.cleanup 权限（super_admin）时展示
  * - 二次确认弹窗展示各表删除条数，确认后执行并提示结果
  */
-export function TestDataCleanupButton({ onCleaned, danger = true }: TestDataCleanupButtonProps) {
+export function TestDataCleanupButton({
+  onCleaned,
+  danger = true,
+  initialAllowed
+}: TestDataCleanupButtonProps) {
   const [messageApi, contextHolder] = message.useMessage();
-  const [allowed, setAllowed] = useState(false);
+  const [allowed, setAllowed] = useState(initialAllowed ?? false);
   const [open, setOpen] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -32,6 +38,7 @@ export function TestDataCleanupButton({ onCleaned, danger = true }: TestDataClea
   const [error, setError] = useState('');
 
   useEffect(() => {
+    if (initialAllowed !== undefined) return;
     let active = true;
     void (async () => {
       try {
@@ -46,7 +53,7 @@ export function TestDataCleanupButton({ onCleaned, danger = true }: TestDataClea
     return () => {
       active = false;
     };
-  }, []);
+  }, [initialAllowed]);
 
   async function openModal() {
     setOpen(true);

@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { and, desc, eq, ilike, or, sql } from 'drizzle-orm';
+import { and, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   isOnlinePayment,
@@ -12,6 +12,7 @@ import {
 import { customers, getDb, orderItems, orderPayments, orders, shops, users } from '@sds/db';
 import { requireAdmin, type AdminEnv } from '../middleware/admin-auth.js';
 import { guardPermission } from '../lib/admin-access.js';
+import { accessibleShopIds, canAccessShop } from '../lib/shop-scope.js';
 import { adjustCustomerStats, restoreOrderStock } from '../lib/order-settlement.js';
 import { refundPayment } from '../lib/payments.js';
 
@@ -143,16 +144,27 @@ adminOrderRoutes.get('/', async (c) => {
   const denied = await guardPermission(c, 'orders.read', shopId ? { shopId } : {});
   if (denied) return denied;
 
-  const db = await getDb();
-  const keyword = c.req.query('keyword')?.trim() ?? '';
-  const status = c.req.query('status')?.trim() ?? '';
   const { page, pageSize, offset } = parsePaging({
     page: c.req.query('page'),
     pageSize: c.req.query('pageSize')
   });
 
+  // 非超管只能看 admin_user_shops 绑定的门店；未绑定视为无任何门店权限
+  const shopIds = await accessibleShopIds(c.get('admin').sub);
+  if (shopId && shopIds !== null && !shopIds.includes(shopId)) {
+    return c.json({ code: 'FORBIDDEN', message: '无权查看该门店的订单' }, 403);
+  }
+  if (!shopId && shopIds !== null && shopIds.length === 0) {
+    return c.json({ items: [], total: 0, page, pageSize });
+  }
+
+  const db = await getDb();
+  const keyword = c.req.query('keyword')?.trim() ?? '';
+  const status = c.req.query('status')?.trim() ?? '';
+
   const conditions = [];
   if (shopId) conditions.push(eq(orders.shopId, shopId));
+  else if (shopIds !== null) conditions.push(inArray(orders.shopId, shopIds));
   if (keyword) {
     conditions.push(
       or(
@@ -229,6 +241,9 @@ adminOrderRoutes.get('/:id', async (c) => {
   if (!detail) return c.json({ code: 'ORDER_NOT_FOUND', message: '订单不存在' }, 404);
   const denied = await guardPermission(c, 'orders.read', { shopId: detail.shopId });
   if (denied) return denied;
+  if (!(await canAccessShop(c.get('admin').sub, detail.shopId))) {
+    return c.json({ code: 'FORBIDDEN', message: '无权查看该门店的订单' }, 403);
+  }
   return c.json({ order: detail });
 });
 
@@ -250,6 +265,9 @@ adminOrderRoutes.patch('/:id/status', async (c) => {
 
   const denied = await guardPermission(c, 'orders.write', { shopId: existing.shopId });
   if (denied) return denied;
+  if (!(await canAccessShop(c.get('admin').sub, existing.shopId))) {
+    return c.json({ code: 'FORBIDDEN', message: '无权处理该门店的订单' }, 403);
+  }
 
   const parsed = statusSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) {
@@ -371,6 +389,9 @@ adminOrderRoutes.post('/:id/refund', async (c) => {
 
   const denied = await guardPermission(c, 'orders.write', { shopId: existing.shopId });
   if (denied) return denied;
+  if (!(await canAccessShop(c.get('admin').sub, existing.shopId))) {
+    return c.json({ code: 'FORBIDDEN', message: '无权处理该门店的订单' }, 403);
+  }
 
   const parsed = refundSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) {
