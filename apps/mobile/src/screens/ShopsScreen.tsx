@@ -23,7 +23,8 @@ export default function ShopsScreen({ currentShopId, onSelect, onBack }: {
   const [location, setLocation] = useState<ShopLocation | null>(null);
   const [locationState, setLocationState] = useState<LocationState>('locating');
   const [canAskAgain, setCanAskAgain] = useState(true);
-  const [view, setView] = useState<'list' | 'map'>('list');
+  // 默认进地图：定位失败时地图也会按门店坐标绘制，和 iOS 表现一致
+  const [view, setView] = useState<'list' | 'map'>('map');
   const [selectedId, setSelectedId] = useState<string | null>(currentShopId);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');

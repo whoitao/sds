@@ -51,7 +51,9 @@ export default function ShopMap({ shops, location, selectedId, onSelect, onShowL
 
   useEffect(() => {
     if (privacy !== 'ready' || ready || failed) return;
-    const timer = setTimeout(() => setFailed(true), 20000);
+    // 原生高德初始化失败（Key 鉴权失败等）时 onLoad 永远不会回调，
+    // 5 秒内没有 ready 就降级到占位提示 + 门店列表，避免地图区域空白。
+    const timer = setTimeout(() => setFailed(true), 5000);
     return () => clearTimeout(timer);
   }, [privacy, ready, failed, attempt]);
 
@@ -114,27 +116,33 @@ export default function ShopMap({ shops, location, selectedId, onSelect, onShowL
             myLocationButtonEnabled={false}
             onLoad={() => setReady(true)}
           >
-            {location ? (
-              <Marker
-                position={{ longitude: location.longitude, latitude: location.latitude }}
-                anchor={{ x: 0.5, y: 0.5 }}
-                title="当前位置"
-              >
-                <View style={styles.locationDot}>
-                  <View style={styles.locationDotCenter} />
-                </View>
-              </Marker>
+            {/* Marker 是原生子视图，会触发 ExpoGaodeMapView.addView；
+                原生 aMap 未初始化时挂载标记会直接崩溃，必须等地图 onLoad 之后再渲染。 */}
+            {ready ? (
+              <>
+                {location ? (
+                  <Marker
+                    position={{ longitude: location.longitude, latitude: location.latitude }}
+                    anchor={{ x: 0.5, y: 0.5 }}
+                    title="当前位置"
+                  >
+                    <View style={styles.locationDot}>
+                      <View style={styles.locationDotCenter} />
+                    </View>
+                  </Marker>
+                ) : null}
+                {shops.map((shop) => (
+                  <Marker
+                    key={shop.id}
+                    position={{ longitude: shop.longitude, latitude: shop.latitude }}
+                    title={shop.name}
+                    snippet={shop.address ?? undefined}
+                    pinColor={selectedId === shop.id ? 'green' : shop.status === 'open' ? 'red' : 'purple'}
+                    onMarkerPress={() => onSelect(shop.id)}
+                  />
+                ))}
+              </>
             ) : null}
-            {shops.map((shop) => (
-              <Marker
-                key={shop.id}
-                position={{ longitude: shop.longitude, latitude: shop.latitude }}
-                title={shop.name}
-                snippet={shop.address ?? undefined}
-                pinColor={selectedId === shop.id ? 'green' : shop.status === 'open' ? 'red' : 'purple'}
-                onMarkerPress={() => onSelect(shop.id)}
-              />
-            ))}
           </MapView>
         ) : null}
 
@@ -176,7 +184,7 @@ export default function ShopMap({ shops, location, selectedId, onSelect, onShowL
             <Ionicons name="map-outline" size={42} color="#9aa0a6" />
             <Text style={styles.failedTitle}>原生地图加载失败</Text>
             <Text style={styles.failedText}>
-              请检查网络、平台原生 Key，并确认当前应用已重新打包（不支持 Expo Go）
+              可能是网络、高德 Key 未绑定当前包名/签名，或模拟器不支持地图渲染。可先用下方门店列表，真机上再试。
             </Text>
             <Pressable style={styles.retryButton} onPress={() => setAttempt((value) => value + 1)}>
               <Text style={styles.retryText}>重新加载</Text>
@@ -220,7 +228,8 @@ export default function ShopMap({ shops, location, selectedId, onSelect, onShowL
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  // 地图放在 ScrollView 里，flex:1 没有父级高度可用会塌成 0，这里给固定高度保证原生视图有尺寸
+  container: { height: 260, borderRadius: 12, overflow: 'hidden' },
   mapArea: { flex: 1, position: 'relative', overflow: 'hidden' },
   centerOverlay: {
     position: 'absolute',

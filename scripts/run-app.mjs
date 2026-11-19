@@ -76,7 +76,14 @@ if (appName === 'api') {
   args = ['build', ...rest];
 } else if (appName === 'mobile') {
   command = bin('expo');
-  args = ['start', '--port', port, ...rest];
+  // 含原生模块（expo-gaode-map）时 Expo Go 无法加载：带平台参数时走 dev build，
+  // run:android / run:ios 会自动 prebuild + 构建 + 安装 + 启动，不需要手动先装 APK。
+  const platform = rest.includes('--android') ? 'android' : rest.includes('--ios') ? 'ios' : null;
+  if (platform) {
+    args = [`run:${platform}`, ...rest.filter((arg) => arg !== `--${platform}`)];
+  } else {
+    args = ['start', '--dev-client', '--port', port, ...rest];
+  }
 } else {
   command = bin('next');
   args = [mode === 'start' ? 'start' : 'dev', '-p', port];
