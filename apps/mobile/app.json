@@ -4,18 +4,34 @@
     "slug": "sds-mobile",
     "version": "0.1.0",
     "orientation": "portrait",
-    "newArchEnabled": true,
-    "platforms": ["ios", "android"],
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "icon": "./assets/icon.png",
     "plugins": [
-      ["expo-location", { "locationWhenInUsePermission": "用于查找离您最近的门店；不授权也可以按店名、街道或小区找店。" }]
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "用于查找离您最近的门店；不授权也可以按店名、街道或小区找店。"
+        }
+      ]
     ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.sds.mobile"
     },
     "android": {
-      "package": "com.sds.mobile"
+      "package": "com.sds.mobile",
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ]
+    },
+    "extra": {
+      "eas": {
+        "projectId": "ecc2e74e-3e69-4d66-b823-f7c6ae2738bc"
+      }
     }
   }
 }
