@@ -745,7 +745,7 @@ export function DashboardPanel({ initialIsSuperAdmin }: DashboardPanelProps) {
 
         <Row gutter={[12, 12]}>
           <Col xs={24} md={8}>
-            <Surface style={{ padding: '12px 14px', height: '100%' }}>
+            <Surface style={{ padding: '12px 14px' }}>
               <div style={{ fontSize: fontSize.small, color: colors.textSecondary }}>总部仓库存金额</div>
               <div style={{ fontSize: fontSize.metric, fontWeight: 600, marginTop: 6, fontVariantNumeric: 'tabular-nums' }}>
                 {formatMoney(data.inventory.warehouseAmount)}
@@ -756,7 +756,7 @@ export function DashboardPanel({ initialIsSuperAdmin }: DashboardPanelProps) {
             </Surface>
           </Col>
           <Col xs={24} md={8}>
-            <Surface style={{ padding: '12px 14px', height: '100%' }}>
+            <Surface style={{ padding: '12px 14px' }}>
               <div style={{ fontSize: fontSize.small, color: colors.textSecondary }}>门店库存金额</div>
               <div style={{ fontSize: fontSize.metric, fontWeight: 600, marginTop: 6, fontVariantNumeric: 'tabular-nums' }}>
                 {formatMoney(data.inventory.shopAmount)}
@@ -767,7 +767,7 @@ export function DashboardPanel({ initialIsSuperAdmin }: DashboardPanelProps) {
             </Surface>
           </Col>
           <Col xs={24} md={8}>
-            <Surface style={{ padding: '12px 14px', height: '100%' }}>
+            <Surface style={{ padding: '12px 14px' }}>
               <div style={{ fontSize: fontSize.small, color: colors.textSecondary }}>低库存预警</div>
               <div style={{ fontSize: fontSize.metric, fontWeight: 600, marginTop: 6, fontVariantNumeric: 'tabular-nums' }}>
                 {formatCount(data.inventory.lowStockShopSkus + data.inventory.lowStockWarehouseSkus)}

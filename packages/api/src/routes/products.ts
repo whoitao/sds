@@ -21,6 +21,7 @@ import { guardPermission } from '../lib/admin-access.js';
 import { canAccessShop } from '../lib/shop-scope.js';
 import { resolveCategoryScope } from '../lib/category-scope.js';
 import { inferQuantityMode } from '../lib/quantity.js';
+import { imagePathFromValue, resolveImageUrl } from '../lib/storage.js';
 
 /**
  * 平台侧商品管理，对应 PRD 5.4 categories / 5.5 products。
@@ -91,7 +92,7 @@ const categoryFields = {
   name: z.string().trim().min(1, '分类名称必填').max(50),
   parentId: z.uuid('父分类 ID 不合法').nullish(),
   sortOrder: z.number().int().min(0).max(9999).optional(),
-  iconUrl: z.string().url('图标需为合法 URL').nullish(),
+  iconUrl: z.string().trim().max(500).nullish(),
   isActive: z.boolean().optional()
 };
 
@@ -165,7 +166,9 @@ productRoutes.get('/categories', async (c) => {
       asc(categories.createdAt)
     );
 
-  return c.json({ items: rows });
+  return c.json({
+    items: rows.map((row) => ({ ...row, iconUrl: resolveImageUrl(row.iconUrl) }))
+  });
 });
 
 // P5：门店分类写接口下线（分类改为总部共享树，门店只能隐藏/显示）。
@@ -513,7 +516,7 @@ const productFields = {
   categoryId: z.uuid('分类 ID 不合法').nullish(),
   name: z.string().trim().min(1, '商品名称必填').max(100),
   description: z.string().max(1000).nullish(),
-  imageUrl: z.string().url('商品图片需为合法 URL').nullish(),
+  imageUrl: z.string().trim().max(500).nullish(),
   price: z.number().min(0, '售价不能为负').max(99999999).nullable(),
   unit: z.string().trim().min(1, '单位必填').max(20),
   stockType: z.enum(productStockTypeEnum.enumValues).optional(),
@@ -706,7 +709,12 @@ productRoutes.get('/products', async (c) => {
       .where(where)
   ]);
 
-  return c.json({ items, total: totalRows[0]?.total ?? 0, page, pageSize });
+  return c.json({
+    items: items.map((item) => ({ ...item, imageUrl: resolveImageUrl(item.imageUrl) })),
+    total: totalRows[0]?.total ?? 0,
+    page,
+    pageSize
+  });
 });
 
 productRoutes.post('/products', async (c) => {
@@ -716,6 +724,10 @@ productRoutes.post('/products', async (c) => {
   }
 
   const { shopId, categoryId, price, specName, barcode, quantityMode, ...rest } = parsed.data;
+  const imagePath = rest.imageUrl ? imagePathFromValue(rest.imageUrl) : null;
+  if (rest.imageUrl && !imagePath) {
+    return c.json({ code: 'INVALID_IMAGE_URL', message: '商品图片需上传到本系统存储' }, 400);
+  }
   const denied = await guardPermission(c, 'products.write', { shopId });
   if (denied) return denied;
 
@@ -737,7 +749,7 @@ productRoutes.post('/products', async (c) => {
         categoryId: categoryId ?? null,
         price: price.toFixed(2),
         description: rest.description ?? null,
-        imageUrl: rest.imageUrl ?? null,
+        imageUrl: imagePath,
         stockType,
         isAvailable: rest.isAvailable ?? true,
         sortOrder: rest.sortOrder ?? 0
@@ -818,6 +830,15 @@ productRoutes.patch('/products/:id', async (c) => {
   }
 
   const { categoryId, price, ...rest } = parsed.data;
+  const imagePath =
+    rest.imageUrl === undefined
+      ? undefined
+      : rest.imageUrl
+        ? imagePathFromValue(rest.imageUrl)
+        : null;
+  if (rest.imageUrl && !imagePath) {
+    return c.json({ code: 'INVALID_IMAGE_URL', message: '商品图片需上传到本系统存储' }, 400);
+  }
   if (!current.catalogProductId && price === null) {
     return c.json({ code: 'PRICE_REQUIRED', message: '本地商品必须填写售价' }, 400);
   }
@@ -830,6 +851,7 @@ productRoutes.patch('/products/:id', async (c) => {
       .update(products)
       .set({
         ...rest,
+        ...(imagePath === undefined ? {} : { imageUrl: imagePath }),
         ...(categoryId === undefined ? {} : { categoryId }),
         ...(price === undefined ? {} : { price: price === null ? null : price.toFixed(2) }),
         updatedAt: new Date()

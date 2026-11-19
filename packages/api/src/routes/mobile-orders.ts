@@ -28,6 +28,7 @@ import { findCustomerSession, tokenFromHeader } from '../lib/customer-session.js
 import { quantityNumber } from '../lib/quantity.js';
 import { adjustCustomerStats, restoreOrderStock } from '../lib/order-settlement.js';
 import { chargePayment, PAYMENT_PROVIDER } from '../lib/payments.js';
+import { resolveImageUrl } from '../lib/storage.js';
 
 /**
  * 顾客下单与支付，对应 PRD 6 章订单流程。
@@ -242,7 +243,7 @@ async function listOrders(customerId: string, ids: string[]) {
       skuId: item.productSkuId,
       name: item.name,
       specName: item.specName,
-      imageUrl: item.imageUrl,
+      imageUrl: resolveImageUrl(item.imageUrl),
       unit: item.unit,
       quantityMode: item.quantityMode,
       unitPrice: item.unitPrice,

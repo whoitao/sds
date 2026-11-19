@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { getDb } from '@sds/db';
 import { nearbyShopQuerySchema } from '@sds/shared';
 import { shopMapHtml } from '../lib/shop-map.js';
+import { resolveImageUrl } from '../lib/storage.js';
 
 export const publicShopRoutes = new Hono();
 
@@ -28,7 +29,12 @@ publicShopRoutes.get('/', async (c) => {
      where status != 'suspended' and ${keywordFilter(parsed.data.keyword)}
      order by (status = 'open') desc, name, id
   `);
-  return c.json({ items: result.rows });
+  return c.json({
+    items: result.rows.map((row) => ({
+      ...row,
+      coverUrl: resolveImageUrl(row.coverUrl as string | null)
+    }))
+  });
 });
 
 publicShopRoutes.get('/nearby', async (c) => {
@@ -54,7 +60,14 @@ publicShopRoutes.get('/nearby', async (c) => {
      where distance <= ${radius}
      order by distance, name, id
   `);
-  return c.json({ items: result.rows, radius, coordinateSystem: 'gcj02' });
+  return c.json({
+    items: result.rows.map((row) => ({
+      ...row,
+      coverUrl: resolveImageUrl(row.coverUrl as string | null)
+    })),
+    radius,
+    coordinateSystem: 'gcj02'
+  });
 });
 
 publicShopRoutes.get('/map', (c) => {

@@ -11,6 +11,7 @@ import {
 } from '@sds/db';
 import type { BusinessHours } from '@sds/db';
 import { requireAdmin, type AdminEnv } from '../middleware/admin-auth.js';
+import { imagePathFromValue, resolveImageUrl } from '../lib/storage.js';
 import { guardPermission } from '../lib/admin-access.js';
 import { accessibleShopIds, canAccessShop } from '../lib/shop-scope.js';
 import { fanOutCatalogProductsToShop } from '../lib/catalog-fanout.js';
@@ -70,7 +71,7 @@ const shopFields = {
     .regex(/^1\d{10}$/, '电话需为 11 位')
     .nullish(),
   announcement: z.string().max(500).nullish(),
-  coverUrl: z.string().url('封面需为合法 URL').nullish(),
+  coverUrl: z.string().trim().max(500).nullish(),
   businessHours: businessHoursSchema.nullish(),
   status: z.enum(shopStatusEnum.enumValues).optional()
 };
@@ -142,7 +143,12 @@ shopRoutes.get('/', async (c) => {
     db.select({ total: sql<number>`count(*)::int` }).from(shops).where(where)
   ]);
 
-  return c.json({ items, total: totalRows[0]?.total ?? 0, page, pageSize });
+  return c.json({
+    items: items.map((item) => ({ ...item, coverUrl: resolveImageUrl(item.coverUrl) })),
+    total: totalRows[0]?.total ?? 0,
+    page,
+    pageSize
+  });
 });
 
 shopRoutes.post('/', async (c) => {
@@ -155,12 +161,18 @@ shopRoutes.post('/', async (c) => {
   }
 
   const { longitude, latitude, businessHours, ...rest } = parsed.data;
+  // 写入统一存桶内相对路径；兼容旧调用传入的完整公开 URL，外部地址拒绝
+  const coverPath = rest.coverUrl ? imagePathFromValue(rest.coverUrl) : null;
+  if (rest.coverUrl && !coverPath) {
+    return c.json({ code: 'INVALID_IMAGE_URL', message: '封面需上传到本系统存储' }, 400);
+  }
 
   const db = await getDb();
   const [row] = await db
     .insert(shops)
     .values({
       ...rest,
+      coverUrl: coverPath,
       phone: rest.phone ?? null,
       businessHours: normalizeBusinessHours(businessHours),
       longitude: String(longitude),
@@ -184,10 +196,20 @@ shopRoutes.patch('/:id', async (c) => {
   }
 
   const { longitude, latitude, businessHours, ...rest } = parsed.data;
+  const coverPath =
+    rest.coverUrl === undefined
+      ? undefined
+      : rest.coverUrl
+        ? imagePathFromValue(rest.coverUrl)
+        : null;
+  if (rest.coverUrl && !coverPath) {
+    return c.json({ code: 'INVALID_IMAGE_URL', message: '封面需上传到本系统存储' }, 400);
+  }
   const [row] = await (await getDb())
     .update(shops)
     .set({
       ...rest,
+      ...(coverPath === undefined ? {} : { coverUrl: coverPath }),
       ...(longitude === undefined ? {} : { longitude: String(longitude) }),
       ...(latitude === undefined ? {} : { latitude: String(latitude) }),
       ...(businessHours === undefined

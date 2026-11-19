@@ -3,7 +3,7 @@ import { requireAdmin, type AdminEnv } from '../middleware/admin-auth.js';
 import { guardPermission } from '../lib/admin-access.js';
 import {
   deleteObject,
-  publicObjectUrl,
+  imagePathFromValue,
   readStorageConfig,
   StorageNotConfiguredError,
   uploadObject
@@ -49,12 +49,15 @@ function resolveDir(value: unknown): string {
 const UPLOADED_PATH_PATTERN =
   /^[a-z0-9-]{1,32}\/\d{6}\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(?:jpg|png|webp|gif)$/;
 
-function uploadedPathFromUrl(config: { url: string; bucket: string }, value: unknown) {
+/**
+ * 删除参数兼容两种历史形态：
+ * - 新数据：桶内相对路径（catalog-products/202611/xxx.png）
+ * - 旧数据：完整公开 URL（只接受本桶前缀，外部地址一律拒绝）
+ */
+function uploadedPathFromValue(value: unknown) {
   if (typeof value !== 'string') return null;
-  const prefix = `${config.url}/storage/v1/object/public/${config.bucket}/`;
-  if (!value.startsWith(prefix)) return null;
-  const path = value.slice(prefix.length).split('?')[0];
-  return UPLOADED_PATH_PATTERN.test(path) ? path : null;
+  const path = imagePathFromValue(value);
+  return path && UPLOADED_PATH_PATTERN.test(path) ? path : null;
 }
 
 /** 上传入口的权限口径：shops.write 或 catalog.write 任一即可，删除保持一致 */
@@ -111,7 +114,7 @@ uploadRoutes.post('/', async (c) => {
     return c.json({ code: 'UPLOAD_FAILED', message: '图片上传失败，请稍后再试' }, 502);
   }
 
-  return c.json({ url: publicObjectUrl(config, path), path, size: file.size }, 201);
+  return c.json({ path, size: file.size }, 201);
 });
 
 /** 删除本系统上传的单张图片；仅接受本桶内符合上传路径规则的地址 */
@@ -131,7 +134,7 @@ uploadRoutes.delete('/', async (c) => {
     );
   }
 
-  const path = uploadedPathFromUrl(config, body?.url);
+  const path = uploadedPathFromValue(body?.path ?? body?.url);
   if (!path) {
     return c.json(
       { code: 'INVALID_PATH', message: '只能删除由本系统上传的图片' },

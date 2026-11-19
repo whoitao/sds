@@ -75,14 +75,26 @@ export async function uploadAvatarAction(
   }
 
   const data = (await response.json().catch(() => null)) as
-    | { avatarUrl?: string; message?: string }
+    | { path?: string; message?: string }
     | null;
-  if (!response.ok || !data?.avatarUrl) {
+  // 上传接口只返回桶内相对路径；再读 /me 拿拼接好的展示地址
+  if (!response.ok || !data?.path) {
     return { error: data?.message ?? '头像上传失败，请稍后再试' };
   }
 
   revalidateProfile();
-  return { message: '头像已更新', avatarUrl: data.avatarUrl };
+  try {
+    const meResponse = await fetch(`${API_BASE_URL}/api/auth/me`, {
+      headers: { authorization: `Bearer ${token}` },
+      cache: 'no-store'
+    });
+    const me = (await meResponse.json().catch(() => null)) as
+      | { customer?: { avatarUrl?: string | null } }
+      | null;
+    return { message: '头像已更新', avatarUrl: me?.customer?.avatarUrl ?? null };
+  } catch {
+    return { message: '头像已更新' };
+  }
 }
 
 export async function removeAvatarAction(

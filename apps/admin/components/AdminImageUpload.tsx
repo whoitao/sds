@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { Tooltip, Upload } from 'antd';
 import {
@@ -18,9 +18,9 @@ const ACCEPT = 'image/jpeg,image/png,image/webp,image/gif';
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
 export interface AdminImageUploadProps {
-  /** 表单值：图片地址；为空表示未上传 */
+  /** 表单值：桶内相对路径；旧数据可能是完整 URL，均为空表示未上传 */
   value?: string | null;
-  /** 上传成功/移除后回写图片地址，null 表示清空 */
+  /** 上传成功/移除后回写桶内相对路径，null 表示清空 */
   onChange?: (url: string | null) => void;
   /** 展示宽度（px），默认 120 */
   width?: number;
@@ -44,7 +44,8 @@ export interface AdminImageUploadProps {
 /**
  * 管理端通用图片上传：antd picture-card 形态，整块虚线区域即上传入口，
  * 空态为加号；已有图片时方块内预览，悬停显示预览 / 移除。
- * 统一走 /api/admin/uploads；表单只保存图片地址，调用方按普通字符串字段使用。
+ * 统一走 /api/admin/uploads；表单只保存桶内相对路径（如 shops/202611/xxx.png），
+ * 已有数据由 API 返回完整 URL 直接用于预览；新上传用本地 blob 预览，避免回写完整地址。
  */
 export function AdminImageUpload({
   value,
@@ -61,8 +62,16 @@ export function AdminImageUpload({
 }: AdminImageUploadProps) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
+  /** 新上传文件的本地球预览；表单里存的是相对路径，不能直接用于 <img src> */
+  const [localPreview, setLocalPreview] = useState<string | null>(null);
 
-  const url = value || null;
+  useEffect(() => {
+    return () => {
+      if (localPreview) URL.revokeObjectURL(localPreview);
+    };
+  }, [localPreview]);
+
+  const url = localPreview ?? (value || null);
   const boxHeight = height ?? Math.round(width / (aspectRatio || 1));
   const ratio = compressRatio ?? aspectRatio;
   const compact = width < 80;
@@ -87,13 +96,14 @@ export function AdminImageUpload({
 
       const response = await fetch('/api/admin/uploads', { method: 'POST', body: data });
       const payload = await response.json().catch(() => null);
-      if (!response.ok || !payload?.url) {
+      if (!response.ok || !payload?.path) {
         const message = payload?.message ?? '上传失败，请稍后再试';
         setError(message);
         onError?.(new Error(message));
         return;
       }
-      onChange?.(payload.url);
+      setLocalPreview(URL.createObjectURL(body));
+      onChange?.(payload.path);
       onSuccess?.(payload);
       return;
     } catch (uploadError) {
@@ -229,6 +239,7 @@ export function AdminImageUpload({
                   onClick={(event) => {
                     event.stopPropagation();
                     setError('');
+                    setLocalPreview(null);
                     onChange?.(null);
                   }}
                 >

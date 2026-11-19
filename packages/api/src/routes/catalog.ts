@@ -19,6 +19,7 @@ import {
   syncCatalogSkuToShopSkus
 } from '../lib/catalog-fanout.js';
 import { inferQuantityMode } from '../lib/quantity.js';
+import { imagePathFromValue, resolveImageUrl } from '../lib/storage.js';
 
 /**
  * 总部商品库（catalog）只读接口，对应多店方案 P1。
@@ -109,7 +110,9 @@ catalogRoutes.get('/catalog/categories', async (c) => {
     .where(where)
     .orderBy(asc(catalogCategories.level), asc(catalogCategories.sortOrder), asc(catalogCategories.createdAt));
 
-  return c.json({ items: rows });
+  return c.json({
+    items: rows.map((row) => ({ ...row, iconUrl: resolveImageUrl(row.iconUrl) }))
+  });
 });
 
 // ---------------------------------------------------------------- 总部分类写接口
@@ -118,7 +121,7 @@ const catalogCategoryFields = {
   name: z.string().trim().min(1, '分类名称必填').max(50),
   parentId: z.uuid('父分类 ID 不合法').nullish(),
   sortOrder: z.number().int().min(0).max(9999).optional(),
-  iconUrl: z.string().url('图标需为合法 URL').nullish(),
+  iconUrl: z.string().trim().max(500).nullish(),
   isActive: z.boolean().optional()
 };
 
@@ -154,6 +157,10 @@ catalogRoutes.post('/catalog/categories', async (c) => {
   }
 
   const { name, sortOrder, iconUrl, isActive } = parsed.data;
+  const iconPath = iconUrl ? imagePathFromValue(iconUrl) : null;
+  if (iconUrl && !iconPath) {
+    return c.json({ code: 'INVALID_IMAGE_URL', message: '分类图标需上传到本系统存储' }, 400);
+  }
   const parentId = parsed.data.parentId ?? null;
   const db = await getDb();
 
@@ -191,7 +198,7 @@ catalogRoutes.post('/catalog/categories', async (c) => {
           level: parentId ? 2 : 1,
           name,
           sortOrder: nextSortOrder,
-          iconUrl: iconUrl ?? null,
+          iconUrl: iconPath,
           isActive: isActive ?? true
         })
         .returning({ id: catalogCategories.id });
@@ -229,10 +236,15 @@ catalogRoutes.patch('/catalog/categories/:id', async (c) => {
   if (!current) return c.json({ code: 'NOT_FOUND', message: '分类不存在' }, 404);
 
   const { name, sortOrder, iconUrl, isActive } = parsed.data;
+  const iconPath =
+    iconUrl === undefined ? undefined : iconUrl ? imagePathFromValue(iconUrl) : null;
+  if (iconUrl && !iconPath) {
+    return c.json({ code: 'INVALID_IMAGE_URL', message: '分类图标需上传到本系统存储' }, 400);
+  }
   const updates = {
     ...(name === undefined ? {} : { name }),
     ...(sortOrder === undefined ? {} : { sortOrder }),
-    ...(iconUrl === undefined ? {} : { iconUrl }),
+    ...(iconPath === undefined ? {} : { iconUrl: iconPath }),
     ...(isActive === undefined ? {} : { isActive })
   };
 
@@ -407,7 +419,12 @@ catalogRoutes.get('/catalog/products', async (c) => {
     db.select({ total: sql<number>`count(*)::int` }).from(catalogProducts).where(where)
   ]);
 
-  return c.json({ items, total: totalRows[0]?.total ?? 0, page, pageSize });
+  return c.json({
+    items: items.map((item) => ({ ...item, imageUrl: resolveImageUrl(item.imageUrl) })),
+    total: totalRows[0]?.total ?? 0,
+    page,
+    pageSize
+  });
 });
 
 catalogRoutes.get('/catalog/products/:id', async (c) => {
@@ -468,7 +485,7 @@ catalogRoutes.get('/catalog/products/:id', async (c) => {
     .where(eq(catalogSkus.catalogProductId, item.id))
     .orderBy(asc(catalogSkus.sortOrder), asc(catalogSkus.createdAt));
 
-  return c.json({ item: { ...item, ...stats, skus } });
+  return c.json({ item: { ...item, imageUrl: resolveImageUrl(item.imageUrl), ...stats, skus } });
 });
 
 // ---------------------------------------------------------------- 总部规格（SKU）
@@ -719,7 +736,7 @@ const catalogProductFields = {
   categoryId: z.uuid('分类 ID 不合法').nullish(),
   name: z.string().trim().min(1, '商品名称必填').max(100),
   description: z.string().max(1000).nullish(),
-  imageUrl: z.string().url('商品图片需为合法 URL').nullish(),
+  imageUrl: z.string().trim().max(500).nullish(),
   unit: z.string().trim().min(1, '单位必填').max(20),
   defaultPrice: z.number().min(0, '建议价不能为负').max(99999999),
   stockType: z.enum(productStockTypeEnum.enumValues).optional()
@@ -828,6 +845,10 @@ catalogRoutes.post('/catalog/products', async (c) => {
   }
 
   const { categoryId, defaultPrice, specName, barcode, quantityMode, ...rest } = parsed.data;
+  const imagePath = rest.imageUrl ? imagePathFromValue(rest.imageUrl) : null;
+  if (rest.imageUrl && !imagePath) {
+    return c.json({ code: 'INVALID_IMAGE_URL', message: '商品图片需上传到本系统存储' }, 400);
+  }
   if (categoryId && !(await catalogCategoryExists(categoryId))) {
     return c.json({ code: 'CATEGORY_NOT_FOUND', message: '分类不存在' }, 404);
   }
@@ -842,7 +863,7 @@ catalogRoutes.post('/catalog/products', async (c) => {
         categoryId: categoryId ?? null,
         defaultPrice: defaultPrice.toFixed(2),
         description: rest.description ?? null,
-        imageUrl: rest.imageUrl ?? null,
+        imageUrl: imagePath,
         stockType,
         status: 'draft'
       })
@@ -892,6 +913,15 @@ catalogRoutes.patch('/catalog/products/:id', async (c) => {
   }
 
   const { categoryId, defaultPrice, status, ...rest } = parsed.data;
+  const imagePath =
+    rest.imageUrl === undefined
+      ? undefined
+      : rest.imageUrl
+        ? imagePathFromValue(rest.imageUrl)
+        : null;
+  if (rest.imageUrl && !imagePath) {
+    return c.json({ code: 'INVALID_IMAGE_URL', message: '商品图片需上传到本系统存储' }, 400);
+  }
   if (categoryId && !(await catalogCategoryExists(categoryId))) {
     return c.json({ code: 'CATEGORY_NOT_FOUND', message: '分类不存在' }, 404);
   }
@@ -899,7 +929,7 @@ catalogRoutes.patch('/catalog/products/:id', async (c) => {
   const sharedUpdates = {
     ...(rest.name === undefined ? {} : { name: rest.name }),
     ...(rest.description === undefined ? {} : { description: rest.description }),
-    ...(rest.imageUrl === undefined ? {} : { imageUrl: rest.imageUrl }),
+    ...(imagePath === undefined ? {} : { imageUrl: imagePath }),
     ...(rest.unit === undefined ? {} : { unit: rest.unit }),
     ...(rest.stockType === undefined ? {} : { stockType: rest.stockType }),
     ...(categoryId === undefined ? {} : { categoryId }),
@@ -941,7 +971,7 @@ catalogRoutes.patch('/catalog/products/:id', async (c) => {
     const mirror = {
       ...(rest.name === undefined ? {} : { name: rest.name }),
       ...(rest.description === undefined ? {} : { description: rest.description }),
-      ...(rest.imageUrl === undefined ? {} : { imageUrl: rest.imageUrl }),
+      ...(imagePath === undefined ? {} : { imageUrl: imagePath }),
       ...(rest.unit === undefined ? {} : { unit: rest.unit }),
       ...(rest.stockType === undefined ? {} : { stockType: rest.stockType })
     };

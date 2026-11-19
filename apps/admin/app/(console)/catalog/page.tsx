@@ -1239,11 +1239,7 @@ export default function CatalogPage() {
               >
                 <Input maxLength={50} placeholder="如：蔬菜 / 叶菜类" />
               </Form.Item>
-              <Form.Item
-                name="iconUrl"
-                label="分类图标"
-                rules={[{ type: 'url', message: '请输入合法 URL' }]}
-              >
+              <Form.Item name="iconUrl" label="分类图标">
                 <AdminImageUpload
                   width={48}
                   aspectRatio={1}
@@ -1303,7 +1299,7 @@ export default function CatalogPage() {
               <Form.Item name="description" label="商品描述" rules={[{ max: 1000, message: '最多 1000 字' }]}>
                 <Input.TextArea rows={3} maxLength={1000} placeholder="选填" />
               </Form.Item>
-              <Form.Item name="imageUrl" label="商品图片" rules={[{ type: 'url', message: '请输入合法 URL' }]}>
+              <Form.Item name="imageUrl" label="商品图片">
                 <AdminImageUpload
                   width={120}
                   aspectRatio={1}

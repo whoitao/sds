@@ -11,8 +11,8 @@ import {
 } from '../lib/customer-session.js';
 import { hashPassword } from '../lib/password.js';
 import {
-  publicObjectUrl,
   readStorageConfig,
+  resolveImageUrl,
   StorageNotConfiguredError,
   uploadObject
 } from '../lib/storage.js';
@@ -156,7 +156,7 @@ authRoutes.post('/login', async (c) => {
       id: customer.id,
       nickname: customer.nickname,
       phone: customer.phone ?? user.phone,
-      avatarUrl: user.avatarUrl,
+      avatarUrl: resolveImageUrl(user.avatarUrl),
       totalOrders: Number(customer.totalOrders),
       createdAt: customer.createdAt
     },
@@ -304,14 +304,14 @@ authRoutes.post('/avatar', async (c) => {
     return c.json({ code: 'UPLOAD_FAILED', message: '头像上传失败，请稍后再试' }, 502);
   }
 
-  const avatarUrl = publicObjectUrl(config, path);
+  // 库里只存桶内相对路径，展示时再拼成公开 URL
   const db = await getDb();
   await db
     .update(users)
-    .set({ avatarUrl, updatedAt: new Date() })
+    .set({ avatarUrl: path, updatedAt: new Date() })
     .where(eq(users.id, session.userId));
 
-  return c.json({ avatarUrl }, 201);
+  return c.json({ path }, 201);
 });
 
 /** 个人信息页：移除头像，恢复默认字母头像 */

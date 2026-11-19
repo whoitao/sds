@@ -46,7 +46,48 @@ export function readStorageConfig(): StorageConfig | null {
 
 /** 返回可公网访问的地址；调用前需保证 bucket 为 public */
 export function publicObjectUrl(config: StorageConfig, path: string): string {
-  return `${config.url}/storage/v1/object/public/${config.bucket}/${path}`;
+  return `${publicObjectPrefix(config)}${path}`;
+}
+
+/** 桶内对象的公开地址前缀，用于把相对路径拼成完整 URL、或从旧完整 URL 里剥出路径 */
+export function publicObjectPrefix(config: StorageConfig): string {
+  return `${config.url}/storage/v1/object/public/${config.bucket}/`;
+}
+
+/**
+ * 库里的图片值 → 可直接用于 <img>/next-image 的地址。
+ * - 本系统相对路径：拼成公开 URL；
+ * - 已是完整 URL（本桶历史数据或外部地址）：原样返回；
+ * - 空值：null。
+ */
+export function resolveImageUrl(value: string | null | undefined): string | null {
+  const raw = value?.trim();
+  if (!raw) return null;
+  if (/^https?:\/\//i.test(raw)) return raw;
+  const config = readStorageConfig();
+  // 存储未配置时保持原值，避免把相对路径拼成无效地址
+  if (!config) return raw;
+  return publicObjectUrl(config, raw.replace(/^\/+/, ''));
+}
+
+/**
+ * 写入口的图片值 → 桶内相对路径。
+ * - 本桶完整 URL：剥掉前缀；
+ * - 相对路径：去掉前导斜杠；
+ * - 外部 URL：null，由调用方拒绝（数据库只允许本桶路径）。
+ */
+export function imagePathFromValue(value: string | null | undefined): string | null {
+  const raw = value?.trim();
+  if (!raw) return null;
+  const config = readStorageConfig();
+  if (config) {
+    const prefix = publicObjectPrefix(config);
+    if (raw.startsWith(prefix)) {
+      return raw.slice(prefix.length).split('?')[0] || null;
+    }
+  }
+  if (/^https?:\/\//i.test(raw)) return null;
+  return raw.replace(/^\/+/, '').split('?')[0] || null;
 }
 
 export async function uploadObject(

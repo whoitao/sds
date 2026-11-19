@@ -1,5 +1,6 @@
 import { and, eq, gt } from 'drizzle-orm';
 import { customerSessions, customers, getDb, users } from '@sds/db';
+import { resolveImageUrl } from './storage.js';
 
 /**
  * 顾客会话读取：供 /api/auth 与 /api/mobile/cart 共用。
@@ -50,7 +51,7 @@ export function customerPayload(row: CustomerSessionRow) {
     id: row.customerId,
     nickname: row.nickname,
     phone: row.phone ?? row.userPhone,
-    avatarUrl: row.avatarUrl,
+    avatarUrl: resolveImageUrl(row.avatarUrl),
     totalOrders: Number(row.totalOrders),
     createdAt: row.createdAt
   };

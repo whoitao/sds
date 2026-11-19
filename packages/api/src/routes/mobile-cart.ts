@@ -13,6 +13,7 @@ import {
 } from '@sds/db';
 import { findCustomerSession, tokenFromHeader } from '../lib/customer-session.js';
 import { normalizeQuantity, quantityNumber, type QuantityMode } from '../lib/quantity.js';
+import { resolveImageUrl } from '../lib/storage.js';
 
 /**
  * 顾客购物车，绑定登录顾客（Bearer 会话）。
@@ -238,7 +239,7 @@ async function buildPayload(customerId: string) {
       skuId: row.product_sku_id,
       specName: row.spec_name,
       name: row.name ?? '商品已下架',
-      imageUrl: row.image_url,
+      imageUrl: resolveImageUrl(row.image_url),
       unit: row.unit ?? '份',
       unitPrice,
       quantity,

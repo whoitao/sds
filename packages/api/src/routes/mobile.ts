@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { sql } from 'drizzle-orm';
 import { getDb } from '@sds/db';
+import { resolveImageUrl } from '../lib/storage.js';
 
 /**
  * 顾客端（移动端）接口，对应多店方案与老人下单流程 S0。
@@ -144,20 +145,23 @@ mobileRoutes.get('/shops/:shopId/home', async (c) => {
       const children = (childrenByParent.get(root.id) ?? []).map((child) => ({
         id: child.id,
         name: child.name,
-        iconUrl: child.icon_url,
+        iconUrl: resolveImageUrl(child.icon_url),
         productCount: countMap.get(child.id) ?? 0
       }));
       const direct = countMap.get(root.id) ?? 0;
       return {
         id: root.id,
         name: root.name,
-        iconUrl: root.icon_url,
+        iconUrl: resolveImageUrl(root.icon_url),
         productCount: direct + children.reduce((sum, child) => sum + child.productCount, 0),
         children
       };
     });
 
-  return c.json({ shop, categories: items });
+  return c.json({
+    shop: shop ? { ...shop, coverUrl: resolveImageUrl(shop.coverUrl as string | null) } : shop,
+    categories: items
+  });
 });
 
 mobileRoutes.get('/shops/:shopId/products', async (c) => {
@@ -302,6 +306,7 @@ mobileRoutes.get('/shops/:shopId/products', async (c) => {
     const priceTo = prices.length > 0 ? Math.max(...prices).toFixed(2) : product.price;
     return {
       ...product,
+      imageUrl: resolveImageUrl(product.imageUrl),
       price: defaultSku?.price ?? product.price,
       defaultSkuId: defaultSku?.skuId ?? null,
       priceFrom,

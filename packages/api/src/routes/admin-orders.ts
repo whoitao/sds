@@ -14,6 +14,7 @@ import { requireAdmin, type AdminEnv } from '../middleware/admin-auth.js';
 import { guardPermission } from '../lib/admin-access.js';
 import { accessibleShopIds, canAccessShop } from '../lib/shop-scope.js';
 import { adjustCustomerStats, restoreOrderStock } from '../lib/order-settlement.js';
+import { resolveImageUrl } from '../lib/storage.js';
 import { refundPayment } from '../lib/payments.js';
 
 /**
@@ -135,7 +136,7 @@ async function loadOrderDetail(id: string) {
     // 顾客已申请退款，或门店对已收款的订单主动退款
     canApproveRefund: status === 'refund_pending' || (collected && REFUNDABLE_STATUSES.includes(status)),
     canRejectRefund: status === 'refund_pending',
-    items
+    items: items.map((item) => ({ ...item, imageUrl: resolveImageUrl(item.imageUrl) }))
   };
 }
 

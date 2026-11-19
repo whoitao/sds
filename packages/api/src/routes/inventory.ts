@@ -12,6 +12,7 @@ import {
   sql
 } from 'drizzle-orm';
 import { z } from 'zod';
+import { resolveImageUrl } from '../lib/storage.js';
 import {
   adminUsers,
   catalogSkus,
@@ -232,7 +233,12 @@ inventoryRoutes.get('/inventory', async (c) => {
       .where(where)
   ]);
 
-  return c.json({ items, total: totalRows[0]?.total ?? 0, page, pageSize });
+  return c.json({
+    items: items.map((item) => ({ ...item, imageUrl: resolveImageUrl(item.imageUrl) })),
+    total: totalRows[0]?.total ?? 0,
+    page,
+    pageSize
+  });
 });
 
 inventoryRoutes.get('/inventory/alerts', async (c) => {
@@ -261,7 +267,9 @@ inventoryRoutes.get('/inventory/alerts', async (c) => {
     )
     .limit(limit);
 
-  return c.json({ items });
+  return c.json({
+    items: items.map((item) => ({ ...item, imageUrl: resolveImageUrl(item.imageUrl) }))
+  });
 });
 
 inventoryRoutes.get('/inventory/skus/:skuId', async (c) => {
@@ -276,7 +284,7 @@ inventoryRoutes.get('/inventory/skus/:skuId', async (c) => {
     return c.json({ code: 'FORBIDDEN', message: '无权查看该门店库存' }, 403);
   }
 
-  return c.json({ item });
+  return c.json({ item: { ...item, imageUrl: resolveImageUrl(item.imageUrl) } });
 });
 
 inventoryRoutes.get('/inventory/skus/:skuId/movements', async (c) => {

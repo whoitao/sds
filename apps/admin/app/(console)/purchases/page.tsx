@@ -1498,7 +1498,7 @@ export default function PurchasesPage() {
                     '—'
                   )
                 },
-                { key: 'phone', label: '联系电话', children: viewDetail.supplierPhone ?? '—' },
+                // 需求计划单号较长，独占整行；放在供应商之后，保证上一行已满 2 列
                 ...(viewDetail.demandPlanId
                   ? [
                       {
@@ -1509,6 +1509,7 @@ export default function PurchasesPage() {
                       }
                     ]
                   : []),
+                { key: 'phone', label: '联系电话', children: viewDetail.supplierPhone ?? '—' },
                 { key: 'ordered', label: '采购金额', children: `¥${viewDetail.orderedAmount}` },
                 { key: 'received', label: '已入库金额', children: `¥${viewDetail.receivedAmount}` },
                 { key: 'expected', label: '预计到货', children: formatTime(viewDetail.expectedAt) },
@@ -1516,7 +1517,7 @@ export default function PurchasesPage() {
                 { key: 'submitted', label: '提交时间', children: formatTime(viewDetail.submittedAt) },
                 { key: 'receivedAt', label: '入库时间', children: formatTime(viewDetail.receivedAt) },
                 { key: 'cancelledAt', label: '取消时间', children: formatTime(viewDetail.cancelledAt) },
-                { key: 'remark', label: '备注', children: viewDetail.remark || '—' },
+                // 取消原因通常较长，独占整行；备注放最后，最后一行不足由 Descriptions 自动补齐
                 ...(viewDetail.cancelReason
                   ? [
                       {
@@ -1526,7 +1527,8 @@ export default function PurchasesPage() {
                         span: 2
                       }
                     ]
-                  : [])
+                  : []),
+                { key: 'remark', label: '备注', children: viewDetail.remark || '—' }
               ]}
             />
             <Table
