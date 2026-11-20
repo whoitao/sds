@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { cardShadow, colors, fontSize, radius, tap } from '../theme';
+import { fontSize, radius, tap, type Theme } from '../theme';
+import { useTheme, useThemedStyles } from '../theme-context';
 
 /**
  * 全站统一顶栏（对应设计稿 v0.5 header）：
@@ -29,6 +30,9 @@ export default function ScreenHeader({
   helpLabel?: string;
   right?: ReactNode;
 }) {
+  const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
+
   return (
     <View style={styles.header}>
       {left === 'back' ? (
@@ -103,7 +107,8 @@ export default function ScreenHeader({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = ({ colors, shadow }: Theme) =>
+  StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -121,7 +126,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.line,
-    ...cardShadow
+    ...shadow
   },
   roundPlaceholder: {
     width: tap.min,
@@ -175,6 +180,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: colors.greenSoft,
     borderWidth: 1,
-    borderColor: '#BFE0CB'
+    borderColor: colors.edgeGreen
   }
 });

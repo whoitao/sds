@@ -12,7 +12,11 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   const androidKey = process.env.GAODE_ANDROID_KEY?.trim();
   const iosKey = process.env.GAODE_IOS_KEY?.trim();
 
-  const plugins: NonNullable<ExpoConfig['plugins']> = [...(base.plugins ?? []), './plugins/with-gradle-heap'];
+  const plugins: NonNullable<ExpoConfig['plugins']> = [
+    ...(base.plugins ?? []),
+    './plugins/with-gradle-heap',
+    './plugins/with-ios-gaode-simulator'
+  ];
   if (androidKey || iosKey) {
     plugins.push([
       'expo-gaode-map',

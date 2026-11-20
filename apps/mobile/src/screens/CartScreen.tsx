@@ -25,7 +25,8 @@ import {
   type CheckoutGroup,
   type QuantityMode
 } from '../api';
-import { cardShadow, colors, fontSize, radius, spacing, tap } from '../theme';
+import { fontSize, radius, spacing, tap, type Theme } from '../theme';
+import { useTheme, useThemedStyles } from '../theme-context';
 import { productIcon } from '../product-icons';
 import ScreenHeader from '../components/ScreenHeader';
 import TabBar from '../components/TabBar';
@@ -72,6 +73,9 @@ export default function CartScreen({
   onOpenShops: () => void;
   onCheckout: (groups: CheckoutGroup[]) => void;
 }) {
+  const styles = useThemedStyles(makeStyles);
+  const { theme } = useTheme();
+  const { colors } = theme;
   const [payload, setPayload] = useState<CartPayload | null>(null);
   const [remarks, setRemarks] = useState<Record<string, string>>({});
   const [unselected, setUnselected] = useState<Set<string>>(new Set());
@@ -195,7 +199,7 @@ export default function CartScreen({
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
 
       <ScreenHeader
         left="bell"
@@ -280,6 +284,7 @@ export default function CartScreen({
                       accessibilityLabel={`选择 ${item.name}`}
                       accessibilityState={{ checked: selected, disabled: !choosable }}
                       style={[styles.selectHit, !choosable ? styles.selectDisabled : null]}
+                      hitSlop={8}
                       disabled={busy || !choosable}
                       onPress={() => toggleSelected(item)}
                     >
@@ -289,60 +294,69 @@ export default function CartScreen({
                         color={selected ? colors.green : colors.ink3}
                       />
                     </Pressable>
-                    {item.imageUrl ? (
-                      <Image
-                        source={{ uri: item.imageUrl }}
-                        style={styles.itemImage}
-                        resizeMode="cover"
-                      />
-                    ) : (
-                      <View style={styles.itemPic}>
-                        <MaterialCommunityIcons
-                          name={productIcon(item.name)}
-                          size={24}
-                          color={colors.greenDeep}
-                        />
+                    <View style={styles.itemDetails}>
+                      <View style={styles.itemOverview}>
+                        <View style={[styles.itemPic, item.soldOut ? styles.soldOutPic : null]}>
+                          {item.imageUrl ? (
+                            <Image
+                              source={{ uri: item.imageUrl }}
+                              style={styles.itemImage}
+                              resizeMode="contain"
+                              accessibilityLabel={item.name}
+                            />
+                          ) : (
+                            <MaterialCommunityIcons
+                              name={productIcon(item.name)}
+                              size={36}
+                              color={colors.greenDeep}
+                            />
+                          )}
+                        </View>
+                        <View style={styles.itemInfo}>
+                          <View style={styles.itemTop}>
+                            <Text style={styles.itemName} numberOfLines={2}>
+                              {item.name}
+                            </Text>
+                            <Pressable
+                              accessibilityRole="button"
+                              accessibilityLabel={`删除 ${item.name}`}
+                              style={styles.deleteButton}
+                              hitSlop={8}
+                              disabled={busy}
+                              onPress={() => confirmRemove(item)}
+                            >
+                              <Ionicons name="trash-outline" size={18} color={colors.ink3} />
+                            </Pressable>
+                          </View>
+                          {item.specName ? (
+                            <Text style={styles.itemSpec} numberOfLines={1}>
+                              {item.specName}
+                            </Text>
+                          ) : null}
+                        </View>
                       </View>
-                    )}
-                    <View style={styles.itemInfo}>
-                      <View style={styles.itemTop}>
-                        <Text style={styles.itemName} numberOfLines={2}>
-                          {item.name}
-                        </Text>
-                        <Pressable
-                          accessibilityRole="button"
-                          accessibilityLabel={`删除 ${item.name}`}
-                          style={styles.deleteButton}
-                          disabled={busy}
-                          onPress={() => confirmRemove(item)}
-                        >
-                          <Ionicons name="trash-outline" size={20} color={colors.danger} />
-                        </Pressable>
-                      </View>
-                      {item.specName ? (
-                        <Text style={styles.itemSpec} numberOfLines={1}>
-                          {item.specName}
-                        </Text>
-                      ) : null}
                       {item.soldOut ? (
-                        <Text style={[styles.itemSpec, styles.stockError]}>
+                        <Text style={[styles.stockHint, styles.stockError]}>
                           已售罄，请删除这样菜
                         </Text>
                       ) : item.stockQuantity > 0 && item.quantity > item.stockQuantity ? (
-                        <Text style={[styles.itemSpec, styles.stockError]}>
+                        <Text style={[styles.stockHint, styles.stockError]}>
                           库存仅剩 {stockRemaining} {item.unit}，请减少数量
                         </Text>
                       ) : atStockLimit ? (
-                        <Text style={[styles.itemSpec, styles.stockLimit]}>
+                        <Text style={[styles.stockHint, styles.stockLimit]}>
                           已达库存上限（{stockRemaining} {item.unit}）
                         </Text>
                       ) : null}
                       <View style={styles.itemBottom}>
-                        <View style={styles.itemPrices}>
+                        <View style={styles.priceInfo}>
                           <Text style={styles.unitPrice}>
-                            ¥{item.unitPrice} / {item.unit}
+                            ¥{item.unitPrice}
+                            <Text style={styles.priceUnit}> / {item.unit}</Text>
                           </Text>
-                          <Text style={styles.subtotal}>小计 ¥{item.subtotal}</Text>
+                          <Text style={styles.subtotal}>
+                            {choosable ? `小计 ¥${item.subtotal}` : '不计入合计'}
+                          </Text>
                         </View>
                         <View style={styles.stepper}>
                           <Pressable
@@ -439,7 +453,7 @@ export default function CartScreen({
       )}
 
       <BottomDock
-        label={selectedCount > 0 ? `已选 ${selectedCount} 样` : '还没选菜'}
+        label={selectedCount > 0 ? `合计 · 已选 ${selectedCount} 样` : '合计 · 还没选菜'}
         total={selectedTotal}
         actionLabel="下一步"
         onAction={startCheckout}
@@ -458,7 +472,8 @@ export default function CartScreen({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = ({ colors, shadow }: Theme) =>
+  StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: colors.paper
@@ -468,7 +483,7 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: spacing.md,
-    paddingBottom: spacing.md,
+    paddingBottom: spacing.xl,
     gap: spacing.md
   },
   center: {
@@ -496,14 +511,14 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     fontSize: fontSize.name,
     fontWeight: '700',
-    color: '#FFFFFF'
+    color: colors.white
   },
   card: {
     backgroundColor: colors.card,
     borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.line,
-    ...cardShadow
+    ...shadow
   },
   groupHeader: {
     flexDirection: 'row',
@@ -512,7 +527,7 @@ const styles = StyleSheet.create({
     minHeight: 52,
     paddingLeft: spacing.md,
     paddingRight: spacing.xs,
-    backgroundColor: colors.greenSoft,
+    backgroundColor: colors.greenTint,
     borderTopLeftRadius: radius.lg - 1,
     borderTopRightRadius: radius.lg - 1
   },
@@ -531,11 +546,7 @@ const styles = StyleSheet.create({
     minWidth: 56,
     paddingHorizontal: 10,
     alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: tap.min / 2,
-    borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.card
+    justifyContent: 'center'
   },
   clearButtonText: {
     fontSize: fontSize.body,
@@ -545,22 +556,32 @@ const styles = StyleSheet.create({
   item: {
     borderTopWidth: 1,
     borderTopColor: colors.line,
-    paddingVertical: spacing.sm,
-    gap: spacing.xs
+    paddingVertical: spacing.md
   },
   itemMain: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 6
+    gap: spacing.sm
   },
   selectHit: {
-    width: 44,
-    height: tap.min,
+    width: 32,
+    height: 32,
+    marginTop: 22,
     alignItems: 'center',
     justifyContent: 'center'
   },
   selectDisabled: {
     opacity: 0.4
+  },
+  itemDetails: {
+    flex: 1,
+    minWidth: 0,
+    gap: spacing.sm
+  },
+  itemOverview: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10
   },
   itemInfo: {
     flex: 1,
@@ -568,94 +589,116 @@ const styles = StyleSheet.create({
     gap: spacing.xs
   },
   itemImage: {
-    width: 40,
-    height: 40,
-    borderRadius: 10
+    width: 72,
+    height: 72
   },
   itemPic: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
+    width: 76,
+    height: 76,
+    borderRadius: radius.md,
+    overflow: 'hidden',
     backgroundColor: colors.cardSoft,
     borderWidth: 1,
     borderColor: colors.line,
     alignItems: 'center',
     justifyContent: 'center'
   },
+  soldOutPic: {
+    opacity: 0.55
+  },
   itemTop: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm
+    alignItems: 'flex-start',
+    gap: spacing.xs
   },
   itemName: {
     flex: 1,
+    paddingTop: 3,
     fontSize: fontSize.name,
-    fontWeight: '600',
+    fontWeight: '700',
     color: colors.ink,
     lineHeight: 26
   },
   itemSpec: {
     fontSize: fontSize.mini,
-    color: colors.ink3
+    lineHeight: 20,
+    color: colors.ink2
+  },
+  stockHint: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: 6,
+    fontSize: fontSize.mini,
+    lineHeight: 20
   },
   stockError: {
-    color: colors.danger
+    color: colors.danger,
+    backgroundColor: colors.dangerSoft
   },
   stockLimit: {
-    color: colors.amber
+    color: colors.amber,
+    backgroundColor: colors.amberSoft
   },
   deleteButton: {
-    width: tap.min,
-    height: tap.min,
+    width: 32,
+    height: 32,
     alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: tap.min / 2,
-    backgroundColor: '#FDF4F3'
+    justifyContent: 'center'
   },
   itemBottom: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 4
+    gap: spacing.sm
   },
-  itemPrices: {
+  priceInfo: {
     flex: 1,
     minWidth: 0,
     gap: 2
   },
   unitPrice: {
-    fontSize: fontSize.body,
+    fontSize: fontSize.name,
+    fontWeight: '700',
+    lineHeight: 24,
+    color: colors.ink
+  },
+  priceUnit: {
+    fontSize: fontSize.mini,
+    fontWeight: '400',
     color: colors.ink2
   },
   subtotal: {
-    fontSize: fontSize.body,
-    fontWeight: '700',
-    color: colors.ink
+    fontSize: fontSize.mini,
+    lineHeight: 20,
+    color: colors.ink2
   },
   stepper: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 2
+    flexShrink: 0,
+    backgroundColor: colors.greenTint,
+    borderRadius: radius.md
   },
   stepperHit: {
-    width: 44,
+    width: tap.min,
     height: tap.min,
     alignItems: 'center',
     justifyContent: 'center'
   },
   stepperButton: {
-    width: 38,
-    height: 38,
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.card,
-    borderWidth: 1.5,
-    borderColor: '#BFE0CB',
-    borderRadius: 19
+    borderWidth: 1,
+    borderColor: colors.edgeGreen,
+    borderRadius: radius.sm
   },
   stepperButtonPlus: {
-    backgroundColor: colors.green,
-    borderColor: colors.green
+    backgroundColor: colors.greenDeep,
+    borderColor: colors.greenDeep
   },
   stepperButtonPlusDisabled: {
     backgroundColor: colors.line,
@@ -666,8 +709,7 @@ const styles = StyleSheet.create({
     borderColor: colors.line
   },
   quantity: {
-    minWidth: 36,
-    paddingHorizontal: 0,
+    width: 36,
     textAlign: 'center',
     fontSize: fontSize.title,
     fontWeight: '700',

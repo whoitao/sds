@@ -34,7 +34,8 @@ import { useRegions } from '../regions';
 import RegionPicker from '../components/RegionPicker';
 import ScreenHeader from '../components/ScreenHeader';
 import { PrimaryButton } from '../components/Button';
-import { cardShadow, colors, fontSize, radius, spacing, tap } from '../theme';
+import { fontSize, radius, spacing, tap, type Theme } from '../theme';
+import { useTheme, useThemedStyles } from '../theme-context';
 
 type Editing = { mode: 'create' } | { mode: 'edit'; address: AddressItem } | null;
 
@@ -65,6 +66,9 @@ export default function AddressScreen({
   token: string;
   onBack: () => void;
 }) {
+  const styles = useThemedStyles(makeStyles);
+  const { theme } = useTheme();
+  const { colors } = theme;
   const [items, setItems] = useState<AddressItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -214,7 +218,7 @@ export default function AddressScreen({
   if (editing) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <StatusBar barStyle="dark-content" />
+        <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
         <ScreenHeader
           left="back"
           onLeftPress={() => setEditing(null)}
@@ -322,7 +326,7 @@ export default function AddressScreen({
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
       <ScreenHeader
         left="back"
         onLeftPress={onBack}
@@ -422,7 +426,7 @@ export default function AddressScreen({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: colors.paper
@@ -457,7 +461,7 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     padding: spacing.md,
     gap: spacing.xs,
-    ...cardShadow
+    ...shadow
   },
   cardTop: {
     flexDirection: 'row',
@@ -511,12 +515,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: '#BFE0CB',
+    borderColor: colors.edgeGreen,
     backgroundColor: colors.card
   },
   actionDanger: {
-    borderColor: '#E7C4BF',
-    backgroundColor: '#FDF4F3'
+    borderColor: colors.edgeDanger,
+    backgroundColor: colors.dangerSoft
   },
   defaultState: {
     flexDirection: 'row',

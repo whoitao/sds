@@ -18,7 +18,8 @@ import {
   orderStatusTone,
   paymentNote
 } from '../order-format';
-import { cardShadow, colors, fontSize, radius, spacing, tap } from '../theme';
+import { fontSize, radius, spacing, tap, type Theme } from '../theme';
+import { useTheme, useThemedStyles } from '../theme-context';
 import ScreenHeader from '../components/ScreenHeader';
 import TabBar from '../components/TabBar';
 import { GhostButton, PrimaryButton } from '../components/Button';
@@ -76,6 +77,9 @@ export default function OrdersScreen({
   onOpenProfile: () => void;
   onOpenOrder: (order: OrderPayload) => void;
 }) {
+  const styles = useThemedStyles(makeStyles);
+  const { theme } = useTheme();
+  const { colors } = theme;
   const [orders, setOrders] = useState<OrderPayload[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -131,7 +135,7 @@ export default function OrdersScreen({
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
       <ScreenHeader
         left="bell"
         onLeftPress={() => Alert.alert('暂无新消息', '订单进度变化时会显示在这里。')}
@@ -198,7 +202,8 @@ export default function OrdersScreen({
             </View>
           ) : (
             visible.map((order) => {
-              const tone = orderStatusTone[order.status] ?? orderStatusTone.paid;
+              const toneMap = orderStatusTone(colors);
+              const tone = toneMap[order.status] ?? toneMap.paid;
               return (
                 <View key={order.id} style={styles.card}>
                   <View style={styles.cardTop}>
@@ -279,7 +284,8 @@ export default function OrdersScreen({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = ({ colors, shadow }: Theme) =>
+  StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: colors.paper
@@ -350,7 +356,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.line,
-    ...cardShadow
+    ...shadow
   },
   cardTop: {
     flexDirection: 'row',

@@ -19,11 +19,13 @@ import {
   orderStatusTone,
   paymentNote
 } from '../order-format';
-import { cardShadow, colors, fontSize, radius, spacing } from '../theme';
+import { fontSize, radius, spacing, type Theme } from '../theme';
+import { useTheme, useThemedStyles } from '../theme-context';
 import ScreenHeader from '../components/ScreenHeader';
 import { GhostButton, DangerButton } from '../components/Button';
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.card}>
       <Text style={styles.sectionTitle}>{title}</Text>
@@ -33,6 +35,9 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 }
 
 function ItemRow({ item }: { item: OrderItemPayload }) {
+  const styles = useThemedStyles(makeStyles);
+  const { theme } = useTheme();
+  const { colors } = theme;
   return (
     <View style={styles.itemRow}>
       {item.imageUrl ? (
@@ -72,6 +77,9 @@ export default function OrderDetailScreen({
   initial?: OrderPayload;
   onBack: () => void;
 }) {
+  const styles = useThemedStyles(makeStyles);
+  const { theme } = useTheme();
+  const { colors } = theme;
   const [order, setOrder] = useState<OrderPayload | null>(initial ?? null);
   const [loading, setLoading] = useState(!initial);
   const [error, setError] = useState('');
@@ -130,7 +138,8 @@ export default function OrderDetailScreen({
     }
   }
 
-  const tone = order ? orderStatusTone[order.status] ?? orderStatusTone.paid : orderStatusTone.paid;
+  const tones = orderStatusTone(colors);
+  const tone = order ? tones[order.status] ?? tones.paid : tones.paid;
 
   // 时间线只写有数据支撑的节点，当前状态单独收尾，避免编造中间节点时间
   const timeline: { label: string; time: string | null; current?: boolean }[] = [];
@@ -160,7 +169,7 @@ export default function OrderDetailScreen({
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
       <ScreenHeader
         left="back"
         onLeftPress={onBack}
@@ -341,7 +350,7 @@ export default function OrderDetailScreen({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: colors.paper
@@ -374,7 +383,7 @@ const styles = StyleSheet.create({
     borderColor: colors.green,
     padding: spacing.lg,
     gap: spacing.sm,
-    ...cardShadow
+    ...shadow
   },
   heroTop: {
     flexDirection: 'row',
@@ -413,7 +422,7 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     padding: spacing.md,
     gap: spacing.sm,
-    ...cardShadow
+    ...shadow
   },
   sectionTitle: {
     fontSize: fontSize.body,

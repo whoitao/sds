@@ -14,7 +14,8 @@ import {
   type RegionStep,
   type RegionValue
 } from '@sds/shared';
-import { colors, fontSize, radius, spacing, tap } from '../theme';
+import { fontSize, radius, spacing, tap, type Theme } from '../theme';
+import { useTheme, useThemedStyles } from '../theme-context';
 
 const STEP_LABEL: Record<RegionStep, string> = {
   province: '选择省份',
@@ -40,6 +41,8 @@ export default function RegionPicker({
   onClose: () => void;
   onChange: (next: RegionValue) => void;
 }) {
+  const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
   const [step, setStep] = useState<RegionStep>('province');
 
   useEffect(() => {
@@ -167,11 +170,12 @@ export default function RegionPicker({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = ({ colors }: Theme) =>
+  StyleSheet.create({
   backdrop: {
     flex: 1,
     justifyContent: 'flex-end',
-    backgroundColor: 'rgba(16, 24, 20, 0.4)'
+    backgroundColor: colors.backdrop
   },
   backdropHit: {
     flex: 1

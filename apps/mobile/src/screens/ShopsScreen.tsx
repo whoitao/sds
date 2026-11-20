@@ -10,7 +10,8 @@ import { fetchHome, fetchNearbyShops, fetchShops, type ShopInfo, type ShopLocati
 import { gpsToMapLocation, shopDistanceLabel, shopHoursLabel } from '../shop-location';
 import ScreenHeader from '../components/ScreenHeader';
 import ShopMap from '../components/ShopMap';
-import { colors, fontSize, radius, spacing, tap } from '../theme';
+import { fontSize, radius, spacing, tap, type Theme } from '../theme';
+import { useTheme, useThemedStyles } from '../theme-context';
 
 type LocationState = 'locating' | 'ready' | 'denied' | 'unavailable';
 
@@ -19,6 +20,8 @@ export default function ShopsScreen({ currentShopId, onSelect, onBack }: {
   onSelect: (shop: ShopInfo) => Promise<void>;
   onBack: () => void;
 }) {
+  const styles = useThemedStyles(makeStyles);
+  const { theme, colors } = useTheme();
   const [shops, setShops] = useState<ShopInfo[]>([]);
   const [location, setLocation] = useState<ShopLocation | null>(null);
   const [locationState, setLocationState] = useState<LocationState>('locating');
@@ -120,17 +123,15 @@ export default function ShopsScreen({ currentShopId, onSelect, onBack }: {
   }
 
   const visibleShops = view === 'map' ? shops.filter(shop => shop.id === selectedId) : shops;
+  const showMap = view === 'map' && !loading && !error && shops.length > 0;
 
   return (
     <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
       <ScreenHeader left="back" title="附近的店" onLeftPress={() => { if (!choosing) onBack(); }} />
-      <ScrollView
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={styles.body}
-        automaticallyAdjustContentInsets={false}
-        contentInsetAdjustmentBehavior="never"
-      >
+
+      {/* 固定区：标题行 + 地图不参与滚动，地图上的垂直拖动只用于平移/缩放 */}
+      <View style={styles.fixedTop}>
         <View style={styles.row}>
           <Text style={styles.heading}>{location ? '附近门店' : '全部门店'}{loading ? '' : ` · ${shops.length} 家`}</Text>
           <Pressable accessibilityRole="button" accessibilityLabel={view === 'list' ? '切换到地图找店' : '切换到列表找店'}
@@ -139,15 +140,26 @@ export default function ShopsScreen({ currentShopId, onSelect, onBack }: {
             <Text style={styles.actionText}>{view === 'list' ? '地图找店' : '列表找店'}</Text>
           </Pressable>
         </View>
+        {showMap ? (
+          <ShopMap shops={shops} location={location} selectedId={selectedId} onSelect={setSelectedId} onShowList={() => setView('list')} />
+        ) : null}
+      </View>
+
+      {/* 列表区：独立滚动，滚动条只属于这里；内容不足时不会出现滚动 */}
+      <ScrollView
+        style={styles.list}
+        contentContainerStyle={styles.listBody}
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustContentInsets={false}
+        contentInsetAdjustmentBehavior="never"
+      >
         {loading ? <View style={styles.empty}><ActivityIndicator color={colors.green} /><Text style={styles.description}>{locationState === 'locating' ? '正在获取位置…' : '正在找门店…'}</Text></View>
           : error ? <View style={styles.empty}><Text style={styles.description}>{error}</Text><Pressable accessibilityRole="button" style={styles.smallButton} onPress={() => void load()}><Text style={styles.actionText}>重新加载</Text></Pressable></View>
           : shops.length === 0 ? <View style={styles.empty}>
             <Text style={styles.heading}>{location ? '3 公里内暂时没有门店' : '暂时没有可展示的门店'}</Text>
             <Text style={styles.description}>稍后刷新再看看，或直接到店咨询店员。</Text>
           </View> : <>
-            {view === 'map' ? <>
-              <ShopMap shops={shops} location={location} selectedId={selectedId} onSelect={setSelectedId} onShowList={() => setView('list')} />
-            </> : null}
+            {view === 'map' ? <Text style={styles.sectionTitle}>门店列表</Text> : null}
             {visibleShops.map(shop => <View key={shop.id} style={[styles.card, shop.id === currentShopId && styles.currentCard]}>
               <View style={styles.row}>
                 <Ionicons name="storefront-outline" size={26} color={colors.greenDeep} />
@@ -179,9 +191,15 @@ export default function ShopsScreen({ currentShopId, onSelect, onBack }: {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = ({ colors }: Theme) =>
+  StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.paper },
-  body: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xl, gap: spacing.md },
+  // 固定区：标题行 + 地图，不参与滚动
+  fixedTop: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md, gap: spacing.md },
+  // 列表区：占满剩余高度，滚动条只属于这里
+  list: { flex: 1 },
+  listBody: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg, gap: spacing.md },
+  sectionTitle: { fontSize: fontSize.body, fontWeight: '700', color: colors.ink2 },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },
   actions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   callButton: { flex: 1, minHeight: tap.min, borderRadius: tap.min / 2, paddingHorizontal: spacing.sm, backgroundColor: colors.greenSoft, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center' },
@@ -199,5 +217,5 @@ const styles = StyleSheet.create({
   enter: { flex: 1, minHeight: tap.min, borderRadius: tap.min / 2, paddingHorizontal: spacing.sm, backgroundColor: colors.greenDeep, alignItems: 'center', justifyContent: 'center' },
   enterText: { color: colors.white, fontSize: fontSize.name, fontWeight: '700' },
   disabled: { opacity: 0.5 },
-  footnote: { color: colors.ink2, fontSize: fontSize.body, lineHeight: 24 }
+  footnote: { paddingTop: spacing.sm, color: colors.ink2, fontSize: fontSize.body, lineHeight: 24 }
 });

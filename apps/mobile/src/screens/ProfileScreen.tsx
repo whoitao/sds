@@ -11,7 +11,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import type { CustomerProfile } from '../api';
-import { cardShadow, colors, fontSize, radius, spacing, tap } from '../theme';
+import { fontSize, radius, spacing, tap, type Theme } from '../theme';
+import { useTheme, useThemedStyles } from '../theme-context';
 import ScreenHeader from '../components/ScreenHeader';
 import TabBar from '../components/TabBar';
 
@@ -41,6 +42,9 @@ function MenuRow({
   onPress: () => void;
   pending?: boolean;
 }) {
+  const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
+
   return (
     <Pressable
       accessibilityRole="button"
@@ -70,7 +74,8 @@ export default function ProfileScreen({
   onGoHome,
   onOpenCart,
   onOpenAddresses,
-  onOpenOrders
+  onOpenOrders,
+  onOpenSettings
 }: {
   customer: CustomerProfile;
   cartCount: number | null;
@@ -79,7 +84,10 @@ export default function ProfileScreen({
   onOpenCart: () => void;
   onOpenAddresses: () => void;
   onOpenOrders: () => void;
+  onOpenSettings: () => void;
 }) {
+  const styles = useThemedStyles(makeStyles);
+  const { theme, colors } = useTheme();
   const name = displayName(customer);
 
   function confirmLogout() {
@@ -95,12 +103,22 @@ export default function ProfileScreen({
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
 
       <ScreenHeader
         left="bell"
         onLeftPress={() => Alert.alert('暂无新消息', '订单进度和优惠会显示在这里。')}
         title="我的"
+        right={
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="设置"
+            style={styles.settingsButton}
+            onPress={onOpenSettings}
+          >
+            <Ionicons name="settings-outline" size={22} color={theme.colors.ink2} />
+          </Pressable>
+        }
       />
 
       <ScrollView
@@ -158,11 +176,6 @@ export default function ProfileScreen({
           />
         </View>
 
-        <View style={styles.tip}>
-          <Ionicons name="heart-outline" size={20} color={colors.blueInk} />
-          <Text style={styles.tipText}>不会操作？可以让家人帮忙，或到店里找店员。</Text>
-        </View>
-
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="退出登录"
@@ -186,10 +199,22 @@ export default function ProfileScreen({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = ({ colors, shadow }: Theme) =>
+  StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: colors.paper
+  },
+  settingsButton: {
+    width: tap.min,
+    height: tap.min,
+    borderRadius: tap.min / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.line,
+    ...shadow
   },
   body: {
     flex: 1
@@ -209,7 +234,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.line,
-    ...cardShadow
+    ...shadow
   },
   avatar: {
     width: 56,
@@ -257,7 +282,7 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
-    ...cardShadow
+    ...shadow
   },
   sectionTitle: {
     fontSize: fontSize.body,
@@ -300,33 +325,17 @@ const styles = StyleSheet.create({
     backgroundColor: colors.line,
     marginLeft: 30
   },
-  tip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    padding: spacing.md,
-    borderRadius: radius.md,
-    backgroundColor: colors.blueSoft,
-    borderWidth: 1,
-    borderColor: '#C9DBEE'
-  },
-  tipText: {
-    flex: 1,
-    fontSize: fontSize.body,
-    lineHeight: 24,
-    color: colors.blueInk
-  },
   logoutButton: {
     minHeight: tap.primary,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.sm,
-    borderRadius: radius.md,
+    borderRadius: tap.primary / 2,
     borderWidth: 1,
-    borderColor: '#E7C9C6',
+    borderColor: colors.edgeDanger,
     backgroundColor: colors.card,
-    ...cardShadow
+    ...shadow
   },
   logoutText: {
     fontSize: fontSize.title,

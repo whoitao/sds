@@ -22,7 +22,8 @@ import {
   type OrderPayload,
   type QuantityMode
 } from '../api';
-import { cardShadow, colors, fontSize, radius, spacing, tap } from '../theme';
+import { fontSize, radius, spacing, tap, type Theme } from '../theme';
+import { useTheme, useThemedStyles } from '../theme-context';
 import ScreenHeader from '../components/ScreenHeader';
 import BottomDock from '../components/BottomDock';
 import { DangerButton, GhostButton, PrimaryButton } from '../components/Button';
@@ -64,6 +65,10 @@ export default function CheckoutScreen({
   /** 下单成功后刷新 App 级购物车角标 */
   onOrderPlaced?: () => void;
 }) {
+  const { theme } = useTheme();
+  const { colors } = theme;
+  const styles = useThemedStyles(makeStyles);
+
   const [addresses, setAddresses] = useState<AddressItem[]>([]);
   const [addressId, setAddressId] = useState<string | undefined>();
   const [addressPickerOpen, setAddressPickerOpen] = useState(false);
@@ -212,7 +217,7 @@ export default function CheckoutScreen({
 
     return (
       <SafeAreaView style={styles.safeArea}>
-        <StatusBar barStyle="dark-content" />
+        <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
         <ScreenHeader
           shopName={submitted.length === 1 ? first.shopName : '下单好了'}
           shopLocked
@@ -353,7 +358,7 @@ export default function CheckoutScreen({
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
       <ScreenHeader
         left="back"
         onLeftPress={onBack}
@@ -648,7 +653,7 @@ export default function CheckoutScreen({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: colors.paper
@@ -694,11 +699,11 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: colors.line,
     backgroundColor: colors.card,
-    ...cardShadow
+    ...shadow
   },
   optActive: {
     borderColor: colors.green,
-    backgroundColor: '#F4FBF6'
+    backgroundColor: colors.greenTint
   },
   optIcon: {
     width: 46,
@@ -713,7 +718,7 @@ const styles = StyleSheet.create({
   },
   optIconActive: {
     backgroundColor: colors.greenSoft,
-    borderColor: '#BFE0CB'
+    borderColor: colors.edgeGreen
   },
   optText: {
     flex: 1,
@@ -756,7 +761,7 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     padding: spacing.md,
     gap: spacing.sm,
-    ...cardShadow
+    ...shadow
   },
   cardHeader: {
     flexDirection: 'row',
@@ -853,7 +858,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.line,
     backgroundColor: colors.card,
-    ...cardShadow
+    ...shadow
   },
   totalK: {
     fontSize: fontSize.body,
@@ -874,7 +879,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.line,
     backgroundColor: colors.card,
-    ...cardShadow
+    ...shadow
   },
   groupHeader: {
     flexDirection: 'row',
@@ -957,7 +962,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     backgroundColor: colors.blueSoft,
     borderWidth: 1,
-    borderColor: '#C9DBEE'
+    borderColor: colors.edgeBlue
   },
   tipText: {
     flex: 1,
@@ -967,7 +972,7 @@ const styles = StyleSheet.create({
   },
   tipStrong: {
     fontWeight: '700',
-    color: '#1E3F63'
+    color: colors.blueInk
   },
   successContent: {
     padding: spacing.md,
@@ -1068,8 +1073,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.line,
-    backgroundColor: '#F4FBF6',
-    ...cardShadow
+    backgroundColor: colors.greenTint,
+    ...shadow
   },
   codeK: {
     fontSize: fontSize.body,
@@ -1112,7 +1117,7 @@ const styles = StyleSheet.create({
   sheetBackdrop: {
     flex: 1,
     justifyContent: 'flex-end',
-    backgroundColor: 'rgba(30, 42, 34, 0.45)'
+    backgroundColor: colors.backdrop
   },
   sheet: {
     alignItems: 'center',

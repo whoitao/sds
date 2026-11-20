@@ -1,7 +1,8 @@
 import type { ComponentProps } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, fontSize, tap } from '../theme';
+import { fontSize, tap, type Theme } from '../theme';
+import { useTheme, useThemedStyles } from '../theme-context';
 
 type IoniconName = ComponentProps<typeof Ionicons>['name'];
 
@@ -22,6 +23,8 @@ function ButtonBase({
   tone: 'primary' | 'ghost' | 'soft' | 'danger';
   compact?: boolean;
 }) {
+  const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
   const toneStyle =
     tone === 'primary'
       ? styles.primary
@@ -85,7 +88,8 @@ export function DangerButton(props: Omit<ComponentProps<typeof ButtonBase>, 'ton
   return <ButtonBase {...props} tone="danger" />;
 }
 
-const styles = StyleSheet.create({
+const makeStyles = ({ colors }: Theme) =>
+  StyleSheet.create({
   base: {
     minHeight: tap.primary,
     borderRadius: tap.primary / 2,
@@ -102,17 +106,17 @@ const styles = StyleSheet.create({
   ghost: {
     backgroundColor: colors.card,
     borderWidth: 1.5,
-    borderColor: '#BFE0CB'
+    borderColor: colors.edgeGreen
   },
   soft: {
     backgroundColor: colors.greenSoft,
     borderWidth: 1,
-    borderColor: '#BFE0CB'
+    borderColor: colors.edgeGreen
   },
   danger: {
     backgroundColor: colors.card,
     borderWidth: 1.5,
-    borderColor: '#E7C9C6'
+    borderColor: colors.edgeDanger
   },
   disabled: {
     opacity: 0.5

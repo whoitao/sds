@@ -1,9 +1,13 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fontSize, tap } from '../theme';
+import { fontSize, tap, type Theme } from '../theme';
+import { useTheme, useThemedStyles } from '../theme-context';
 
 type TabKey = 'home' | 'cart' | 'orders' | 'profile';
+
+/** 图标与文字比正文小一档；tab 本身仍保底 tap.min，点按区域不变 */
+const TAB_ICON_SIZE = 20;
 
 /**
  * 底部导航：只在一级页出现（首页 / 购物车 / 订单 / 我的）。
@@ -24,6 +28,8 @@ export default function TabBar({
   onOrders: () => void;
   onProfile: () => void;
 }) {
+  const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
   // iOS 手势条、安卓手势/三键导航都由 insets.bottom 给出，底部再多留 6px 呼吸空间
   const insets = useSafeAreaInsets();
   const tabs: {
@@ -55,7 +61,7 @@ export default function TabBar({
             <View style={styles.iconWrap}>
               <Ionicons
                 name={selected ? tab.iconActive : tab.icon}
-                size={23}
+                size={TAB_ICON_SIZE}
                 color={selected ? colors.greenDeep : colors.ink2}
               />
               {tab.key === 'cart' && cartCount > 0 ? (
@@ -72,55 +78,56 @@ export default function TabBar({
   );
 }
 
-const styles = StyleSheet.create({
-  tabbar: {
-    flexDirection: 'row',
-    backgroundColor: colors.card,
-    borderTopWidth: 1,
-    borderTopColor: colors.line,
-    paddingTop: 7,
-    paddingBottom: 10
-  },
-  tab: {
-    flex: 1,
-    minHeight: tap.min,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 2
-  },
-  iconWrap: {
-    position: 'relative',
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  badge: {
-    position: 'absolute',
-    top: -6,
-    right: -18,
-    minWidth: 22,
-    height: 22,
-    paddingHorizontal: 3,
-    borderRadius: 11,
-    borderWidth: 1.5,
-    borderColor: colors.green,
-    backgroundColor: colors.card,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  badgeText: {
-    fontSize: 14,
-    fontWeight: '700',
-    lineHeight: 18,
-    color: colors.greenDeep
-  },
-  label: {
-    fontSize: fontSize.body,
-    lineHeight: 20,
-    fontWeight: '600',
-    color: colors.ink2
-  },
-  labelActive: {
-    color: colors.greenDeep,
-    fontWeight: '700'
-  }
-});
+const makeStyles = ({ colors }: Theme) =>
+  StyleSheet.create({
+    tabbar: {
+      flexDirection: 'row',
+      backgroundColor: colors.card,
+      borderTopWidth: 1,
+      borderTopColor: colors.line,
+      paddingTop: 7,
+      paddingBottom: 10
+    },
+    tab: {
+      flex: 1,
+      minHeight: tap.min,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 2
+    },
+    iconWrap: {
+      position: 'relative',
+      alignItems: 'center',
+      justifyContent: 'center'
+    },
+    badge: {
+      position: 'absolute',
+      top: -5,
+      right: -16,
+      minWidth: 20,
+      height: 20,
+      paddingHorizontal: 3,
+      borderRadius: 10,
+      borderWidth: 1.5,
+      borderColor: colors.green,
+      backgroundColor: colors.card,
+      alignItems: 'center',
+      justifyContent: 'center'
+    },
+    badgeText: {
+      fontSize: 12,
+      fontWeight: '700',
+      lineHeight: 16,
+      color: colors.greenDeep
+    },
+    label: {
+      fontSize: fontSize.mini,
+      lineHeight: 18,
+      fontWeight: '600',
+      color: colors.ink2
+    },
+    labelActive: {
+      color: colors.greenDeep,
+      fontWeight: '700'
+    }
+  });

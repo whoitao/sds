@@ -9,6 +9,7 @@ import HomeScreen from './src/screens/HomeScreen';
 import OrdersScreen from './src/screens/OrdersScreen';
 import OrderDetailScreen from './src/screens/OrderDetailScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
+import SettingsScreen from './src/screens/SettingsScreen';
 import ShopsScreen from './src/screens/ShopsScreen';
 import {
   fetchCart,
@@ -19,7 +20,8 @@ import {
   type CustomerProfile,
   type OrderPayload
 } from './src/api';
-import { colors, fontSize, spacing } from './src/theme';
+import { fontSize, spacing, type Theme } from './src/theme';
+import { ThemeProvider, useTheme, useThemedStyles } from './src/theme-context';
 
 /** 登录态只存不透明会话 token，顾客资料每次启动用 /api/auth/me 拉取 */
 const TOKEN_KEY = 'sds.customer.token';
@@ -30,6 +32,7 @@ type Tab =
   | 'home'
   | 'cart'
   | 'profile'
+  | 'settings'
   | 'addresses'
   | 'checkout'
   | 'orders'
@@ -37,6 +40,16 @@ type Tab =
   | 'shops';
 
 export default function App() {
+  return (
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
+  );
+}
+
+function AppContent() {
+  const styles = useThemedStyles(makeStyles);
+  const { theme } = useTheme();
   const [booting, setBooting] = useState(true);
   const [token, setToken] = useState<string | null>(null);
   const [customer, setCustomer] = useState<CustomerProfile | null>(null);
@@ -119,7 +132,7 @@ export default function App() {
   if (booting) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator color={colors.green} size="large" />
+        <ActivityIndicator color={theme.colors.green} size="large" />
         <Text style={styles.centerText}>正在打开捎点啥…</Text>
       </View>
     );
@@ -127,6 +140,10 @@ export default function App() {
 
   if (!token || !customer) {
     return <AuthScreen onSuccess={(session) => void handleSuccess(session)} />;
+  }
+
+  if (tab === 'settings') {
+    return <SettingsScreen onBack={() => setTab('profile')} />;
   }
 
   if (tab === 'addresses') {
@@ -190,6 +207,7 @@ export default function App() {
           setTab('addresses');
         }}
         onOpenOrders={() => setTab('orders')}
+        onOpenSettings={() => setTab('settings')}
       />
     );
   }
@@ -245,16 +263,17 @@ export default function App() {
   );
 }
 
-const styles = StyleSheet.create({
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.md,
-    backgroundColor: colors.paper
-  },
-  centerText: {
-    fontSize: fontSize.name,
-    color: colors.ink2
-  }
-});
+const makeStyles = ({ colors }: Theme) =>
+  StyleSheet.create({
+    center: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: spacing.md,
+      backgroundColor: colors.paper
+    },
+    centerText: {
+      fontSize: fontSize.name,
+      color: colors.ink2
+    }
+  });

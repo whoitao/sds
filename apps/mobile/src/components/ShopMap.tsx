@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
+import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { requireOptionalNativeModule } from 'expo-modules-core';
 import {
   ExpoGaodeMapModule,
   MapView,
@@ -8,6 +9,8 @@ import {
   type MapViewRef
 } from 'expo-gaode-map';
 import type { ShopInfo, ShopLocation } from '../api';
+import type { Theme } from '../theme';
+import { useTheme, useThemedStyles } from '../theme-context';
 
 interface Props {
   shops: ShopInfo[];
@@ -24,7 +27,9 @@ const PRIVACY_VERSION = '2026-11-19';
 const GAODE_PRIVACY_URL = 'https://lbs.amap.com/pages/privacy/';
 
 /** 原生高德地图：门店数据与定位仍沿用现有接口，地图和标记不再经过 WebView。 */
-export default function ShopMap({ shops, location, selectedId, onSelect, onShowList }: Props) {
+function NativeShopMap({ shops, location, selectedId, onSelect, onShowList }: Props) {
+  const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
   const mapRef = useRef<MapViewRef>(null);
   const [privacy, setPrivacy] = useState<PrivacyState>('checking');
   const [ready, setReady] = useState(false);
@@ -148,14 +153,14 @@ export default function ShopMap({ shops, location, selectedId, onSelect, onShowL
 
         {privacy === 'checking' ? (
           <View style={styles.centerOverlay}>
-            <Ionicons name="map-outline" size={42} color="#2f6b45" />
+            <Ionicons name="map-outline" size={42} color={colors.greenDeep} />
             <Text style={styles.loadingText}>正在准备地图…</Text>
           </View>
         ) : null}
 
         {privacy === 'required' ? (
           <View style={styles.privacyOverlay}>
-            <Ionicons name="shield-checkmark-outline" size={44} color="#2f6b45" />
+            <Ionicons name="shield-checkmark-outline" size={44} color={colors.greenDeep} />
             <Text style={styles.privacyTitle}>使用高德地图</Text>
             <Text style={styles.privacyText}>
               地图用于展示附近门店和您的位置。首次使用前，请阅读并同意高德地图隐私政策；不同意也可以使用门店列表。
@@ -174,14 +179,14 @@ export default function ShopMap({ shops, location, selectedId, onSelect, onShowL
 
         {privacy === 'ready' && !ready && !failed ? (
           <View style={styles.centerOverlay}>
-            <Ionicons name="map-outline" size={42} color="#2f6b45" />
+            <Ionicons name="map-outline" size={42} color={colors.greenDeep} />
             <Text style={styles.loadingText}>地图加载中…</Text>
           </View>
         ) : null}
 
         {showFailure ? (
           <View style={styles.centerOverlay}>
-            <Ionicons name="map-outline" size={42} color="#9aa0a6" />
+            <Ionicons name="map-outline" size={42} color={colors.ink3} />
             <Text style={styles.failedTitle}>原生地图加载失败</Text>
             <Text style={styles.failedText}>
               可能是网络、高德 Key 未绑定当前包名/签名，或模拟器不支持地图渲染。可先用下方门店列表，真机上再试。
@@ -197,7 +202,7 @@ export default function ShopMap({ shops, location, selectedId, onSelect, onShowL
 
         {!showFailure && privacy !== 'required' ? (
           <Pressable style={styles.listButton} onPress={onShowList}>
-            <Ionicons name="list" size={18} color="#2f6b45" />
+            <Ionicons name="list" size={18} color={colors.greenDeep} />
             <Text style={styles.listText}>门店列表</Text>
           </Pressable>
         ) : null}
@@ -227,7 +232,42 @@ export default function ShopMap({ shops, location, selectedId, onSelect, onShowL
   );
 }
 
-const styles = StyleSheet.create({
+/**
+ * 高德 iOS SDK 没有 arm64 模拟器切片，模拟器包在 Pods 层移除了高德原生模块
+ * （见 plugins/with-ios-gaode-simulator.js），这里按「原生模块是否存在」判定：
+ * 只有 iOS 模拟器包拿不到 ExpoGaodeMap，真机 / Android 构建始终存在，行为与之前一致。
+ */
+const USE_WEB_MAP =
+  Platform.OS === 'ios' && requireOptionalNativeModule('ExpoGaodeMap') == null;
+
+// 按需加载：Android / iOS 真机不会执行到这里，避免把 react-native-webview 的依赖提前求值
+let webMapComponent: ComponentType<Props> | null = null;
+function getWebMapComponent() {
+  if (!webMapComponent) {
+    webMapComponent = (require('./ShopWebMap') as { default: ComponentType<Props> }).default;
+  }
+  return webMapComponent;
+}
+
+export default function ShopMap(props: Props) {
+  if (USE_WEB_MAP) {
+    const WebMap = getWebMapComponent();
+    return (
+      <WebMap
+        shops={props.shops}
+        location={props.location}
+        selectedId={props.selectedId}
+        onSelect={props.onSelect}
+        onShowList={props.onShowList}
+      />
+    );
+  }
+
+  return <NativeShopMap {...props} />;
+}
+
+const makeStyles = ({ colors }: Theme) =>
+  StyleSheet.create({
   // 地图放在 ScrollView 里，flex:1 没有父级高度可用会塌成 0，这里给固定高度保证原生视图有尺寸
   container: { height: 260, borderRadius: 12, overflow: 'hidden' },
   mapArea: { flex: 1, position: 'relative', overflow: 'hidden' },
@@ -237,55 +277,55 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     left: 0,
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 28,
     zIndex: 20
   },
-  loadingText: { marginTop: 12, fontSize: 14, color: '#6c757d' },
-  failedTitle: { marginTop: 12, fontSize: 16, fontWeight: '600', color: '#343a40' },
-  failedText: { marginTop: 8, fontSize: 13, lineHeight: 20, color: '#868e96', textAlign: 'center' },
+  loadingText: { marginTop: 12, fontSize: 14, color: colors.ink3 },
+  failedTitle: { marginTop: 12, fontSize: 16, fontWeight: '600', color: colors.ink },
+  failedText: { marginTop: 8, fontSize: 13, lineHeight: 20, color: colors.ink3, textAlign: 'center' },
   retryButton: {
     marginTop: 18,
-    backgroundColor: '#2f6b45',
+    backgroundColor: colors.greenDeep,
     borderRadius: 12,
     paddingHorizontal: 24,
     paddingVertical: 11
   },
-  retryText: { fontSize: 14, color: '#fff', fontWeight: '600' },
+  retryText: { fontSize: 14, color: colors.white, fontWeight: '600' },
   failedListButton: { marginTop: 16, paddingHorizontal: 16, paddingVertical: 6 },
-  failedListText: { fontSize: 14, color: '#2f6b45', fontWeight: '600' },
+  failedListText: { fontSize: 14, color: colors.greenDeep, fontWeight: '600' },
   privacyOverlay: {
     position: 'absolute',
     top: 0,
     right: 0,
     bottom: 0,
     left: 0,
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 32,
     zIndex: 30
   },
-  privacyTitle: { marginTop: 14, fontSize: 20, fontWeight: '700', color: '#1f2933' },
+  privacyTitle: { marginTop: 14, fontSize: 20, fontWeight: '700', color: colors.ink },
   privacyText: {
     marginTop: 12,
     fontSize: 14,
     lineHeight: 22,
-    color: '#6c757d',
+    color: colors.ink3,
     textAlign: 'center'
   },
-  privacyLink: { marginTop: 14, fontSize: 14, color: '#2f6b45', textDecorationLine: 'underline' },
+  privacyLink: { marginTop: 14, fontSize: 14, color: colors.greenDeep, textDecorationLine: 'underline' },
   agreeButton: {
     marginTop: 24,
-    backgroundColor: '#2f6b45',
+    backgroundColor: colors.greenDeep,
     borderRadius: 12,
     paddingHorizontal: 28,
     paddingVertical: 12
   },
   privacyListButton: { marginTop: 16, padding: 6 },
-  privacyListText: { fontSize: 14, color: '#6c757d' },
+  privacyListText: { fontSize: 14, color: colors.ink3 },
   listButton: {
     position: 'absolute',
     left: 14,
@@ -293,7 +333,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 22,
@@ -304,25 +344,25 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     zIndex: 10
   },
-  listText: { fontSize: 14, color: '#2f6b45', fontWeight: '600' },
+  listText: { fontSize: 14, color: colors.greenDeep, fontWeight: '600' },
   countRow: {
     position: 'absolute',
     left: 14,
     top: 12,
-    backgroundColor: 'rgba(255,255,255,0.95)',
+    backgroundColor: colors.card,
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 16,
     elevation: 2,
     zIndex: 10
   },
-  countText: { fontSize: 13, color: '#495057', fontWeight: '500' },
+  countText: { fontSize: 13, color: colors.ink2, fontWeight: '500' },
   selectedCard: {
     position: 'absolute',
     right: 14,
     bottom: 14,
     left: 140,
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderRadius: 14,
     padding: 12,
     flexDirection: 'row',
@@ -334,15 +374,15 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     zIndex: 10
   },
-  shopName: { fontSize: 14, fontWeight: '700', color: '#212529' },
-  shopAddress: { fontSize: 12, color: '#868e96', marginTop: 3 },
-  selectedTag: { backgroundColor: '#e8f3eb', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5 },
-  selectedTagText: { fontSize: 11, color: '#2f6b45', fontWeight: '600' },
+  shopName: { fontSize: 14, fontWeight: '700', color: colors.ink },
+  shopAddress: { fontSize: 12, color: colors.ink3, marginTop: 3 },
+  selectedTag: { backgroundColor: colors.greenSoft, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5 },
+  selectedTagText: { fontSize: 11, color: colors.greenDeep, fontWeight: '600' },
   locationDot: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: 'rgba(47,107,69,0.22)',
+    backgroundColor: colors.greenSoft,
     alignItems: 'center',
     justifyContent: 'center'
   },
@@ -350,8 +390,8 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#2f6b45',
+    backgroundColor: colors.greenDeep,
     borderWidth: 2,
-    borderColor: '#fff'
+    borderColor: colors.card
   }
 });

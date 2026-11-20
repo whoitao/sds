@@ -1,18 +1,20 @@
 import type { OrderPayload, QuantityMode } from './api';
-import { colors } from './theme';
+import type { ThemeColors } from './theme';
 
-/** 订单状态配色，列表与详情共用 */
-export const orderStatusTone: Record<string, { background: string; color: string }> = {
-  pending_payment: { background: colors.amberSoft, color: colors.amber },
-  paid: { background: colors.blueSoft, color: colors.blueInk },
-  preparing: { background: colors.amberSoft, color: colors.amber },
-  delivering: { background: colors.blueSoft, color: colors.blueInk },
-  pickup_ready: { background: colors.blueSoft, color: colors.blueInk },
-  completed: { background: colors.greenSoft, color: colors.greenDeep },
-  refund_pending: { background: colors.amberSoft, color: colors.amber },
-  refunded: { background: colors.line, color: colors.ink2 },
-  cancelled: { background: colors.line, color: colors.ink2 }
-};
+/** 订单状态配色，列表与详情共用；颜色取自当前主题令牌 */
+export function orderStatusTone(colors: ThemeColors): Record<string, { background: string; color: string }> {
+  return {
+    pending_payment: { background: colors.amberSoft, color: colors.amber },
+    paid: { background: colors.blueSoft, color: colors.blueInk },
+    preparing: { background: colors.amberSoft, color: colors.amber },
+    delivering: { background: colors.blueSoft, color: colors.blueInk },
+    pickup_ready: { background: colors.blueSoft, color: colors.blueInk },
+    completed: { background: colors.greenSoft, color: colors.greenDeep },
+    refund_pending: { background: colors.amberSoft, color: colors.amber },
+    refunded: { background: colors.line, color: colors.ink2 },
+    cancelled: { background: colors.line, color: colors.ink2 }
+  };
+}
 
 export function formatQuantity(value: number, mode: QuantityMode) {
   if (mode === 'integer') return String(Math.round(value));

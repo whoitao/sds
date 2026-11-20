@@ -25,7 +25,8 @@ import {
   type ProductSkuItem,
   type ShopInfo
 } from '../api';
-import { cardShadow, colors, fontSize, radius, spacing, tap } from '../theme';
+import { fontSize, radius, spacing, tap, type Theme } from '../theme';
+import { useTheme, useThemedStyles } from '../theme-context';
 import { productIcon, type MaterialIconName } from '../product-icons';
 import ScreenHeader from '../components/ScreenHeader';
 import TabBar from '../components/TabBar';
@@ -72,6 +73,9 @@ export default function HomeScreen({
   onCartCountChange: (count: number) => void;
   onShopNameChange: (name: string) => void;
 }) {
+  const styles = useThemedStyles(makeStyles);
+  const { theme } = useTheme();
+  const { colors } = theme;
   const [shop, setShop] = useState<ShopInfo | null>(null);
   const [categories, setCategories] = useState<CategoryNode[]>([]);
   const [rootId, setRootId] = useState<string | null>(null);
@@ -252,7 +256,7 @@ export default function HomeScreen({
   if (loading) {
     return (
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-        <StatusBar barStyle="dark-content" />
+        <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
         <View style={styles.center}>
           <ActivityIndicator color={colors.green} size="large" />
           <Text style={styles.centerText}>正在为您准备今天的菜…</Text>
@@ -264,7 +268,7 @@ export default function HomeScreen({
   if (error || !shop) {
     return (
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-        <StatusBar barStyle="dark-content" />
+        <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
         <View style={styles.center}>
           <Text style={styles.centerText}>{error || '门店信息加载失败'}</Text>
           <Pressable
@@ -285,7 +289,7 @@ export default function HomeScreen({
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
 
       <ScreenHeader
         left="bell"
@@ -306,22 +310,25 @@ export default function HomeScreen({
               <Image source={{ uri: shop.coverUrl }} style={styles.shopCoverImage} resizeMode="cover" />
             ) : (
               <View style={styles.shopCoverIcons}>
-                <MaterialCommunityIcons name="leaf" size={22} color="#6FA985" />
-                <MaterialCommunityIcons name="food-steak" size={22} color="#6FA985" />
-                <MaterialCommunityIcons name="egg-outline" size={22} color="#6FA985" />
-                <MaterialCommunityIcons name="rice" size={22} color="#6FA985" />
+                <MaterialCommunityIcons name="leaf" size={22} color={colors.green} />
+                <MaterialCommunityIcons name="food-steak" size={22} color={colors.green} />
+                <MaterialCommunityIcons name="egg-outline" size={22} color={colors.green} />
+                <MaterialCommunityIcons name="rice" size={22} color={colors.green} />
               </View>
             )}
+            {/* 店名与地址叠在门店图下半部分的半透明蒙层上，颜色随主题切换 */}
+            <View style={styles.shopOverlay}>
+              <View style={styles.shopMeta}>
+                <Text style={styles.shopName} numberOfLines={1} ellipsizeMode="tail">
+                  {shop.name}
+                </Text>
+                <Text style={styles.shopStatus}>营业中</Text>
+              </View>
+              <Text style={styles.shopAddress} numberOfLines={1} ellipsizeMode="tail">
+                {shop.address}
+              </Text>
+            </View>
           </View>
-          <View style={styles.shopMeta}>
-            <Text style={styles.shopName} numberOfLines={1}>
-              {shop.name}
-            </Text>
-            <Text style={styles.shopStatus}>营业中</Text>
-          </View>
-          <Text style={styles.shopAddress} numberOfLines={1}>
-            {shop.address}
-          </Text>
         </View>
         </View>
 
@@ -485,13 +492,15 @@ export default function HomeScreen({
                       }
                       accessibilityState={{ disabled: item.soldOut }}
                       style={[styles.plusButton, item.soldOut ? styles.plusButtonDisabled : null]}
+                      // 视觉 40×40，外扩 4 → 48×48 的实际热区，仍高于 44 下限
+                      hitSlop={4}
                       disabled={cartBusy || item.soldOut}
                       onPress={() => addToCart(item)}
                     >
                       {item.soldOut ? (
                         <Text style={styles.plusSoldOutText}>售罄</Text>
                       ) : (
-                        <Ionicons name="add" size={28} color={colors.white} />
+                        <Ionicons name="add" size={24} color={colors.white} />
                       )}
                     </Pressable>
                   </View>
@@ -529,7 +538,7 @@ export default function HomeScreen({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   shopNotice: { fontSize: fontSize.body, color: colors.greenDeep, backgroundColor: colors.greenSoft, padding: spacing.md, borderRadius: radius.md, lineHeight: 24 },
   safeArea: {
     flex: 1,
@@ -574,12 +583,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.line,
     overflow: 'hidden',
-    ...cardShadow
+    ...shadow
   },
   shopCover: {
-    height: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
+    height: 144,
     backgroundColor: colors.greenSoft
   },
   shopCoverImage: {
@@ -587,34 +594,44 @@ const styles = StyleSheet.create({
     height: '100%'
   },
   shopCoverIcons: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 14
+  },
+  // 压在门店图下半部分：店名/地址不再占一条白底
+  shopOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    paddingBottom: 10,
+    gap: 2,
+    backgroundColor: colors.overlayScrim
   },
   shopMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm
+    gap: spacing.sm
   },
   shopName: {
     flex: 1,
+    minWidth: 0,
     fontSize: fontSize.title,
     fontWeight: '700',
-    color: colors.ink
+    color: colors.overlayInk
   },
   shopStatus: {
     fontSize: fontSize.body,
-    color: colors.greenDeep,
+    color: colors.overlayAccent,
     fontWeight: '600'
   },
   shopAddress: {
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.sm,
-    paddingTop: 2,
     fontSize: fontSize.body,
-    color: colors.ink2
+    color: colors.overlayInk2
   },
   level1: {
     width: 80,
@@ -737,7 +754,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.line,
-    ...cardShadow
+    ...shadow
   },
   goodsPic: {
     width: 48,
@@ -776,9 +793,9 @@ const styles = StyleSheet.create({
     color: colors.ink2
   },
   plusButton: {
-    width: tap.min,
-    height: tap.min,
-    borderRadius: radius.md,
+    width: 40,
+    height: 40,
+    borderRadius: 11,
     backgroundColor: colors.green,
     alignItems: 'center',
     justifyContent: 'center'
@@ -787,7 +804,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.line
   },
   plusSoldOutText: {
-    fontSize: fontSize.body,
+    fontSize: fontSize.mini,
     fontWeight: '700',
     color: colors.ink3
   }

@@ -14,7 +14,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { loginWithCode, sendCode, type AuthSession } from '../api';
-import { colors, cardShadow, fontSize, radius, spacing, tap } from '../theme';
+import { fontSize, radius, spacing, tap, type Theme } from '../theme';
+import { useTheme, useThemedStyles } from '../theme-context';
 
 type Mode = 'login' | 'register';
 
@@ -26,6 +27,9 @@ const PHONE_RE = /^1[3-9]\d{9}$/;
  * - ⚠️ 验证码为开发态固定值（接口返回 devCode），界面上明确标注为临时方案。
  */
 export default function AuthScreen({ onSuccess }: { onSuccess: (session: AuthSession) => void }) {
+  const styles = useThemedStyles(makeStyles);
+  const { theme } = useTheme();
+  const { colors } = theme;
   const [mode, setMode] = useState<Mode>('login');
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
@@ -96,7 +100,7 @@ export default function AuthScreen({ onSuccess }: { onSuccess: (session: AuthSes
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} />
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -223,7 +227,7 @@ export default function AuthScreen({ onSuccess }: { onSuccess: (session: AuthSes
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = ({ colors, shadow }: Theme) => StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: colors.paper
@@ -298,7 +302,7 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     padding: spacing.lg,
     gap: spacing.sm,
-    ...cardShadow
+    ...shadow
   },
   input: {
     minHeight: tap.min,
@@ -376,7 +380,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     backgroundColor: colors.amberSoft,
     borderWidth: 1,
-    borderColor: '#EBD7B4'
+    borderColor: colors.edgeAmber
   },
   devNoteText: {
     flex: 1,

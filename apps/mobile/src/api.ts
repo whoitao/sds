@@ -7,7 +7,7 @@ import { Platform } from 'react-native';
  * - preview / 真机：通过 EXPO_PUBLIC_API_BASE_URL 注入线上 HTTPS 地址。
  */
 const DEV_API_BASE_URL = Platform.select({
-  android: 'http://127.0.0.1:19852',
+  android: 'http://localhost:19852',
   default: 'http://localhost:19852'
 }) ?? 'http://localhost:19852';
 

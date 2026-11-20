@@ -6,7 +6,7 @@
  * 用法：node scripts/run-app.mjs <api|web|admin|mobile> <dev|start> [...额外参数]
  */
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -65,8 +65,94 @@ function bin(name) {
   return existsSync(local) ? local : join(ROOT, 'node_modules', '.bin', name);
 }
 
+const IOS_MAP_MODE_FILE = join(cwd, 'ios', '.sds-map-mode');
+
+// 高德 iOS SDK 没有 arm64 模拟器切片，模拟器包必须把高德原生模块移出 Pods（改用 Web 地图）。
+// 真机 / EAS 构建仍保留原生地图，所以模式切换时重新 prebuild，避免 Pods 与当前模式不一致。
+function ensureIosMapMode(target) {
+  const current = existsSync(IOS_MAP_MODE_FILE)
+    ? readFileSync(IOS_MAP_MODE_FILE, 'utf8').trim()
+    : '';
+  if (current === target) return;
+  console.log(`[sds] iOS 原生地图模式 → ${target}，重新生成 ios/ …`);
+  const result = spawnSync(bin('expo'), ['prebuild', '--platform', 'ios'], {
+    cwd,
+    env: { ...process.env, SDS_IOS_SIMULATOR: target === 'simulator' ? '1' : '0' },
+    stdio: 'inherit'
+  });
+  if (result.status !== 0) {
+    console.error('[sds] iOS prebuild 失败，请先修复上面的错误');
+    process.exit(result.status ?? 1);
+  }
+  writeFileSync(IOS_MAP_MODE_FILE, `${target}\n`);
+}
+
+// Android 模拟器访问宿主机只能走 127.0.0.1 + adb reverse。映射绑定在当前 adb 连接上，
+// 模拟器重启、adb 重连、expo 内部重启 adb 都会让它消失；所以既在启动前补一次，
+// 也在 dev 进程存活期间轮询补齐。不用 `adb wait-for-device` 阻塞：`expo run:android`
+// 可能自己负责启动模拟器，轮询能等到设备开机完成（sys.boot_completed=1）后再建映射。
+const ANDROID_REVERSE_PORTS = [
+  String(process.env.PORT_API || APPS.api.fallback),
+  String(process.env.PORT_MOBILE || APPS.mobile.fallback)
+];
+
+function adb(args) {
+  return spawnSync('adb', args, { encoding: 'utf8' });
+}
+
+/** 已连接且完成开机的设备；未就绪的设备不参与映射 */
+function readyAndroidDevices() {
+  const out = adb(['devices']).stdout ?? '';
+  return out
+    .split('\n')
+    .map((line) => line.trim().split(/\s+/))
+    .filter(([serial, state]) => serial && state === 'device')
+    .map(([serial]) => serial)
+    .filter(
+      (serial) =>
+        (adb(['-s', serial, 'shell', 'getprop', 'sys.boot_completed']).stdout ?? '').trim() === '1'
+    );
+}
+
+/** 设备上已建立的 reverse 端口集合 */
+function reversedPorts(serial) {
+  const out = adb(['-s', serial, 'reverse', '--list']).stdout ?? '';
+  return new Set(
+    out
+      .split('\n')
+      .map((line) => line.match(/tcp:(\d+)\s+tcp:(\d+)/))
+      .filter(Boolean)
+      .map((match) => match[1])
+  );
+}
+
+function ensureAndroidReverse({ quiet = false } = {}) {
+  const devices = readyAndroidDevices();
+  if (!devices.length) return;
+  for (const serial of devices) {
+    const existing = reversedPorts(serial);
+    for (const port of ANDROID_REVERSE_PORTS) {
+      if (existing.has(port)) continue;
+      const result = adb(['-s', serial, 'reverse', `tcp:${port}`, `tcp:${port}`]);
+      if (result.status === 0) {
+        console.log(`[sds] Android 端口转发 ${serial} → localhost:${port}`);
+      } else if (!quiet) {
+        const reason = (result.stderr ?? '').trim() || 'adb 未就绪，稍后重试';
+        console.warn(`[sds] Android 端口转发失败（${serial}:${port}）: ${reason}`);
+      }
+    }
+  }
+}
+
+let androidReverseTimer = null;
+function startAndroidReverseWatch() {
+  ensureAndroidReverse();
+  androidReverseTimer = setInterval(() => ensureAndroidReverse({ quiet: true }), 5000);
+}
+
 let command;
 let args;
+let extraEnv = {};
 if (appName === 'api') {
   command = bin('tsx');
   args = mode === 'start' ? ['src/index.ts'] : ['watch', 'src/index.ts'];
@@ -80,6 +166,12 @@ if (appName === 'api') {
   // run:android / run:ios 会自动 prebuild + 构建 + 安装 + 启动，不需要手动先装 APK。
   const platform = rest.includes('--android') ? 'android' : rest.includes('--ios') ? 'ios' : null;
   if (platform) {
+    if (platform === 'ios') {
+      const device = rest.includes('--device');
+      const mapMode = device ? 'device' : 'simulator';
+      ensureIosMapMode(mapMode);
+      extraEnv = { SDS_IOS_SIMULATOR: mapMode === 'simulator' ? '1' : '0' };
+    }
     args = [`run:${platform}`, ...rest.filter((arg) => arg !== `--${platform}`)];
   } else {
     args = ['start', '--dev-client', '--port', port, ...rest];
@@ -89,7 +181,7 @@ if (appName === 'api') {
   args = [mode === 'start' ? 'start' : 'dev', '-p', port];
 }
 
-const env = { ...process.env, PORT: port };
+const env = { ...process.env, PORT: port, ...extraEnv };
 // admin 端拿不到根 .env 时，用 PORT_API 派生 API 地址
 if (appName === 'admin' && !env.API_BASE_URL) {
   env.API_BASE_URL = `http://localhost:${process.env.PORT_API || APPS.api.fallback}`;

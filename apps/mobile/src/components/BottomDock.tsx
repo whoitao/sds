@@ -1,5 +1,6 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, fontSize, spacing, tap } from '../theme';
+import { fontSize, spacing, tap, type Theme } from '../theme';
+import { useTheme, useThemedStyles } from '../theme-context';
 
 /**
  * 底部结算条：左侧一句话 + 合计金额，右侧深绿主按钮。
@@ -20,6 +21,9 @@ export default function BottomDock({
   disabled?: boolean;
   loading?: boolean;
 }) {
+  const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
+
   return (
     <View style={styles.dock}>
       <View style={styles.info}>
@@ -46,7 +50,8 @@ export default function BottomDock({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = ({ colors }: Theme) =>
+  StyleSheet.create({
   dock: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -73,10 +78,11 @@ const styles = StyleSheet.create({
   },
   action: {
     flexShrink: 0,
-    minHeight: tap.primary,
-    minWidth: 130,
-    paddingHorizontal: 22,
-    borderRadius: tap.primary / 2,
+    // 高度/内边距/字号各收一档，仍保持胶囊且热区 48 ≥ 44
+    minHeight: tap.min,
+    minWidth: 112,
+    paddingHorizontal: spacing.lg,
+    borderRadius: tap.min / 2,
     backgroundColor: colors.greenDeep,
     alignItems: 'center',
     justifyContent: 'center'
@@ -85,7 +91,7 @@ const styles = StyleSheet.create({
     opacity: 0.45
   },
   actionText: {
-    fontSize: fontSize.title,
+    fontSize: fontSize.name,
     fontWeight: '700',
     letterSpacing: 0.5,
     color: colors.white
