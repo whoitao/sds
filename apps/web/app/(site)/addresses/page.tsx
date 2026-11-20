@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import AccountLayout from '@/components/AccountLayout';
 import AddressBook from '@/components/AddressBook';
 import { apiRequest, type AddressItem } from '@/lib/api';
+import { getMessages } from '@/lib/i18n/server';
 import { getRegionTree } from '@/lib/regions';
 import { getSessionToken, requireCustomer } from '@/lib/session';
 
@@ -21,13 +22,14 @@ export default async function AddressesPage() {
   if (response.status === 401) redirect('/login?next=%2Faddresses');
 
   const items = response.ok ? response.data?.items ?? [] : [];
+  const m = await getMessages();
 
   return (
     <AccountLayout>
       <div className="flex w-full flex-col gap-5">
         {!response.ok ? (
           <p className="rounded-xl bg-danger-soft px-4 py-3 text-[16px] text-danger">
-            {response.message ?? '地址加载失败，请稍后刷新重试'}
+            {response.message ?? m.address.loadFailed}
           </p>
         ) : null}
         <AddressBook items={items} regionTree={regionTree} />

@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import ProgressSteps from '@/components/ProgressSteps';
 import ShopFinder from '@/components/ShopFinder';
 import { apiRequest } from '@/lib/api';
+import { getMessages } from '@/lib/i18n/server';
 import { getSelectedShop } from '@/lib/shop';
 import type { ShopItem } from '@/lib/shops';
 
@@ -17,6 +18,7 @@ function todayKey() {
 }
 
 export default async function HomePage() {
+  const m = await getMessages();
   const [response, selected] = await Promise.all([
     // 门店列表是公开只读数据：进 Next Data Cache，后台改店通过 revalidateTag('shops') 立即失效
     apiRequest<{ items: ShopItem[] }>('/api/shops', {
@@ -31,10 +33,13 @@ export default async function HomePage() {
       {/* 只有首页会注入高德脚本：提前建连，省一次 DNS + TLS */}
       <link rel="preconnect" href="https://webapi.amap.com" crossOrigin="anonymous" />
       <link rel="dns-prefetch" href="https://webapi.amap.com" />
-      <ProgressSteps current={1} />
+      <ProgressSteps
+        current={1}
+        steps={[m.common.stepShop, m.common.stepPick, m.common.stepCheckout, m.common.stepOrder]}
+      />
       {!response.ok ? (
         <p className="m-0 rounded-xl bg-danger-soft px-4 py-3 text-[16px] text-danger">
-          {response.message ?? '门店加载失败，请稍后刷新重试'}
+          {response.message ?? m.shops.shopsLoadFailed}
         </p>
       ) : null}
       <ShopFinder shops={shops} selectedId={selected?.id ?? null} todayKey={todayKey()} />

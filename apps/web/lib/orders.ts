@@ -1,5 +1,7 @@
 import 'server-only';
 import { apiRequest } from './api';
+import { dateLocaleOf, formatMessage, type Locale } from './i18n/config';
+import type { Messages } from './i18n/messages';
 import { getSessionToken } from './session';
 
 /** GET /api/mobile/orders 的返回结构（顾客端最近 50 单，含商品明细） */
@@ -50,6 +52,9 @@ export type CustomerOrder = {
 
 export type OrderTab = 'all' | 'ongoing' | 'done' | 'closed';
 
+/** orders 字典的类型，供状态/支付方式映射与列表摘要使用 */
+export type OrderMessages = Messages['orders'];
+
 /** 仍在推进中的状态（退款中算进行中，等门店处理） */
 const ONGOING_STATUSES = [
   'pending_payment',
@@ -76,21 +81,30 @@ export function statusTone(status: string) {
   return 'bg-segment text-ink-3';
 }
 
-const DATE_TIME = new Intl.DateTimeFormat('zh-CN', {
-  timeZone: 'Asia/Shanghai',
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-  hour12: false
-});
+const DATE_TIME_FORMATTERS: Partial<Record<Locale, Intl.DateTimeFormat>> = {};
 
-export function formatDateTime(value: string | null | undefined) {
+function dateTimeFormatter(locale: Locale) {
+  const cached = DATE_TIME_FORMATTERS[locale];
+  if (cached) return cached;
+  const formatter = new Intl.DateTimeFormat(dateLocaleOf(locale), {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  });
+  DATE_TIME_FORMATTERS[locale] = formatter;
+  return formatter;
+}
+
+export function formatDateTime(value: string | null | undefined, locale: Locale = 'zh') {
   if (!value) return '—';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return DATE_TIME.format(date).replace(/\//g, '-');
+  const text = dateTimeFormatter(locale).format(date);
+  return locale === 'zh' ? text.replace(/\//g, '-') : text;
 }
 
 export function formatQuantity(item: CustomerOrderItem) {
@@ -98,12 +112,53 @@ export function formatQuantity(item: CustomerOrderItem) {
   return String(Number(item.quantity));
 }
 
-/** 商品摘要：前两个名字，超出时补「等 N 种」 */
-export function itemSummary(order: CustomerOrder) {
+/** 状态码 → 字典 key：API 的 statusLabel 是中文，优先用本地映射，未知状态回落到 API 文案 */
+const STATUS_LABEL_KEYS: Record<string, keyof OrderMessages> = {
+  pending_payment: 'statusPendingPayment',
+  paid: 'statusPaid',
+  preparing: 'statusPreparing',
+  delivering: 'statusDelivering',
+  pickup_ready: 'statusPickupReady',
+  refund_pending: 'statusRefundPending',
+  completed: 'statusCompleted',
+  cancelled: 'statusCancelled',
+  refunded: 'statusRefunded'
+};
+
+export function statusLabelOf(
+  status: string,
+  fallback: string,
+  messages: OrderMessages
+): string {
+  const key = STATUS_LABEL_KEYS[status];
+  return key ? messages[key] : fallback || status;
+}
+
+/** 支付方式 code → 字典 key；未知 code 回落到 API 的 paymentMethodLabel */
+const PAYMENT_LABEL_KEYS: Record<string, keyof OrderMessages> = {
+  wechat: 'paymentWechat',
+  cash: 'paymentCash',
+  balance: 'paymentBalance'
+};
+
+export function paymentLabelOf(
+  method: string | null,
+  fallback: string | null,
+  messages: OrderMessages
+): string | null {
+  const key = method ? PAYMENT_LABEL_KEYS[method] : undefined;
+  return (key && messages[key]) || fallback;
+}
+
+/** 商品摘要：前两个名字，超出时按语言补「等 N 种」/「and N more」 */
+export function itemSummary(order: CustomerOrder, messages: OrderMessages) {
   const names = order.items.map((item) => item.name);
-  if (names.length === 0) return '暂无商品明细';
-  if (names.length <= 2) return names.join('、');
-  return `${names.slice(0, 2).join('、')} 等 ${names.length} 种`;
+  if (names.length === 0) return messages.summaryEmpty;
+  if (names.length <= 2) return names.join(messages.listSeparator);
+  return formatMessage(messages.summaryMore, {
+    names: names.slice(0, 2).join(messages.listSeparator),
+    count: names.length
+  });
 }
 
 export async function getOrders() {

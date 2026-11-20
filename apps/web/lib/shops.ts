@@ -1,3 +1,6 @@
+import { formatMessage, type Locale } from '@/lib/i18n/config';
+import { messagesOf } from '@/lib/i18n/messages';
+
 /** 顾客端门店数据：字段与 /api/shops 返回保持一致 */
 export type ShopItem = {
   id: string;
@@ -57,21 +60,25 @@ export function straightDistanceMeters(from: ShopLocation, to: ShopLocation) {
   return Math.round(meters / 10) * 10;
 }
 
-/** 只写直线距离，不折算步行几分钟 */
-export function distanceText(meters: number | null | undefined) {
-  if (meters == null) return '距离未知';
-  return meters < 1000 ? `${meters} 米` : `${(meters / 1000).toFixed(1)} 公里`;
+/** 只写直线距离，不折算步行几分钟；单位按当前语言输出 */
+export function distanceText(meters: number | null | undefined, locale: Locale) {
+  const t = messagesOf(locale).shops;
+  if (meters == null) return t.distanceUnknown;
+  return meters < 1000
+    ? formatMessage(t.distanceMeters, { value: meters })
+    : formatMessage(t.distanceKilometers, { value: (meters / 1000).toFixed(1) });
 }
 
 export const WEEKDAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
 
-/** 今日营业时间文案；没有排班时回落到电话咨询，避免出现空白或 undefined */
+/** 今日营业时间文案；没有排班时回落到「营业时间未知」，避免出现空白或 undefined */
 export function todayHoursText(
   shop: Pick<ShopItem, 'businessHours'>,
-  todayKey: string
+  todayKey: string,
+  locale: Locale
 ): string {
   const slot = shop.businessHours?.[todayKey];
-  return slot ? `${slot.open}–${slot.close}` : '营业时间未知';
+  return slot ? `${slot.open}–${slot.close}` : messagesOf(locale).shops.hoursUnknown;
 }
 
 /** 地图钉子上的短名：去掉「（xx店）」这类后缀，避免钉子太长 */

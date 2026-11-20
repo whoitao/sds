@@ -7,6 +7,7 @@ import type { ShopHomePayload } from '@/lib/menu';
 import { getRegionTree } from '@/lib/regions';
 import { getSelectedShop } from '@/lib/shop';
 import { getSessionToken, requireCustomer } from '@/lib/session';
+import { getMessages } from '@/lib/i18n/server';
 
 export const metadata: Metadata = {
   title: '确认订单 · 捎点啥'
@@ -15,6 +16,7 @@ export const metadata: Metadata = {
 const EMPTY_CART: CartPayload = { carts: [], itemCount: 0, totalAmount: '0.00' };
 
 export default async function CheckoutPage() {
+  const m = (await getMessages()).checkout;
   const token = await getSessionToken();
   // 没有会话直接回登录页，避免为匿名访客发一串无用请求
   if (!token) redirect('/login?next=%2Fcheckout');
@@ -55,7 +57,7 @@ export default async function CheckoutPage() {
     <div className="flex w-full min-w-0 flex-col gap-3 pt-3 lg:min-h-0 lg:flex-1">
       {addressResponse && !addressResponse.ok ? (
         <p className="m-0 rounded-xl bg-danger-soft px-4 py-3 text-[15px] text-danger">
-          {addressResponse.message ?? '地址加载失败，请刷新重试'}
+          {addressResponse.message ?? m.addressLoadFailed}
         </p>
       ) : null}
       <Checkout

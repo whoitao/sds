@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { useActionState, useEffect, useState } from 'react';
 import { loginAction, sendCodeAction, type LoginState } from '@/lib/auth-actions';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
+import { useMessages } from '@/components/LocaleProvider';
+import { formatMessage } from '@/lib/i18n/config';
 
 type Mode = 'login' | 'register';
 type FieldErrors = { phone?: string; code?: string; name?: string };
@@ -13,19 +15,6 @@ const COUNTDOWN_SECONDS = 60;
 const VARIANTS: Mode[] = ['login', 'register'];
 
 const PHONE_RULE = /^1[3-9]\d{9}$/;
-
-const PERKS: Record<Mode, { icon: 'shop' | 'big' | 'heart' | 'num'; title: string; desc: string; num?: string }[]> = {
-  login: [
-    { icon: 'shop', title: '就在家附近的店', desc: '挑好菜，店里送上门，也能自己去拿' },
-    { icon: 'big', title: '字大、按钮大', desc: '每一步只问一件事，不怕点错' },
-    { icon: 'heart', title: '不会用也不要紧', desc: '可以让家人帮忙，或到店里找店员' }
-  ],
-  register: [
-    { icon: 'num', num: '1', title: '手机号', desc: '店里有事会打这个电话找您' },
-    { icon: 'num', num: '2', title: '验证码', desc: '点「获取验证码」，把收到的 6 位数填进去' },
-    { icon: 'num', num: '3', title: '姓名', desc: '送菜时店员这样称呼您' }
-  ]
-};
 
 const INPUT_BASE =
   'h-[60px] w-full min-w-0 rounded-[14px] border-[1.5px] bg-card-soft px-[18px] text-[21px] text-ink outline-none transition focus:border-2 focus:border-brand-500 focus:bg-card focus:ring-4 focus:ring-brand-500/15 disabled:bg-card-soft';
@@ -80,6 +69,20 @@ function Icon({ name, className = 'h-[22px] w-[22px]' }: { name: string; classNa
 }
 
 export default function AuthForm({ mode, next }: { mode: Mode; next?: string }) {
+  const m = useMessages();
+  const t = m.auth;
+  const PERKS: Record<Mode, { icon: 'shop' | 'big' | 'heart' | 'num'; title: string; desc: string; num?: string }[]> = {
+    login: [
+      { icon: 'shop', title: t.perkShopTitle, desc: t.perkShopDesc },
+      { icon: 'big', title: t.perkBigTitle, desc: t.perkBigDesc },
+      { icon: 'heart', title: t.perkHeartTitle, desc: t.perkHeartDesc }
+    ],
+    register: [
+      { icon: 'num', num: '1', title: t.stepPhoneTitle, desc: t.stepPhoneDesc },
+      { icon: 'num', num: '2', title: t.stepCodeTitle, desc: t.stepCodeDesc },
+      { icon: 'num', num: '3', title: t.stepNameTitle, desc: t.stepNameDesc }
+    ]
+  };
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
@@ -96,22 +99,22 @@ export default function AuthForm({ mode, next }: { mode: Mode; next?: string }) 
   }, [countdown]);
 
   function validatePhone(value: string) {
-    if (!value.trim()) return '请输入手机号';
-    if (!PHONE_RULE.test(value.replace(/\s/g, ''))) return '请输入正确的 11 位手机号';
+    if (!value.trim()) return t.phoneRequired;
+    if (!PHONE_RULE.test(value.replace(/\s/g, ''))) return t.phoneInvalid;
     return undefined;
   }
 
   function validate() {
     const nextErrors: FieldErrors = { phone: validatePhone(phone) };
     if (!code.trim()) {
-      nextErrors.code = '请输入验证码';
+      nextErrors.code = t.codeRequired;
     } else if (!/^\d{6}$/.test(code.trim())) {
-      nextErrors.code = '请输入 6 位数字验证码';
+      nextErrors.code = t.codeInvalid;
     } else if (code.trim() !== DEV_CODE) {
-      nextErrors.code = `验证码不正确，开发环境请输入 ${DEV_CODE}`;
+      nextErrors.code = formatMessage(t.codeMismatch, { code: DEV_CODE });
     }
     if (mode === 'register' && !name.trim()) {
-      nextErrors.name = '请输入姓名';
+      nextErrors.name = t.nameRequired;
     }
     setErrors(nextErrors);
     return !Object.values(nextErrors).some(Boolean);
@@ -151,10 +154,10 @@ export default function AuthForm({ mode, next }: { mode: Mode; next?: string }) 
         className={`[grid-area:aside] flex w-full flex-col gap-[22px] xl:w-[520px] ${variant === mode ? '' : 'invisible'}`}
       >
         <h1 className="m-0 text-[44px] font-extrabold tracking-[2px] text-brand-700">
-          {isLoginVariant ? '捎点啥' : '欢迎来捎点啥'}
+          {isLoginVariant ? t.brand : t.registerBrand}
         </h1>
         <p className="-mt-2 mb-1.5 text-[24px] leading-[1.5] font-semibold text-ink">
-          {isLoginVariant ? '买菜不费劲，送到家门口' : '填三样就能用，以后用手机号登录'}
+          {isLoginVariant ? t.loginSlogan : t.registerSlogan}
         </p>
         {PERKS[variant].map((perk) => (
           <div key={perk.title} className="flex items-center gap-4 rounded-2xl bg-card px-[18px] py-4 shadow-perk">
@@ -206,7 +209,7 @@ export default function AuthForm({ mode, next }: { mode: Mode; next?: string }) 
                   : 'font-semibold text-ink-2'
               }`}
             >
-              登录
+              {m.nav.login}
             </Link>
             <Link
               href="/login?mode=register"
@@ -216,12 +219,12 @@ export default function AuthForm({ mode, next }: { mode: Mode; next?: string }) 
                   : 'font-semibold text-ink-2'
               }`}
             >
-              注册
+              {t.registerTab}
             </Link>
           </div>
 
           <label htmlFor={fieldId('phone')} className="sr-only">
-            手机号
+            {t.phoneLabel}
           </label>
           <input
             id={fieldId('phone')}
@@ -235,7 +238,7 @@ export default function AuthForm({ mode, next }: { mode: Mode; next?: string }) 
               setPhone(event.target.value);
               setErrors((prev) => ({ ...prev, phone: undefined }));
             }}
-            placeholder="请输入手机号"
+            placeholder={t.phonePlaceholder}
             aria-invalid={Boolean(errors.phone)}
             className={`${INPUT_BASE} mt-1 placeholder:font-normal placeholder:text-ink-3 ${
               errors.phone ? 'border-danger' : 'border-line'
@@ -244,7 +247,7 @@ export default function AuthForm({ mode, next }: { mode: Mode; next?: string }) 
           {errors.phone ? <p className="text-[15px] text-danger">{errors.phone}</p> : null}
 
           <label htmlFor={fieldId('code')} className="sr-only">
-            验证码
+            {t.codeLabel}
           </label>
           <div className="grid gap-3 sm:grid-cols-[1fr_170px]">
             <input
@@ -259,7 +262,7 @@ export default function AuthForm({ mode, next }: { mode: Mode; next?: string }) 
                 setCode(event.target.value.replace(/\D/g, ''));
                 setErrors((prev) => ({ ...prev, code: undefined }));
               }}
-              placeholder="请输入 6 位验证码"
+              placeholder={t.codePlaceholder}
               aria-invalid={Boolean(errors.code)}
               className={`${INPUT_BASE} tracking-[2px] placeholder:font-normal placeholder:tracking-normal placeholder:text-ink-3 ${
                 errors.code ? 'border-danger' : 'border-line'
@@ -271,20 +274,24 @@ export default function AuthForm({ mode, next }: { mode: Mode; next?: string }) 
               disabled={isPending || sendingCode || countdown > 0}
               className="h-[60px] rounded-[14px] border-[1.5px] border-brand-200 bg-brand-50 text-[18px] font-bold text-brand-700 transition hover:bg-brand-100 disabled:cursor-not-allowed disabled:border-line disabled:bg-segment disabled:text-ink-3"
             >
-              {sendingCode ? '发送中…' : countdown > 0 ? `${countdown} 秒后重发` : '获取验证码'}
+              {sendingCode
+                ? t.sendingCode
+                : countdown > 0
+                  ? formatMessage(t.resendIn, { count: countdown })
+                  : t.sendCode}
             </button>
           </div>
           {errors.code ? <p className="text-[15px] text-danger">{errors.code}</p> : null}
           {codeSent ? (
             <p className="rounded-[10px] bg-brand-50 px-3 py-2 text-[16px] text-brand-700">
-              验证码已发送。开发环境验证码固定为 {DEV_CODE}（临时方案）
+              {formatMessage(t.codeSentNote, { code: DEV_CODE })}
             </p>
           ) : null}
 
           {!isLoginVariant ? (
             <>
               <label htmlFor={fieldId('name')} className="sr-only">
-                姓名
+                {t.nameLabel}
               </label>
               <input
                 id={fieldId('name')}
@@ -296,7 +303,7 @@ export default function AuthForm({ mode, next }: { mode: Mode; next?: string }) 
                   setName(event.target.value);
                   setErrors((prev) => ({ ...prev, name: undefined }));
                 }}
-                placeholder="请输入姓名"
+                placeholder={t.namePlaceholder}
                 aria-invalid={Boolean(errors.name)}
                 className={`${INPUT_BASE} placeholder:font-normal placeholder:text-ink-3 ${
                   errors.name ? 'border-danger' : 'border-line'
@@ -311,33 +318,42 @@ export default function AuthForm({ mode, next }: { mode: Mode; next?: string }) 
             disabled={isPending}
             className="mt-2 h-[62px] w-full rounded-[14px] bg-primary text-[21px] font-bold text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-segment disabled:text-ink-3"
           >
-            {isPending ? (isLoginVariant ? '登录中…' : '注册中…') : isLoginVariant ? '登录' : '注册并登录'}
+            {isPending
+              ? isLoginVariant
+                ? t.loginPending
+                : t.registerPending
+              : isLoginVariant
+                ? m.nav.login
+                : t.registerSubmit}
           </button>
 
           {!isLoginVariant ? (
             <p className="text-center text-[15px] text-ink-3">
-              注册即表示同意 <b className="font-semibold text-brand-700">《用户协议》</b> 和{' '}
-              <b className="font-semibold text-brand-700">《隐私政策》</b>
+              {t.agreementPrefix}{' '}
+              <b className="font-semibold text-brand-700">{t.terms}</b> {t.agreementAnd}{' '}
+              <b className="font-semibold text-brand-700">{t.privacy}</b>
             </p>
           ) : null}
 
           <p className="text-center text-[17px] text-ink-2">
             {isLoginVariant ? (
               <>
-                第一次使用？点上面的「<b className="text-brand-700">注册</b>」
+                {t.firstTimePrefix}
+                <b className="text-brand-700">{t.registerTab}</b>
+                {t.firstTimeSuffix}
               </>
             ) : (
               <>
-                已经注册过？点上面的「<b className="text-brand-700">登录</b>」
+                {t.registeredPrefix}
+                <b className="text-brand-700">{m.nav.login}</b>
+                {t.registeredSuffix}
               </>
             )}
           </p>
 
           <div className="mt-auto flex items-start gap-2.5 rounded-xl bg-amber-soft px-3.5 py-2.5 text-[15px] leading-relaxed text-amber-ink">
             <Icon name="tool" className="mt-0.5 h-5 w-5 shrink-0 text-amber" />
-            <span>
-              现在是开发体验版：验证码固定为 {DEV_CODE}，不会真的发短信；正式上线后会改成短信验证码。
-            </span>
+            <span>{formatMessage(t.devNote, { code: DEV_CODE })}</span>
           </div>
         </form>
       </section>
@@ -348,7 +364,13 @@ export default function AuthForm({ mode, next }: { mode: Mode; next?: string }) 
     <div className="mx-auto grid w-full max-w-[1120px] flex-1 content-start gap-12 pb-6 xl:grid-cols-[520px_minmax(0,1fr)] xl:gap-14">
       <LoadingOverlay
         show={isPending || sendingCode}
-        text={sendingCode ? '正在发送验证码…' : mode === 'register' ? '正在注册…' : '正在登录…'}
+        text={
+          sendingCode
+            ? t.loadingCode
+            : mode === 'register'
+              ? t.loadingRegister
+              : t.loadingLogin
+        }
       />
       <div className="grid [grid-template-areas:'aside'] content-center">{VARIANTS.map(renderAside)}</div>
       <div className="grid min-w-0 [grid-template-areas:'card']">{VARIANTS.map(renderCard)}</div>

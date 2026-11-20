@@ -1,14 +1,16 @@
 import Link from 'next/link';
 import UserMenu from '@/components/UserMenu';
 import { cartBadgeCount, getCartPayload } from '@/lib/cart';
+import { formatMessage } from '@/lib/i18n/config';
+import { getMessages } from '@/lib/i18n/server';
 import { getSelectedShop } from '@/lib/shop';
 import { getCurrentCustomer } from '@/lib/session';
 
 /** 顶栏展示用：有姓名用姓名，否则用打码手机号 */
-function displayName(nickname: string | null, phone: string | null) {
+function displayName(nickname: string | null, phone: string | null, fallback: string) {
   if (nickname && nickname.trim()) return nickname.trim();
   if (phone && /^\d{11}$/.test(phone)) return `${phone.slice(0, 3)}****${phone.slice(7)}`;
-  return phone ?? '我的账号';
+  return phone ?? fallback;
 }
 
 function Icon({ name, className = 'h-[22px] w-[22px]' }: { name: string; className?: string }) {
@@ -65,11 +67,13 @@ function Icon({ name, className = 'h-[22px] w-[22px]' }: { name: string; classNa
 
 export default async function SiteHeader() {
   // 顶栏只渲染顾客身份、门店药丸与购物车角标；下拉里的计数在菜单展开时由客户端再取
-  const [customer, shop, cart] = await Promise.all([
+  const [customer, shop, cart, m] = await Promise.all([
     getCurrentCustomer(),
     getSelectedShop(),
-    getCartPayload()
+    getCartPayload(),
+    getMessages()
   ]);
+  const nav = m.nav;
 
   // 药丸展示完整门店名，过长时由 truncate 省略，完整名仍在 title 里
   const shopName = shop?.name ?? null;
@@ -87,7 +91,11 @@ export default async function SiteHeader() {
 
         <Link
           href="/"
-          title={shop ? `当前门店：${shop.name}，点击换一家` : '去附近的店挑一家'}
+          title={
+            shop
+              ? formatMessage(nav.currentShopTitle, { name: shop.name })
+              : nav.pickShopTitle
+          }
           className={`flex h-10 min-w-0 max-w-[310px] shrink items-center gap-1.5 rounded-full border-[1.5px] pl-1.5 pr-2.5 text-[14px] font-bold whitespace-nowrap transition-colors sm:h-[52px] sm:gap-2 sm:pl-2 sm:pr-3.5 sm:text-[16px] lg:text-[18px] lg:pr-[18px] ${
             shop
               ? 'border-brand-100 bg-brand-50 text-brand-700 hover:border-brand-300'
@@ -97,15 +105,15 @@ export default async function SiteHeader() {
           <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-card sm:h-7 sm:w-7 lg:h-9 lg:w-9">
             <Icon name="shop" className="h-4 w-4 sm:h-[18px] sm:w-[18px] lg:h-[22px] lg:w-[22px]" />
           </span>
-          <span className="min-w-0 truncate">{shopName ?? '选一家店'}</span>
+          <span className="min-w-0 truncate">{shopName ?? nav.chooseShop}</span>
           <Icon name="down" className="h-4 w-4 shrink-0 sm:h-[18px] sm:w-[18px] lg:h-[20px] lg:w-[20px]" />
         </Link>
 
         <div className="hidden h-[54px] min-w-0 items-center gap-3 rounded-full border-[1.5px] border-line bg-card-soft pl-[18px] pr-[18px] xl:flex xl:w-[124px]">
           <Icon name="search" className="h-[22px] w-[22px] shrink-0 text-ink-3" />
           <input
-            aria-label="搜索菜品"
-            placeholder="搜菜"
+            aria-label={nav.searchAria}
+            placeholder={nav.searchPlaceholder}
             className="h-full min-w-0 flex-1 bg-transparent text-[18px] text-ink outline-none placeholder:text-ink-3"
           />
         </div>
@@ -113,11 +121,15 @@ export default async function SiteHeader() {
         <div className="ml-auto flex shrink-0 items-center gap-1">
           <Link
             href="/checkout"
-            aria-label={cartCount > 0 ? `购物车，${cartCount} 件` : '购物车'}
+            aria-label={
+              cartCount > 0
+                ? formatMessage(nav.cartCountAria, { count: cartCount })
+                : nav.cartAria
+            }
             className="flex h-[52px] shrink-0 items-center gap-2 whitespace-nowrap rounded-xl px-2 text-[18px] font-semibold text-ink transition-colors hover:bg-brand-50 hover:text-brand-700"
           >
             <Icon name="cart" />
-            <span className="hidden sm:inline">购物车</span>
+            <span className="hidden sm:inline">{nav.cart}</span>
             {cartCount > 0 ? (
               <b className="grid h-5 min-w-5 place-items-center rounded-full bg-brand-500 px-1 text-[12px] font-bold tabular-nums text-white">
                 {cartCount > 99 ? '99+' : cartCount}
@@ -128,7 +140,10 @@ export default async function SiteHeader() {
 
         {customer ? (
           <div className="shrink-0">
-            <UserMenu name={displayName(customer.nickname, customer.phone)} phone={customer.phone} />
+            <UserMenu
+              name={displayName(customer.nickname, customer.phone, nav.accountFallback)}
+              phone={customer.phone}
+            />
           </div>
         ) : (
           <Link
@@ -137,7 +152,8 @@ export default async function SiteHeader() {
           >
             <Icon name="user" className="h-[18px] w-[18px] sm:h-[22px] sm:w-[22px]" />
             <span className="whitespace-nowrap">
-              登录<span className="hidden sm:inline"> / 注册</span>
+              {nav.login}
+              <span className="hidden sm:inline">{nav.registerSuffix}</span>
             </span>
           </Link>
         )}

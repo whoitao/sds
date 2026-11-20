@@ -10,6 +10,8 @@ import {
 import type { AddressItem } from '@/lib/api';
 import type { RegionTreeNode } from '@/lib/regions';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
+import { useMessages } from '@/components/LocaleProvider';
+import { formatMessage } from '@/lib/i18n/config';
 
 const PHONE_RULE = /^1[3-9]\d{9}$/;
 const HIDDEN_REGION_NAMES = new Set(['市辖区', '省直辖县级行政区划', '自治区直辖县级行政区划']);
@@ -68,6 +70,8 @@ export function AddressForm({
   onClose: () => void;
   onSaved: (message: string) => void;
 }) {
+  const m = useMessages();
+  const t = m.address;
   const [state, formAction, saving] = useActionState<AddressActionState, FormData>(
     saveAddressAction,
     {}
@@ -81,22 +85,22 @@ export function AddressForm({
   const districts = cities.find((city) => city.code === cityCode)?.children ?? [];
 
   useEffect(() => {
-    if (state.ok) onSaved(state.message ?? '已保存');
-  }, [state, onSaved]);
+    if (state.ok) onSaved(state.message ?? t.savedFallback);
+  }, [state, onSaved, t]);
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     const data = new FormData(event.currentTarget);
     const nextErrors: Record<string, string> = {};
 
-    if (!String(data.get('contactName') ?? '').trim()) nextErrors.contactName = '请填写联系人';
+    if (!String(data.get('contactName') ?? '').trim()) nextErrors.contactName = t.contactRequired;
     if (!PHONE_RULE.test(String(data.get('contactPhone') ?? '').trim())) {
-      nextErrors.contactPhone = '请填写正确的 11 位手机号';
+      nextErrors.contactPhone = t.phoneInvalid;
     }
     if (!provinceCode || !cityCode || !districtCode) {
-      nextErrors.region = '请选择省 / 市 / 区县';
+      nextErrors.region = t.regionRequired;
     }
     if (String(data.get('detail') ?? '').trim().length < 5) {
-      nextErrors.detail = '请填写详细地址（至少 5 个字）';
+      nextErrors.detail = t.detailTooShort;
     }
 
     setErrors(nextErrors);
@@ -105,17 +109,17 @@ export function AddressForm({
 
   return (
     <section className="rounded-3xl bg-card p-6 shadow-auth sm:p-7">
-      <LoadingOverlay show={saving} text="正在保存地址…" />
+      <LoadingOverlay show={saving} text={t.loadingSave} />
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-[24px] font-extrabold text-brand-700">
-          {item ? '编辑地址' : '新增地址'}
+          {item ? t.editTitle : t.newTitle}
         </h2>
         <button
           type="button"
           onClick={onClose}
           className="h-10 rounded-xl px-4 text-[16px] font-semibold text-ink-2 transition-colors hover:bg-segment hover:text-ink"
         >
-          收起
+          {t.collapse}
         </button>
       </div>
 
@@ -130,12 +134,12 @@ export function AddressForm({
 
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="flex flex-col gap-1.5 text-[16px] font-bold text-ink">
-            联系人
+            {t.contactName}
             <input
               name="contactName"
               defaultValue={item?.contactName ?? ''}
               maxLength={20}
-              placeholder="收货人姓名"
+              placeholder={t.contactPlaceholder}
               onChange={() => setErrors((prev) => ({ ...prev, contactName: '' }))}
               aria-invalid={Boolean(errors.contactName)}
               className={`${INPUT_BASE} font-normal ${errors.contactName ? 'border-danger' : ''}`}
@@ -144,14 +148,14 @@ export function AddressForm({
           </label>
 
           <label className="flex flex-col gap-1.5 text-[16px] font-bold text-ink">
-            手机号
+            {t.phone}
             <input
               name="contactPhone"
               type="tel"
               inputMode="numeric"
               defaultValue={item?.contactPhone ?? ''}
               maxLength={11}
-              placeholder="11 位手机号"
+              placeholder={t.phonePlaceholder}
               onChange={() => setErrors((prev) => ({ ...prev, contactPhone: '' }))}
               aria-invalid={Boolean(errors.contactPhone)}
               className={`${INPUT_BASE} font-normal ${errors.contactPhone ? 'border-danger' : ''}`}
@@ -161,7 +165,7 @@ export function AddressForm({
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <span className="text-[16px] font-bold text-ink">省 / 市 / 区县</span>
+          <span className="text-[16px] font-bold text-ink">{t.region}</span>
           <div className="grid gap-3 sm:grid-cols-3">
             <select
               name="provinceCode"
@@ -174,7 +178,7 @@ export function AddressForm({
               }}
               className={INPUT_BASE}
             >
-              <option value="">请选择省份</option>
+              <option value="">{t.provincePlaceholder}</option>
               {regionTree.map((province) => (
                 <option key={province.code} value={province.code}>
                   {province.name}
@@ -193,7 +197,7 @@ export function AddressForm({
               }}
               className={`${INPUT_BASE} disabled:cursor-not-allowed disabled:bg-segment disabled:text-ink-3`}
             >
-              <option value="">请选择城市</option>
+              <option value="">{t.cityPlaceholder}</option>
               {cities.map((city) => (
                 <option key={city.code} value={city.code}>
                   {city.name}
@@ -211,7 +215,7 @@ export function AddressForm({
               }}
               className={`${INPUT_BASE} disabled:cursor-not-allowed disabled:bg-segment disabled:text-ink-3`}
             >
-              <option value="">请选择区县</option>
+              <option value="">{t.districtPlaceholder}</option>
               {districts.map((district) => (
                 <option key={district.code} value={district.code}>
                   {district.name}
@@ -220,19 +224,19 @@ export function AddressForm({
             </select>
           </div>
           {regionTree.length === 0 ? (
-            <span className="text-[15px] text-danger">区划数据加载失败，请刷新页面后重试。</span>
+            <span className="text-[15px] text-danger">{t.regionLoadFailed}</span>
           ) : null}
           {errors.region ? <span className="text-[15px] text-danger">{errors.region}</span> : null}
         </div>
 
         <label className="flex flex-col gap-1.5 text-[16px] font-bold text-ink">
-          详细地址
+          {t.detail}
           <textarea
             name="detail"
             rows={2}
             defaultValue={item?.detail ?? ''}
             maxLength={200}
-            placeholder="小区、楼栋、单元、门牌号"
+            placeholder={t.detailPlaceholder}
             onChange={() => setErrors((prev) => ({ ...prev, detail: '' }))}
             aria-invalid={Boolean(errors.detail)}
             className={`${INPUT_BASE} h-auto resize-y py-3 font-normal leading-relaxed ${
@@ -243,12 +247,12 @@ export function AddressForm({
         </label>
 
         <label className="flex flex-col gap-1.5 text-[16px] font-bold text-ink">
-          备注（选填）
+          {t.remark}
           <input
             name="remark"
             defaultValue={item?.remark ?? ''}
             maxLength={100}
-            placeholder="例如：放门口、打电话再上楼"
+            placeholder={t.remarkPlaceholder}
             className={`${INPUT_BASE} font-normal`}
           />
         </label>
@@ -261,7 +265,7 @@ export function AddressForm({
               defaultChecked={isFirst}
               className="h-[18px] w-[18px] accent-brand-700"
             />
-            设为默认地址
+            {t.setDefaultField}
           </label>
         )}
 
@@ -271,14 +275,14 @@ export function AddressForm({
             disabled={saving}
             className="h-[54px] rounded-[14px] bg-primary px-7 text-[18px] font-bold text-white transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-segment disabled:text-ink-3"
           >
-            {saving ? '保存中…' : item ? '保存修改' : '保存地址'}
+            {saving ? m.common.saving : item ? t.saveEdit : t.saveNew}
           </button>
           <button
             type="button"
             onClick={onClose}
             className="h-[54px] rounded-[14px] border-[1.5px] border-line px-6 text-[17px] font-semibold text-ink-2 transition-colors hover:border-brand-200 hover:text-brand-700"
           >
-            取消
+            {m.common.cancel}
           </button>
         </div>
       </form>
@@ -293,6 +297,8 @@ export default function AddressBook({
   items: AddressItem[];
   regionTree: RegionTreeNode[];
 }) {
+  const m = useMessages();
+  const t = m.address;
   const [editing, setEditing] = useState<{ item: AddressItem | null } | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -342,7 +348,7 @@ export default function AddressBook({
         setFeedback({ type: 'ok', text: result.message ?? fallbackMessage });
       } else {
         setConfirmId(null);
-        setFeedback({ type: 'error', text: result.error ?? '操作失败，请稍后再试' });
+        setFeedback({ type: 'error', text: result.error ?? t.actionFailed });
       }
     });
   }
@@ -355,7 +361,7 @@ export default function AddressBook({
 
   return (
     <div className="flex w-full flex-col gap-6">
-      <LoadingOverlay show={pending} text="正在更新地址…" />
+      <LoadingOverlay show={pending} text={t.loadingUpdate} />
       {feedback ? (
         <div
           role="status"
@@ -369,7 +375,7 @@ export default function AddressBook({
             onClick={() => setFeedback(null)}
             className="shrink-0 text-[15px] underline"
           >
-            知道了
+            {t.gotIt}
           </button>
         </div>
       ) : null}
@@ -390,14 +396,14 @@ export default function AddressBook({
           <span className="grid h-16 w-16 place-items-center rounded-full bg-brand-50 text-brand-700">
             <Icon name="pin" className="h-7 w-7" />
           </span>
-          <b className="text-[22px] text-ink">还没有收货地址</b>
-          <p className="text-[17px] text-ink-2">新增一个常用地址，下单时就能直接送到家。</p>
+          <b className="text-[22px] text-ink">{t.emptyTitle}</b>
+          <p className="text-[17px] text-ink-2">{t.emptyDesc}</p>
           <button
             type="button"
             onClick={openCreate}
             className="mt-2 h-[52px] rounded-full bg-primary px-7 text-[18px] font-bold text-white transition-colors hover:bg-primary-hover"
           >
-            新增地址
+            {t.add}
           </button>
         </div>
       ) : null}
@@ -419,7 +425,7 @@ export default function AddressBook({
                     <span className="text-[15px] text-ink-2">{item.contactPhone}</span>
                     {item.isDefault ? (
                       <span className="rounded-full bg-brand-50 px-2.5 py-0.5 text-[13px] font-bold text-brand-700">
-                        默认
+                        {t.defaultBadge}
                       </span>
                     ) : null}
                   </div>
@@ -429,7 +435,7 @@ export default function AddressBook({
                   </p>
                   {item.remark ? (
                     <p className="m-0 mt-0.5 break-words text-[14px] leading-[1.5] text-ink-3">
-                      备注：{item.remark}
+                      {formatMessage(t.remarkPrefix, { text: item.remark })}
                     </p>
                   ) : null}
                 </div>
@@ -445,16 +451,16 @@ export default function AddressBook({
                   }}
                   className="h-9 rounded-lg px-3 text-[16px] font-semibold text-brand-700 transition-colors hover:bg-brand-50"
                 >
-                  编辑
+                  {m.common.edit}
                 </button>
                 {item.isDefault ? null : (
                   <button
                     type="button"
-                    onClick={() => runAction(item.id, setDefaultAddressAction, '已设为默认地址')}
+                    onClick={() => runAction(item.id, setDefaultAddressAction, t.defaultSet)}
                     disabled={busyId === item.id}
                     className="h-9 rounded-lg px-3 text-[16px] font-semibold text-ink-2 transition-colors hover:bg-segment hover:text-ink disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    设为默认
+                    {t.setDefault}
                   </button>
                 )}
                 <button
@@ -462,7 +468,7 @@ export default function AddressBook({
                   onClick={() => setConfirmId(item.id)}
                   className="ml-auto h-9 rounded-lg px-3 text-[16px] text-danger transition-colors hover:bg-danger-soft"
                 >
-                  删除
+                  {m.common.delete}
                 </button>
               </div>
             </article>
@@ -478,7 +484,7 @@ export default function AddressBook({
             className="flex h-[52px] items-center gap-2 rounded-full bg-primary px-[22px] text-[18px] font-bold text-white transition-colors hover:bg-primary-hover"
           >
             <Icon name="plus" className="h-5 w-5" />
-            新增地址
+            {t.add}
           </button>
         </div>
       ) : null}
@@ -498,7 +504,7 @@ export default function AddressBook({
             className="w-full max-w-[420px] rounded-[18px] border border-line bg-card p-5 shadow-perk sm:p-6"
           >
             <h2 id="delete-address-title" className="m-0 text-[19px] font-extrabold text-ink">
-              删除这个地址？
+              {t.deleteTitle}
             </h2>
             <div id="delete-address-desc" className="mt-2">
               <p className="m-0 break-words text-[15px] leading-[1.6] text-ink-2">
@@ -508,7 +514,7 @@ export default function AddressBook({
               <p className="m-0 mt-1 break-words text-[15px] leading-[1.6] text-ink-2">
                 {regionLabel(confirmItem)} {confirmItem.detail}
               </p>
-              <p className="m-0 mt-2 text-[13px] leading-[1.5] text-ink-3">删除后不可恢复。</p>
+              <p className="m-0 mt-2 text-[13px] leading-[1.5] text-ink-3">{t.deleteIrreversible}</p>
             </div>
             <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
               <button
@@ -517,15 +523,15 @@ export default function AddressBook({
                 onClick={() => setConfirmId(null)}
                 className="h-11 rounded-full border-[1.5px] border-line px-5 text-[16px] font-semibold text-ink-2 transition-colors hover:border-brand-200 hover:text-brand-700"
               >
-                取消
+                {m.common.cancel}
               </button>
               <button
                 type="button"
-                onClick={() => runAction(confirmItem.id, deleteAddressAction, '地址已删除')}
+                onClick={() => runAction(confirmItem.id, deleteAddressAction, t.deleted)}
                 disabled={busyId === confirmItem.id}
                 className="h-11 rounded-full bg-danger px-5 text-[16px] font-bold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {busyId === confirmItem.id ? '删除中…' : '确认删除'}
+                {busyId === confirmItem.id ? t.deleting : t.confirmDelete}
               </button>
             </div>
           </div>

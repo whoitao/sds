@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { Price } from '@sds/ui';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
+import { useMessages } from '@/components/LocaleProvider';
 import { addCartItem, removeCartItem, setCartItemQuantity, type CartActionResult } from '@/lib/cart-actions';
 import {
   cartItemAvailability,
@@ -14,6 +15,7 @@ import {
   type CartPayload
 } from '@/lib/cart-model';
 import { selectShop } from '@/lib/shop-actions';
+import { formatMessage } from '@/lib/i18n/config';
 import {
   defaultSkuOf,
   hasMultipleSkus,
@@ -66,11 +68,12 @@ function Stepper({
   onMinus: () => void;
   onPlus: () => void;
 }) {
+  const messages = useMessages();
   return (
     <span className="flex h-8 items-center rounded-full bg-brand-50 sm:h-9">
       <button
         type="button"
-        aria-label={`减少一${unit}`}
+        aria-label={formatMessage(messages.menu.decreaseQty, { unit })}
         disabled={disabled}
         onClick={onMinus}
         className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-[1.5px] border-brand-100 bg-card text-[17px] text-brand-700 disabled:opacity-50 sm:h-9 sm:w-9 sm:text-[18px]"
@@ -82,7 +85,7 @@ function Stepper({
       </b>
       <button
         type="button"
-        aria-label={`增加一${unit}`}
+        aria-label={formatMessage(messages.menu.increaseQty, { unit })}
         disabled={disabled}
         onClick={onPlus}
         className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-brand-500 text-[17px] text-white disabled:opacity-50 sm:h-9 sm:w-9 sm:text-[18px]"
@@ -110,6 +113,7 @@ export default function ShopMenu({
   loggedIn: boolean;
   selectedShopId: string | null;
 }) {
+  const messages = useMessages();
   const router = useRouter();
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [activeChild, setActiveChild] = useState<string | null>(null);
@@ -289,11 +293,11 @@ export default function ShopMenu({
     );
   }
 
-  const allCategory = { id: 'all', name: '全部', productCount: total };
+  const allCategory = { id: 'all', name: messages.menu.all, productCount: total };
 
   return (
     <div className="flex w-full min-w-0 flex-col rounded-[20px] bg-card shadow-perk xl:flex-1 xl:min-h-[406px] xl:flex-row xl:overflow-hidden">
-      <LoadingOverlay show={busy} text="正在更新购物车…" />
+      <LoadingOverlay show={busy} text={messages.menu.updatingCart} />
       <nav className="flex shrink-0 gap-1.5 overflow-x-auto border-b border-line px-3 py-2.5 [scrollbar-width:none] xl:hidden [&::-webkit-scrollbar]:hidden">
         {categoryButton(allCategory, activeCategory === 'all', true)}
         {categories.map((category) => categoryButton(category, activeCategory === category.id, true))}
@@ -308,15 +312,17 @@ export default function ShopMenu({
         <div className="flex shrink-0 flex-wrap items-center gap-x-2.5 gap-y-1 border-b border-line px-4 py-3 sm:px-5 xl:mt-3.5 xl:h-[62px] xl:py-0">
           <h1 className="m-0 text-[19px] font-extrabold text-ink sm:text-[20px]">{shop.name}</h1>
           <span className="inline-flex h-6 shrink-0 items-center rounded-md bg-brand-50 px-2 text-[13px] font-bold text-brand-700">
-            营业中
+            {messages.menu.openStatus}
           </span>
-          <span className="text-[14px] text-ink-2">{total} 样菜</span>
+          <span className="text-[14px] text-ink-2">
+            {formatMessage(messages.menu.dishCount, { count: total })}
+          </span>
           <span className="ml-auto hidden text-[14px] text-ink-3 sm:block">{shop.address}</span>
         </div>
 
         {children.length > 0 ? (
           <div className="flex shrink-0 items-center gap-1.5 overflow-x-auto border-b border-line px-4 py-2 [scrollbar-width:none] sm:px-5 [&::-webkit-scrollbar]:hidden">
-            {[{ id: null, name: '全部', productCount: activeCategoryRow?.productCount ?? 0 }, ...children].map(
+            {[{ id: null, name: messages.menu.all, productCount: activeCategoryRow?.productCount ?? 0 }, ...children].map(
               (child) => {
                 const active = activeChild === child.id;
                 return (
@@ -339,7 +345,7 @@ export default function ShopMenu({
 
         <div className="min-h-0 flex-1 overflow-y-auto">
           {visible.length === 0 ? (
-            <p className="m-0 px-5 py-12 text-center text-[16px] text-ink-2">这个分类暂时没有可卖的菜</p>
+            <p className="m-0 px-5 py-12 text-center text-[16px] text-ink-2">{messages.menu.emptyCategory}</p>
           ) : (
             <ul className="m-0 flex list-none flex-col p-0">
               {visible.map((product) => {
@@ -386,11 +392,11 @@ export default function ShopMenu({
                       <p className="m-0 mt-0.5 flex items-baseline gap-1.5 truncate text-[13px] text-ink-3">
                         <span className="truncate">
                           {availability === 'off_shelf'
-                            ? '已下架，暂时买不了'
+                            ? messages.menu.offShelfNote
                             : availability === 'sold_out'
-                              ? '今天卖完了'
+                              ? messages.menu.soldOutToday
                               : multi
-                                ? specsSummaryOf(product)
+                                ? specsSummaryOf(product, messages)
                                 : specTextOf(product)}
                         </span>
                         {unavailable ? null : (
@@ -402,7 +408,7 @@ export default function ShopMenu({
                               weight={700}
                               symbolSize={11}
                             />
-                            {showRange ? ' 起' : null}
+                            {showRange ? messages.menu.priceFrom : null}
                           </span>
                         )}
                       </p>
@@ -435,7 +441,7 @@ export default function ShopMenu({
                               : 'bg-segment text-ink-3'
                           }`}
                         >
-                          {availability === 'off_shelf' ? '已下架' : '卖完了'}
+                          {availability === 'off_shelf' ? messages.menu.offShelf : messages.menu.soldOutShort}
                         </span>
                       ) : multi ? (
                         <button
@@ -444,12 +450,15 @@ export default function ShopMenu({
                           onClick={() => setSpecProduct(product)}
                           aria-label={
                             picked > 0
-                              ? `选择${product.name}的规格，已选 ${pickedText}`
-                              : `选择${product.name}的规格`
+                              ? formatMessage(messages.menu.chooseSpecWithPicked, {
+                                  name: product.name,
+                                  count: pickedText
+                                })
+                              : formatMessage(messages.menu.chooseSpec, { name: product.name })
                           }
                           className="flex h-9 shrink-0 items-center gap-1 rounded-full bg-brand-500 px-3.5 text-[14px] font-bold text-white transition-colors hover:bg-brand-600 disabled:opacity-50"
                         >
-                          选规格
+                          {messages.menu.chooseSpecButton}
                           {picked > 0 ? (
                             <span className="grid h-[18px] min-w-[18px] place-items-center rounded-full bg-white px-1 text-[11px] font-bold leading-none text-brand-700">
                               {pickedText}
@@ -459,12 +468,18 @@ export default function ShopMenu({
                       ) : item ? (
                         <Stepper
                           quantity={quantityText(item.quantity, mode)}
-                          unit={sku?.unit ?? '份'}
+                          unit={sku?.unit ?? messages.menu.defaultUnit}
                           disabled={busy}
                           onMinus={() => changeItem(item.id, item.quantity - step, mode)}
                           onPlus={() =>
                             reachedStock
-                              ? setError(`「${product.name}」只剩 ${stock}${sku?.unit ?? ''}`)
+                              ? setError(
+                                  formatMessage(messages.menu.onlyLeft, {
+                                    name: product.name,
+                                    stock,
+                                    unit: sku?.unit ?? ''
+                                  })
+                                )
                               : changeItem(item.id, item.quantity + step, mode)
                           }
                         />
@@ -473,7 +488,7 @@ export default function ShopMenu({
                           type="button"
                           disabled={busy}
                           onClick={() => sku && addToCart(sku.skuId)}
-                          aria-label={`把${product.name}加入购物车`}
+                          aria-label={formatMessage(messages.menu.addToCartAria, { name: product.name })}
                           className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-500 text-[20px] leading-none text-white transition-colors hover:bg-brand-600 disabled:opacity-50"
                         >
                           +
@@ -493,15 +508,17 @@ export default function ShopMenu({
           className={`${cartOpen ? 'flex' : 'hidden'} max-h-[68dvh] min-h-0 flex-col gap-2.5 overflow-hidden border-b border-line p-4 xl:max-h-none xl:flex xl:flex-1 xl:border-b-0 xl:p-3.5`}
         >
           <h2 className="m-0 flex shrink-0 items-baseline justify-between text-[19px] font-extrabold text-ink xl:h-[62px] xl:items-center">
-            {shop.name}的菜
-            <small className="text-[14px] font-normal text-ink-3">{group?.items.length ?? 0} 样</small>
+            {formatMessage(messages.menu.cartHeading, { name: shop.name })}
+            <small className="text-[14px] font-normal text-ink-3">
+              {formatMessage(messages.menu.cartItemCount, { count: group?.items.length ?? 0 })}
+            </small>
           </h2>
 
           {!loggedIn ? (
             <p className="m-0 rounded-xl bg-info-soft px-3 py-2 text-[14px] text-ink-2">
-              登录后才能把菜放进购物车。
+              {messages.menu.loginRequired}
               <Link href={loginHref} className="ml-1 font-bold text-brand-700 underline">
-                去登录
+                {messages.menu.goLogin}
               </Link>
             </p>
           ) : null}
@@ -537,7 +554,7 @@ export default function ShopMenu({
                             : 'bg-segment text-ink-3'
                         }`}
                       >
-                        {availability === 'off_shelf' ? '已下架' : '已售罄'}
+                        {availability === 'off_shelf' ? messages.menu.offShelf : messages.menu.soldOut}
                       </span>
                     ) : null}
                     <Price
@@ -552,7 +569,10 @@ export default function ShopMenu({
                   <div className="flex items-center justify-between gap-2 pl-[54px]">
                     {unavailable ? (
                       <span className="text-[12px] leading-[1.5] text-ink-3">
-                        {availability === 'off_shelf' ? '已下架' : '已售罄'}，不能购买；可移除后结算其它菜
+                        {formatMessage(messages.menu.unavailableNote, {
+                          status:
+                            availability === 'off_shelf' ? messages.menu.offShelf : messages.menu.soldOut
+                        })}
                       </span>
                     ) : (
                       <span className="text-[12px] text-ink-3">
@@ -574,7 +594,7 @@ export default function ShopMenu({
                         onClick={() => changeItem(item.id, 0, item.quantityMode)}
                         className="flex h-8 shrink-0 items-center rounded-full border-[1.5px] border-line px-3 text-[13px] font-bold text-ink-2 transition-colors hover:border-danger hover:text-danger disabled:opacity-50 sm:h-9"
                       >
-                        移除
+                        {messages.menu.remove}
                       </button>
                     ) : (
                       <Stepper
@@ -584,7 +604,13 @@ export default function ShopMenu({
                         onMinus={() => changeItem(item.id, item.quantity - step, item.quantityMode)}
                         onPlus={() => {
                           if (item.quantity + step > item.stockQuantity) {
-                            setError(`「${item.name}」只剩 ${item.stockQuantity}${item.unit}`);
+                            setError(
+                              formatMessage(messages.menu.onlyLeft, {
+                                name: item.name,
+                                stock: item.stockQuantity,
+                                unit: item.unit
+                              })
+                            );
                             return;
                           }
                           changeItem(item.id, item.quantity + step, item.quantityMode);
@@ -596,7 +622,7 @@ export default function ShopMenu({
               );
             })}
             {!group || group.items.length === 0 ? (
-              <li className="py-6 text-center text-[15px] text-ink-3">还没选菜，点右侧的 + 加进来</li>
+              <li className="py-6 text-center text-[15px] text-ink-3">{messages.menu.cartEmpty}</li>
             ) : null}
           </ul>
 
@@ -606,20 +632,27 @@ export default function ShopMenu({
 
           {otherGroups.length > 0 ? (
             <p className="m-0 shrink-0 rounded-xl border border-line bg-card-soft px-3 py-2 text-[13px] leading-[1.55] text-ink-2">
-              购物车里还有
-              {otherGroups.map((row) => `${row.shopName} 的 ${row.items.length} 样菜`).join('、')}
-              ，结算时分开下单。
+              {formatMessage(messages.menu.otherShopsNote, {
+                list: otherGroups
+                  .map((row) =>
+                    formatMessage(messages.menu.otherShopItem, {
+                      shop: row.shopName,
+                      count: row.items.length
+                    })
+                  )
+                  .join(messages.menu.listSeparator)
+              })}
             </p>
           ) : null}
 
           {allUnavailable ? (
             <p className="m-0 shrink-0 rounded-xl bg-segment px-3 py-2 text-[13px] text-ink-2">
-              购物车里的菜都已下架或售罄，暂时没法结算，先移除再挑别的。
+              {messages.menu.allUnavailable}
             </p>
           ) : null}
 
           <div className="mt-auto flex shrink-0 items-baseline justify-between">
-            <span className="text-[15px] text-ink-2">这家店合计</span>
+            <span className="text-[15px] text-ink-2">{messages.menu.shopTotal}</span>
             <Price as="b" value={payableTotal} color="ink" size={26} weight={800} symbolSize="1em" />
           </div>
           {availableItems.length > 0 ? (
@@ -627,14 +660,14 @@ export default function ShopMenu({
               href="/checkout"
               className="flex h-[52px] shrink-0 items-center justify-center rounded-full bg-primary text-[19px] font-bold text-white transition-colors hover:bg-primary-hover"
             >
-              去结算
+              {messages.menu.checkout}
             </Link>
           ) : (
             <div
               aria-disabled="true"
               className="flex h-[52px] shrink-0 items-center justify-center rounded-full bg-segment text-[19px] font-bold text-ink-3"
             >
-              去结算
+              {messages.menu.checkout}
             </div>
           )}
         </div>
@@ -645,12 +678,14 @@ export default function ShopMenu({
           aria-expanded={cartOpen}
           className="flex w-full items-center gap-2 px-4 py-3 text-left xl:hidden"
         >
-          <span className="text-[17px] font-extrabold text-ink">购物车</span>
+          <span className="text-[17px] font-extrabold text-ink">{messages.menu.cart}</span>
           <span className="text-[14px] text-ink-2">
-            {group?.items.length ?? 0} 样 ·{' '}
+            {formatMessage(messages.menu.cartItemCount, { count: group?.items.length ?? 0 })} ·{' '}
             <Price value={payableTotal} color="ink-2" size={14} weight={400} symbolSize="1em" />
           </span>
-          <span className="ml-auto text-[13px] font-bold text-brand-700">{cartOpen ? '收起' : '展开'}</span>
+          <span className="ml-auto text-[13px] font-bold text-brand-700">
+            {cartOpen ? messages.menu.collapse : messages.menu.expand}
+          </span>
         </button>
       </aside>
 
@@ -662,7 +697,7 @@ export default function ShopMenu({
           <div
             role="dialog"
             aria-modal="true"
-            aria-label={`选择${specProduct.name}的规格`}
+            aria-label={formatMessage(messages.menu.chooseSpec, { name: specProduct.name })}
             onClick={(event) => event.stopPropagation()}
             className="flex max-h-[80dvh] w-full flex-col overflow-hidden rounded-t-[20px] bg-card shadow-perk sm:max-w-[440px] sm:rounded-[20px]"
           >
@@ -671,13 +706,13 @@ export default function ShopMenu({
               <div className="min-w-0 flex-1">
                 <h2 className="m-0 truncate text-[17px] font-extrabold text-ink">{specProduct.name}</h2>
                 <p className="m-0 mt-0.5 text-[13px] text-ink-3">
-                  {specProduct.skus.length} 种规格 · 选好再加入购物车
+                  {formatMessage(messages.menu.specCountHint, { count: specProduct.skus.length })}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setSpecProduct(null)}
-                aria-label="关闭规格选择"
+                aria-label={messages.menu.closeSpec}
                 className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-segment text-[18px] text-ink-2 transition-colors hover:text-ink"
               >
                 ×
@@ -690,9 +725,12 @@ export default function ShopMenu({
                 const stockText =
                   sku.stockType === 'tracked'
                     ? soldOut
-                      ? '已售罄'
-                      : `剩 ${sku.stockQuantity}${sku.unit}`
-                    : '有货';
+                      ? messages.menu.soldOut
+                      : formatMessage(messages.menu.stockLeft, {
+                          stock: sku.stockQuantity,
+                          unit: sku.unit
+                        })
+                    : messages.menu.inStock;
                 return (
                   <li key={sku.skuId}>
                     <button
@@ -715,11 +753,11 @@ export default function ShopMenu({
                               soldOut ? 'text-ink-3' : 'text-ink'
                             }`}
                           >
-                            {sku.specName || '默认规格'}
+                            {sku.specName || messages.menu.defaultSpec}
                           </b>
                           {sku.isDefault ? (
                             <span className="shrink-0 rounded bg-brand-50 px-1.5 py-0.5 text-[11px] font-bold text-brand-700">
-                              默认
+                              {messages.menu.defaultBadge}
                             </span>
                           ) : null}
                         </span>
@@ -743,10 +781,12 @@ export default function ShopMenu({
                           }`}
                         >
                           {soldOut
-                            ? '已售罄'
+                            ? messages.menu.soldOut
                             : item
-                              ? `已选 ${quantityText(item.quantity, sku.quantityMode)}`
-                              : '加入'}
+                              ? formatMessage(messages.menu.picked, {
+                                  count: quantityText(item.quantity, sku.quantityMode)
+                                })
+                              : messages.menu.add}
                         </span>
                       </span>
                     </button>

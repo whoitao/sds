@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { logoutAction } from '@/lib/auth-actions';
+import { formatMessage } from '@/lib/i18n/config';
+import { useMessages } from '@/components/LocaleProvider';
 
 type UserMenuProps = {
   /** 已处理好的展示名（优先姓名，其次打码手机号） */
@@ -16,8 +18,8 @@ function maskPhone(phone: string) {
 }
 
 /** 头像里的姓氏字 */
-function initial(name: string) {
-  return Array.from(name.trim())[0] ?? '我';
+function initial(name: string, fallback: string) {
+  return Array.from(name.trim())[0] ?? fallback;
 }
 
 function Icon({ name, className = 'h-[22px] w-[22px]' }: { name: string; className?: string }) {
@@ -85,6 +87,7 @@ function Icon({ name, className = 'h-[22px] w-[22px]' }: { name: string; classNa
 
 export default function UserMenu({ name, phone }: UserMenuProps) {
   const pathname = usePathname();
+  const t = useMessages().account;
   const settingsActive = pathname === '/settings' || pathname.startsWith('/settings/');
   const profileActive = pathname === '/profile' || pathname.startsWith('/profile/');
   const [open, setOpen] = useState(false);
@@ -204,7 +207,7 @@ export default function UserMenu({ name, phone }: UserMenuProps) {
         }`}
       >
         <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-600 text-[17px] font-bold text-white">
-          {initial(name)}
+          {initial(name, t.initialFallback)}
         </span>
         <span className="hidden max-w-[120px] truncate sm:inline">{name}</span>
         <Icon
@@ -222,11 +225,15 @@ export default function UserMenu({ name, phone }: UserMenuProps) {
         >
           <div className="flex items-center gap-3 px-4 py-4">
             <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-brand-600 text-[21px] font-bold text-white">
-              {initial(name)}
+              {initial(name, t.initialFallback)}
             </span>
             <div className="min-w-0">
               <p className="truncate text-[20px] font-bold text-ink">{name}</p>
-              {phone ? <p className="mt-1 text-[15px] text-ink-3">手机 {maskPhone(phone)}</p> : null}
+              {phone ? (
+                <p className="mt-1 text-[15px] text-ink-3">
+                  {formatMessage(t.menuPhone, { phone: maskPhone(phone) })}
+                </p>
+              ) : null}
             </div>
           </div>
 
@@ -248,7 +255,7 @@ export default function UserMenu({ name, phone }: UserMenuProps) {
                 name="user"
                 className={`h-[22px] w-[22px] shrink-0 ${profileActive ? 'text-brand-700' : 'text-ink-2'}`}
               />
-              个人信息
+              {t.menuProfile}
             </Link>
 
             <Link
@@ -258,9 +265,11 @@ export default function UserMenu({ name, phone }: UserMenuProps) {
               className="flex h-[52px] items-center gap-3 rounded-xl px-3 text-[17px] text-ink transition-colors hover:bg-brand-50/70 focus-visible:bg-brand-50/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500/40"
             >
               <Icon name="list" className="h-[22px] w-[22px] shrink-0 text-ink-2" />
-              我的订单
+              {t.menuOrders}
               {counts.ongoingOrders !== null && counts.ongoingOrders > 0 ? (
-                <span className="ml-auto text-[15px] text-ink-3">进行中 {counts.ongoingOrders}</span>
+                <span className="ml-auto text-[15px] text-ink-3">
+                  {formatMessage(t.ongoingOrders, { count: counts.ongoingOrders })}
+                </span>
               ) : null}
             </Link>
 
@@ -271,9 +280,11 @@ export default function UserMenu({ name, phone }: UserMenuProps) {
               className="flex h-[52px] items-center gap-3 rounded-xl px-3 text-[17px] text-ink transition-colors hover:bg-brand-50/70 focus-visible:bg-brand-50/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500/40"
             >
               <Icon name="pin" className="h-[22px] w-[22px] shrink-0 text-ink-2" />
-              收货地址
+              {t.menuAddresses}
               {counts.addressCount !== null ? (
-                <span className="ml-auto text-[15px] text-ink-3">{counts.addressCount} 个</span>
+                <span className="ml-auto text-[15px] text-ink-3">
+                  {formatMessage(t.addressCount, { count: counts.addressCount })}
+                </span>
               ) : null}
             </Link>
 
@@ -292,7 +303,7 @@ export default function UserMenu({ name, phone }: UserMenuProps) {
                 name="gear"
                 className={`h-[22px] w-[22px] shrink-0 ${settingsActive ? 'text-brand-700' : 'text-ink-2'}`}
               />
-              设置
+              {t.menuSettings}
             </Link>
           </div>
 
@@ -306,7 +317,7 @@ export default function UserMenu({ name, phone }: UserMenuProps) {
                 className="flex h-[52px] w-full items-center gap-3 rounded-xl px-3 text-[17px] text-danger transition-colors hover:bg-danger-soft/70 focus-visible:bg-danger-soft/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-danger/30"
               >
                 <Icon name="logout" className="h-[22px] w-[22px] shrink-0" />
-                退出登录
+                {t.logout}
               </button>
             </form>
           </div>

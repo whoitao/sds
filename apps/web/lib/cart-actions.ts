@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { apiRequest } from './api';
 import type { CartPayload } from './cart';
+import { getMessages } from './i18n/server';
 import { getSessionToken } from './session';
 
 export type CartActionResult = { ok: true; cart: CartPayload } | { ok: false; error: string };
@@ -13,11 +14,15 @@ async function mutate(
   body?: unknown
 ): Promise<CartActionResult> {
   const token = await getSessionToken();
-  if (!token) return { ok: false, error: '请先登录再选菜' };
+  if (!token) {
+    const m = await getMessages();
+    return { ok: false, error: m.cart.loginRequired };
+  }
 
   const response = await apiRequest<CartPayload>(path, { method, token, body });
   if (!response.ok || !response.data) {
-    return { ok: false, error: response.message ?? '购物车更新失败，请稍后再试' };
+    const m = await getMessages();
+    return { ok: false, error: response.message ?? m.cart.updateFailed };
   }
 
   // 顶栏购物车角标也在 Server Component 里读同一份数据，需要刷新整棵布局

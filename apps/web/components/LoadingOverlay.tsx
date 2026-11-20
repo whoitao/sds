@@ -1,6 +1,9 @@
 'use client';
 
-export function LoadingOverlay({ show, text = '正在处理，请稍候…' }: { show: boolean; text?: string }) {
+import { useMessages } from '@/components/LocaleProvider';
+
+export function LoadingOverlay({ show, text }: { show: boolean; text?: string }) {
+  const messages = useMessages();
   if (!show) return null;
 
   return (
@@ -15,7 +18,7 @@ export function LoadingOverlay({ show, text = '正在处理，请稍候…' }: {
           aria-hidden
           className="h-5 w-5 animate-spin rounded-full border-2 border-brand-200 border-t-brand-600 motion-reduce:animate-none"
         />
-        <span className="text-[15px] font-bold text-ink">{text}</span>
+        <span className="text-[15px] font-bold text-ink">{text ?? messages.common.processing}</span>
       </div>
     </div>
   );

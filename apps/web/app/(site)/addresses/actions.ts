@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { apiRequest } from '@/lib/api';
+import { getMessages } from '@/lib/i18n/server';
 import { getSessionToken } from '@/lib/session';
 
 /** 地址增删改的 Server Action：校验在服务端再做一遍，落库仍走 packages/api */
@@ -26,6 +27,7 @@ export async function saveAddressAction(
   _prev: AddressActionState,
   formData: FormData
 ): Promise<AddressActionState> {
+  const m = await getMessages();
   const token = await requireToken();
 
   const id = field(formData, 'id');
@@ -37,10 +39,10 @@ export async function saveAddressAction(
   const detail = field(formData, 'detail');
   const remark = field(formData, 'remark');
 
-  if (!contactName) return { error: '请填写联系人' };
-  if (!PHONE_RULE.test(contactPhone)) return { error: '请填写正确的 11 位手机号' };
-  if (!provinceCode || !cityCode || !districtCode) return { error: '请选择省 / 市 / 区县' };
-  if (detail.length < 5) return { error: '请填写详细地址（至少 5 个字）' };
+  if (!contactName) return { error: m.address.contactRequired };
+  if (!PHONE_RULE.test(contactPhone)) return { error: m.address.phoneInvalid };
+  if (!provinceCode || !cityCode || !districtCode) return { error: m.address.regionRequired };
+  if (detail.length < 5) return { error: m.address.detailTooShort };
 
   const body = {
     contactName,
@@ -61,30 +63,32 @@ export async function saveAddressAction(
       });
 
   if (response.status === 401) redirect(`/login?next=${encodeURIComponent(ADDRESSES_PATH)}`);
-  if (!response.ok) return { error: response.message ?? '保存失败，请稍后再试' };
+  if (!response.ok) return { error: response.message ?? m.address.saveFailed };
 
   revalidatePath(ADDRESSES_PATH);
-  return { ok: true, message: id ? '地址已更新' : '地址已添加' };
+  return { ok: true, message: id ? m.address.savedUpdate : m.address.savedNew };
 }
 
 export async function deleteAddressAction(id: string): Promise<AddressActionState> {
+  const m = await getMessages();
   const token = await requireToken();
   const response = await apiRequest(`/api/addresses/${id}`, { method: 'DELETE', token });
 
   if (response.status === 401) redirect(`/login?next=${encodeURIComponent(ADDRESSES_PATH)}`);
-  if (!response.ok) return { error: response.message ?? '删除失败，请稍后再试' };
+  if (!response.ok) return { error: response.message ?? m.address.deleteFailed };
 
   revalidatePath(ADDRESSES_PATH);
-  return { ok: true, message: '地址已删除' };
+  return { ok: true, message: m.address.deleted };
 }
 
 export async function setDefaultAddressAction(id: string): Promise<AddressActionState> {
+  const m = await getMessages();
   const token = await requireToken();
   const response = await apiRequest(`/api/addresses/${id}/default`, { method: 'PATCH', token });
 
   if (response.status === 401) redirect(`/login?next=${encodeURIComponent(ADDRESSES_PATH)}`);
-  if (!response.ok) return { error: response.message ?? '设置默认地址失败，请稍后再试' };
+  if (!response.ok) return { error: response.message ?? m.address.defaultFailed };
 
   revalidatePath(ADDRESSES_PATH);
-  return { ok: true, message: '已设为默认地址' };
+  return { ok: true, message: m.address.defaultSet };
 }

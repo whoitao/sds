@@ -1,5 +1,3 @@
-const DEFAULT_STEPS = ['选店', '挑菜', '结算', '下单'];
-
 function CheckIcon({ className = 'h-3.5 w-3.5' }: { className?: string }) {
   return (
     <svg
@@ -18,13 +16,13 @@ function CheckIcon({ className = 'h-3.5 w-3.5' }: { className?: string }) {
 
 export default function ProgressSteps({
   current,
-  steps = DEFAULT_STEPS,
+  steps,
   className = ''
 }: {
   /** 当前进行到第几步，从 1 开始；小于它的算已完成 */
   current: number;
-  /** 步骤文案，默认是买菜流程的四步：选店 → 挑菜 → 结算 → 下单 */
-  steps?: readonly string[];
+  /** 步骤文案：选店 → 挑菜 → 结算 → 下单，由调用方按当前语言传入 */
+  steps: readonly string[];
   className?: string;
 }) {
   return (

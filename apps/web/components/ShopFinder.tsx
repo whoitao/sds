@@ -4,7 +4,9 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
+import { useLocale, useMessages } from '@/components/LocaleProvider';
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import { formatMessage } from '@/lib/i18n/config';
 import { selectShop } from '@/lib/shop-actions';
 import {
   distanceText,
@@ -15,13 +17,19 @@ import {
   type ShopLocation
 } from '@/lib/shops';
 
+/** 地图脚本加载中的占位；放进组件里才读得到当前语言 */
+function MapPlaceholder() {
+  const m = useMessages();
+  return (
+    <div className="grid h-full w-full place-items-center bg-map text-[16px] text-ink-3">
+      {m.shops.mapLoading}
+    </div>
+  );
+}
+
 const ShopMap = dynamic(() => import('@/components/ShopMap'), {
   ssr: false,
-  loading: () => (
-    <div className="grid h-full w-full place-items-center bg-map text-[16px] text-ink-3">
-      地图加载中…
-    </div>
-  )
+  loading: () => <MapPlaceholder />
 });
 
 type LocateState = 'locating' | 'ready' | 'denied' | 'unsupported';
@@ -76,6 +84,8 @@ export default function ShopFinder({
   todayKey: string;
 }) {
   const router = useRouter();
+  const m = useMessages();
+  const locale = useLocale();
   const [location, setLocation] = useState<ShopLocation | null>(null);
   const [locateState, setLocateState] = useState<LocateState>('locating');
   const [onlyOpen, setOnlyOpen] = useState(false);
@@ -129,10 +139,10 @@ export default function ShopFinder({
   const current = listed.find((row) => row.shop.id === selectedId) ?? null;
 
   const emptyText = onlyOpen
-    ? '现在没有营业中的门店，取消筛选看看全部'
+    ? m.shops.emptyOnlyOpen
     : withinRange && hasOutOfRange
-      ? '3 公里内没有营业中的门店，取消「3 公里内」看看全部'
-      : '暂时还没有门店，晚点再来看看';
+      ? m.shops.emptyOutOfRange
+      : m.shops.emptyNone;
 
   function choose(shop: ShopItem) {
     if (shop.status !== 'open' || pending) return;
@@ -153,7 +163,7 @@ export default function ShopFinder({
           disabled
           className={`${base} cursor-not-allowed bg-segment text-ink-3`}
         >
-          休息中
+          {m.shops.statusClosed}
         </button>
       );
     }
@@ -163,7 +173,7 @@ export default function ShopFinder({
           href={`/shops/${shop.id}`}
           className={`${base} border-[1.5px] border-brand-200 bg-brand-50 text-brand-700 transition-colors hover:bg-brand-100`}
         >
-          去买菜
+          {m.shops.goShopping}
         </Link>
       );
     }
@@ -174,17 +184,17 @@ export default function ShopFinder({
         onClick={() => choose(shop)}
         className={`${base} bg-primary text-white transition-colors hover:bg-primary-hover disabled:opacity-60`}
       >
-        选他
+        {m.shops.selectShop}
       </button>
     );
   }
 
   return (
     <div className="grid w-full min-w-0 gap-6 lg:flex-1 lg:min-h-[420px] lg:grid-cols-[minmax(0,500px)_minmax(0,1fr)]">
-      <LoadingOverlay show={pending} text="正在打开门店…" />
+      <LoadingOverlay show={pending} text={m.shops.opening} />
       <section className="flex min-w-0 flex-col gap-4 lg:h-full lg:min-h-0 lg:[contain:size]">
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
-          <h2 className="m-0 text-[28px] font-extrabold text-ink">附近的店</h2>
+          <h2 className="m-0 text-[28px] font-extrabold text-ink">{m.shops.title}</h2>
           <div className="flex shrink-0 gap-2">
             <button
               type="button"
@@ -197,7 +207,7 @@ export default function ShopFinder({
                   : 'border-line bg-card text-ink-2 hover:border-brand-300'
               }`}
             >
-              3 公里内
+              {m.shops.filterWithinRange}
             </button>
             <button
               type="button"
@@ -209,7 +219,7 @@ export default function ShopFinder({
                   : 'border-line bg-card text-ink-2 hover:border-brand-300'
               }`}
             >
-              只看营业中
+              {m.shops.filterOnlyOpen}
             </button>
           </div>
         </div>
@@ -218,19 +228,21 @@ export default function ShopFinder({
           <Icon name="loc" className="h-[20px] w-[20px] text-info" />
           {locateState === 'ready' ? (
             <span>
-              按 <b className="font-bold text-info">当前位置</b> 附近找的店
+              {m.shops.locateReadyPrefix}
+              <b className="font-bold text-info">{m.shops.locateReadyHighlight}</b>
+              {m.shops.locateReadySuffix}
             </span>
           ) : null}
-          {locateState === 'locating' ? <span>正在获取位置…</span> : null}
-          {locateState === 'denied' ? <span>没拿到位置，先按门店列表看</span> : null}
-          {locateState === 'unsupported' ? <span>这个浏览器不支持定位，先按门店列表看</span> : null}
+          {locateState === 'locating' ? <span>{m.shops.locating}</span> : null}
+          {locateState === 'denied' ? <span>{m.shops.locateDenied}</span> : null}
+          {locateState === 'unsupported' ? <span>{m.shops.locateUnsupported}</span> : null}
           {locateState !== 'ready' ? (
             <button
               type="button"
               onClick={locate}
               className="ml-auto font-bold whitespace-nowrap text-info"
             >
-              打开定位
+              {m.shops.openLocation}
             </button>
           ) : (
             <button
@@ -238,7 +250,7 @@ export default function ShopFinder({
               onClick={locate}
               className="ml-auto font-bold whitespace-nowrap text-info"
             >
-              重新定位
+              {m.shops.relocate}
             </button>
           )}
         </div>
@@ -293,20 +305,25 @@ export default function ShopFinder({
                           <span className="min-w-0 break-words">{shop.name}</span>
                           {isCurrent ? (
                             <span className="rounded-md bg-brand-50 px-1.5 py-0.5 text-[12px] font-bold text-brand-700">
-                              当前门店
+                              {m.shops.currentShop}
                             </span>
                           ) : null}
                         </h2>
                         <p className="m-0 mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[14px] leading-[1.4] text-ink-2">
                           <span className={`${TAG_BASE} ${open ? 'bg-brand-50 text-brand-700' : 'bg-segment text-ink-3'}`}>
-                            {open ? '营业中' : '休息中'}
+                            {open ? m.shops.statusOpen : m.shops.statusClosed}
                           </span>
                           <span className="min-w-0 break-words">
-                            {open ? todayHoursText(shop, todayKey) : '今天不接单'}
+                            {open
+                              ? todayHoursText(shop, todayKey, locale)
+                              : m.shops.notTakingToday}
                           </span>
                         </p>
                         <p className="m-0 mt-1 text-[13px] leading-[1.5] text-ink-3">
-                          直线 {distanceText(distance)} · {shop.address}
+                          {formatMessage(m.shops.straight, {
+                            distance: distanceText(distance, locale)
+                          })}{' '}
+                          · {shop.address}
                         </p>
                       </div>
 
@@ -320,7 +337,7 @@ export default function ShopFinder({
         </div>
 
         <p className="m-0 shrink-0 text-[14px] leading-[1.6] text-ink-3">
-          距离是直线距离，仅供参考；实际能不能送，以店里接单为准。
+          {m.shops.footerNote}
         </p>
       </section>
 
@@ -343,9 +360,13 @@ export default function ShopFinder({
               </p>
               <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[14px] text-ink-2 xl:text-[15px]">
                 <span className={`${TAG_BASE} ${current.shop.status === 'open' ? 'bg-brand-50 text-brand-700' : 'bg-segment text-ink-3'}`}>
-                  {current.shop.status === 'open' ? '营业中' : '休息中'}
+                  {current.shop.status === 'open' ? m.shops.statusOpen : m.shops.statusClosed}
                 </span>
-                <span>直线 {distanceText(current.distance)}</span>
+                <span>
+                  {formatMessage(m.shops.straight, {
+                    distance: distanceText(current.distance, locale)
+                  })}
+                </span>
               </p>
             </div>
             <div className="ml-auto flex shrink-0 items-center gap-2">
@@ -355,7 +376,7 @@ export default function ShopFinder({
                   className="flex h-11 shrink-0 items-center gap-2 rounded-full border-[1.5px] border-brand-200 bg-card px-4 text-[16px] font-bold text-brand-700 transition-colors hover:bg-brand-50 xl:h-[52px] xl:px-5 xl:text-[18px]"
                 >
                   <Icon name="phone" className="h-[22px] w-[22px]" />
-                  打电话
+                  {m.shops.callShop}
                 </a>
               ) : null}
               <button
@@ -364,7 +385,7 @@ export default function ShopFinder({
                 onClick={() => choose(current.shop)}
                 className="flex h-11 shrink-0 items-center rounded-full bg-primary px-5 text-[16px] font-bold text-white transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60 xl:h-[52px] xl:px-6 xl:text-[18px]"
               >
-                去买菜
+                {m.shops.goShopping}
               </button>
             </div>
           </div>

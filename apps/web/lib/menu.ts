@@ -1,5 +1,8 @@
 /** GET /api/mobile/shops/:id/home 与 /products 的返回结构 */
 
+import { formatMessage } from '@/lib/i18n/config';
+import type { Messages } from '@/lib/i18n/messages';
+
 export type MenuShop = {
   id: string;
   name: string;
@@ -96,10 +99,13 @@ export function priceRangeOf(product: MenuProduct): { from: string; to: string }
 }
 
 /** 列表副标题：单规格显示规格与单位，多规格显示规格数量与可售数 */
-export function specsSummaryOf(product: MenuProduct): string {
+export function specsSummaryOf(product: MenuProduct, messages: Messages): string {
   if (!hasMultipleSkus(product)) return specTextOf(product);
   const sellable = sellableSkusOf(product).length;
-  return `共 ${product.skus.length} 种规格，${sellable} 种有货`;
+  return formatMessage(messages.menu.specsSummary, {
+    total: product.skus.length,
+    sellable
+  });
 }
 
 export function specTextOf(product: MenuProduct): string {

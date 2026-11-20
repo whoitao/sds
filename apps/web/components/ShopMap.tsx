@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { loadAMap } from '@sds/ui/amap';
 import type { AMapMap, AMapMarker, AMapNamespace } from '@sds/ui/amap';
+import { useMessages } from '@/components/LocaleProvider';
+import { formatMessage } from '@/lib/i18n/config';
 import { shortShopName, type ShopItem, type ShopLocation } from '@/lib/shops';
 
 type WebMap = AMapMap & {
@@ -57,6 +59,7 @@ export default function ShopMap({
 
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
+  const m = useMessages();
 
   // 初始化：等脚本就绪后建图，卸载时销毁
   useEffect(() => {
@@ -83,7 +86,7 @@ export default function ShopMap({
       })
       .catch((reason: unknown) => {
         if (cancelled) return;
-        setError(reason instanceof Error ? reason.message : '地图加载失败');
+        setError(reason instanceof Error ? reason.message : m.shops.mapFailed);
       });
 
     return () => {
@@ -94,6 +97,8 @@ export default function ShopMap({
       markersRef.current = [];
       pinElsRef.current.clear();
     };
+    // 建图只在挂载时跑一次，切换语言由下面的钉子 effect 重新上文案
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 门店 / 定位变化：重建钉子并自动缩放到能看全
@@ -113,7 +118,9 @@ export default function ShopMap({
         shop.status === 'open' ? '' : ' is-rest'
       }`;
       pin.textContent =
-        shop.status === 'open' ? shortShopName(shop.name) : `${shortShopName(shop.name)} · 休息`;
+        shop.status === 'open'
+          ? shortShopName(shop.name)
+          : formatMessage(m.shops.mapPinClosed, { name: shortShopName(shop.name) });
       pin.addEventListener('click', () => onSelectRef.current(shop.id));
       pinElsRef.current.set(shop.id, pin);
 
@@ -133,7 +140,7 @@ export default function ShopMap({
       wrap.className = 'sds-me';
       const label = document.createElement('span');
       label.className = 'sds-me-label';
-      label.textContent = '我在这';
+      label.textContent = m.shops.mapMeLabel;
       wrap.appendChild(label);
       const me = new amap.Marker({ position: [location.longitude, location.latitude], content: wrap });
       map.add(me);
@@ -142,9 +149,9 @@ export default function ShopMap({
 
     markersRef.current = created;
     if (created.length) map.setFitView(created, false, [64, 64, 80, 64], 15);
-    // 只在门店集合或定位变化时重排，选中态由下面的 effect 单独处理
+    // 只在门店集合、定位或语言变化时重排，选中态由下面的 effect 单独处理
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, shops, location]);
+  }, [ready, shops, location, m]);
 
   // 主题切换：跟着 <html class="dark"> 切高德底图样式
   useEffect(() => {
@@ -194,13 +201,13 @@ export default function ShopMap({
   return (
     <div className="relative h-full w-full">
       <style>{PIN_CSS}</style>
-      <div ref={containerRef} className="h-full w-full" aria-label="附近门店地图" />
+      <div ref={containerRef} className="h-full w-full" aria-label={m.shops.mapAriaLabel} />
 
       {error ? (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-map px-6 text-center">
-          <p className="m-0 text-[17px] font-bold text-ink-2">地图暂时没打开</p>
+          <p className="m-0 text-[17px] font-bold text-ink-2">{m.shops.mapErrorTitle}</p>
           <p className="m-0 max-w-[360px] text-[15px] leading-[1.6] text-ink-3">
-            {error}。门店列表照常可用，可以先从列表里选店。
+            {formatMessage(m.shops.mapErrorNote, { error })}
           </p>
         </div>
       ) : null}
@@ -209,7 +216,7 @@ export default function ShopMap({
         <div className="absolute right-3 top-3 z-10 flex flex-col gap-2">
           <button
             type="button"
-            aria-label="放大地图"
+            aria-label={m.shops.mapZoomIn}
             onClick={() => zoomBy(1)}
             className="grid h-11 w-11 place-items-center rounded-xl bg-card text-[22px] font-bold text-ink-2 shadow-perk transition-colors hover:text-ink"
           >
@@ -217,7 +224,7 @@ export default function ShopMap({
           </button>
           <button
             type="button"
-            aria-label="缩小地图"
+            aria-label={m.shops.mapZoomOut}
             onClick={() => zoomBy(-1)}
             className="grid h-11 w-11 place-items-center rounded-xl bg-card text-[22px] font-bold text-ink-2 shadow-perk transition-colors hover:text-ink"
           >
@@ -226,7 +233,7 @@ export default function ShopMap({
           {location ? (
             <button
               type="button"
-              aria-label="回到我的位置"
+              aria-label={m.shops.mapBackToMe}
               onClick={zoomToMe}
               className="grid h-11 w-11 place-items-center rounded-xl bg-card shadow-perk"
             >

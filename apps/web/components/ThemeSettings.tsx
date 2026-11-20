@@ -2,11 +2,14 @@
 
 import { useState } from 'react';
 import { applyTheme, writeThemeCookie, type ThemePreference } from '@/lib/theme';
+import { useMessages } from '@/components/LocaleProvider';
 
-const OPTIONS: { value: ThemePreference; title: string; sub: string; icon: 'sun' | 'moon' | 'auto' }[] = [
-  { value: 'light', title: '浅色模式', sub: '明亮清爽，适合白天', icon: 'sun' },
-  { value: 'dark', title: '深色模式', sub: '低亮度护眼，适合夜间', icon: 'moon' },
-  { value: 'system', title: '跟随系统', sub: '随设备的浅色 / 深色设置自动切换', icon: 'auto' }
+type ThemeOption = { value: ThemePreference; titleKey: 'lightTitle' | 'darkTitle' | 'systemTitle'; descKey: 'lightDesc' | 'darkDesc' | 'systemDesc'; icon: 'sun' | 'moon' | 'auto' };
+
+const OPTIONS: ThemeOption[] = [
+  { value: 'light', titleKey: 'lightTitle', descKey: 'lightDesc', icon: 'sun' },
+  { value: 'dark', titleKey: 'darkTitle', descKey: 'darkDesc', icon: 'moon' },
+  { value: 'system', titleKey: 'systemTitle', descKey: 'systemDesc', icon: 'auto' }
 ];
 
 function Icon({ name, className = 'h-6 w-6' }: { name: 'sun' | 'moon' | 'auto'; className?: string }) {
@@ -50,6 +53,7 @@ function Icon({ name, className = 'h-6 w-6' }: { name: 'sun' | 'moon' | 'auto'; 
  */
 export default function ThemeSettings({ initial }: { initial: ThemePreference }) {
   const [preference, setPreference] = useState<ThemePreference>(initial);
+  const t = useMessages().settings;
 
   function choose(value: ThemePreference) {
     setPreference(value);
@@ -59,10 +63,8 @@ export default function ThemeSettings({ initial }: { initial: ThemePreference })
 
   return (
     <section className="rounded-[20px] border border-line bg-card p-4 shadow-perk sm:p-5">
-      <h2 className="m-0 text-[19px] font-extrabold text-ink">主题外观</h2>
-      <p className="m-0 mt-1 text-[14px] leading-[1.55] text-ink-3">
-        选择后立即生效，并会记住你的选择。
-      </p>
+      <h2 className="m-0 text-[19px] font-extrabold text-ink">{t.themeTitle}</h2>
+      <p className="m-0 mt-1 text-[14px] leading-[1.55] text-ink-3">{t.themeHint}</p>
 
       <div className="mt-3.5 grid gap-2.5 sm:grid-cols-3">
         {OPTIONS.map((option) => {
@@ -88,7 +90,7 @@ export default function ThemeSettings({ initial }: { initial: ThemePreference })
               </span>
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-2">
-                  <b className="text-[16px] text-ink">{option.title}</b>
+                  <b className="text-[16px] text-ink">{t[option.titleKey]}</b>
                   <span
                     className={`ml-auto grid h-4 w-4 shrink-0 place-items-center rounded-full border-[1.5px] ${
                       active ? 'border-brand-600 bg-brand-600' : 'border-line bg-card'
@@ -98,7 +100,7 @@ export default function ThemeSettings({ initial }: { initial: ThemePreference })
                   </span>
                 </span>
                 <span className="mt-0.5 block text-[12px] leading-[1.5] text-ink-3">
-                  {option.sub}
+                  {t[option.descKey]}
                 </span>
               </span>
             </button>

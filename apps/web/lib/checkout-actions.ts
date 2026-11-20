@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { apiRequest } from './api';
+import { getMessages } from './i18n/server';
 import { getSessionToken } from './session';
 
 /**
@@ -58,9 +59,10 @@ export async function placeOrderAction(input: PlaceOrderInput): Promise<PlaceOrd
 
   if (response.status === 401) redirect(`/login?next=${encodeURIComponent(CHECKOUT_PATH)}`);
   if (!response.ok || !response.data?.orders) {
+    const m = await getMessages();
     return {
       ok: false,
-      error: response.message ?? '下单失败，请稍后再试',
+      error: response.message ?? m.checkout.orderFailed,
       code: response.code
     };
   }

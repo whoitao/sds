@@ -1,4 +1,6 @@
 /** 服务端访问 packages/api 的统一入口（只在 RSC / Server Action 中使用，避免浏览器 CORS） */
+import { getMessages } from './i18n/server';
+
 export const API_BASE_URL = (
   process.env.API_BASE_URL || `http://localhost:${process.env.PORT_API ?? 19852}`
 ).replace(/\/+$/, '');
@@ -44,7 +46,9 @@ export async function apiRequest<T>(
       code: (data as { code?: string } | null)?.code
     };
   } catch {
-    return { ok: false, status: 0, data: null, message: '网络异常，请稍后重试' };
+    // 只在服务端调用，按当前语言给兜底提示
+    const m = await getMessages();
+    return { ok: false, status: 0, data: null, message: m.common.networkError };
   }
 }
 

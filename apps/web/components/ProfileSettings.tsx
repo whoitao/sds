@@ -10,6 +10,8 @@ import {
   type ProfileState
 } from '@/lib/profile-actions';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
+import { useMessages } from '@/components/LocaleProvider';
+import { formatMessage } from '@/lib/i18n/config';
 
 const CARD = 'flex flex-col gap-2 rounded-[20px] border border-line bg-card p-4 shadow-perk sm:p-5';
 const INPUT =
@@ -50,6 +52,8 @@ export default function ProfileSettings({
   phone: string | null;
   avatarUrl: string | null;
 }) {
+  const m = useMessages();
+  const t = m.account;
   const [avatar, setAvatar] = useState<string | null>(avatarUrl);
   const [fileError, setFileError] = useState<string | null>(null);
   const [avatarNotice, setAvatarNotice] = useState<ProfileState>({});
@@ -99,12 +103,12 @@ export default function ProfileSettings({
     const file = event.target.files?.[0];
     if (!file) return;
     if (!AVATAR_TYPES.includes(file.type)) {
-      setFileError('仅支持 JPG / PNG / WebP / GIF 格式的图片');
+      setFileError(t.avatarTypeError);
       event.target.value = '';
       return;
     }
     if (file.size > AVATAR_MAX_SIZE) {
-      setFileError('头像大小需在 2MB 以内');
+      setFileError(t.avatarSizeError);
       event.target.value = '';
       return;
     }
@@ -114,19 +118,23 @@ export default function ProfileSettings({
 
   async function handleSendCode() {
     if (!phone) {
-      setCodeError('当前账号没有绑定手机号');
+      setCodeError(t.noPhone);
       return;
     }
     setSendingCode(true);
     const result = await sendCodeAction(phone);
     setSendingCode(false);
     if (!result.ok) {
-      setCodeError(result.message ?? '验证码发送失败，请稍后再试');
+      setCodeError(result.message ?? t.sendCodeFailed);
       return;
     }
     setCodeError(null);
     setCountdown(COUNTDOWN_SECONDS);
-    setCodeHint(result.devMode ? `开发态验证码：${result.devCode}` : '验证码已发送，请查收短信');
+    setCodeHint(
+      result.devMode
+        ? formatMessage(t.codeDevHint, { code: result.devCode })
+        : t.codeSent
+    );
   }
 
   const avatarFeedback: ProfileState = fileError ? { error: fileError } : avatarNotice;
@@ -135,18 +143,24 @@ export default function ProfileSettings({
     <>
       <LoadingOverlay
         show={uploading || removing || savingNickname || resetting || sendingCode}
-        text={uploading ? '正在上传头像…' : sendingCode ? '正在发送验证码…' : '正在保存，请稍候…'}
+        text={
+          uploading
+            ? t.loadingAvatar
+            : sendingCode
+              ? t.loadingCode
+              : t.loadingSaving
+        }
       />
       <section className={CARD}>
-        <h2 className="m-0 text-[17px] font-bold text-ink">头像</h2>
-        <p className="m-0 text-[14px] text-ink-3">支持 JPG / PNG / WebP / GIF，2MB 以内</p>
+        <h2 className="m-0 text-[17px] font-bold text-ink">{t.avatarTitle}</h2>
+        <p className="m-0 text-[14px] text-ink-3">{t.avatarHint}</p>
         <div className="mt-1 flex flex-wrap items-center gap-4">
           <span className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-full bg-brand-50 text-[28px] font-bold text-brand-700">
             {avatar ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={avatar}
-                alt="当前头像"
+                alt={t.avatarAlt}
                 width={160}
                 height={160}
                 loading="lazy"
@@ -154,7 +168,7 @@ export default function ProfileSettings({
                 className="h-full w-full object-cover"
               />
             ) : (
-              (nickname.trim()[0] ?? '客')
+              (nickname.trim()[0] ?? t.avatarFallback)
             )}
           </span>
           <div className="flex flex-wrap items-center gap-2">
@@ -173,13 +187,13 @@ export default function ProfileSettings({
                 disabled={uploading}
                 className={BTN_PRIMARY}
               >
-                {uploading ? '上传中…' : '更换头像'}
+                {uploading ? t.avatarUploading : t.avatarChange}
               </button>
             </form>
             {avatar ? (
               <form action={removeAvatar}>
                 <button type="submit" disabled={removing} className={BTN_GHOST}>
-                  {removing ? '移除中…' : '移除'}
+                  {removing ? t.avatarRemoving : t.avatarRemove}
                 </button>
               </form>
             ) : null}
@@ -189,43 +203,43 @@ export default function ProfileSettings({
       </section>
 
       <section className={CARD}>
-        <h2 className="m-0 text-[17px] font-bold text-ink">用户名</h2>
-        <p className="m-0 text-[14px] text-ink-3">2–20 个字，不能包含空格；会显示在顶栏和订单里</p>
+        <h2 className="m-0 text-[17px] font-bold text-ink">{t.nicknameTitle}</h2>
+        <p className="m-0 text-[14px] text-ink-3">{t.nicknameHint}</p>
         <form action={saveNickname} className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-start">
           <label className="min-w-0 flex-1">
-            <span className="sr-only">用户名</span>
+            <span className="sr-only">{t.nicknameLabel}</span>
             <input
               name="nickname"
               defaultValue={nicknameState.nickname ?? nickname}
               maxLength={20}
               autoComplete="nickname"
-              placeholder="请输入用户名"
+              placeholder={t.nicknamePlaceholder}
               className={INPUT}
             />
           </label>
           <button type="submit" disabled={savingNickname} className={BTN_PRIMARY}>
-            {savingNickname ? '保存中…' : '保存'}
+            {savingNickname ? m.common.saving : m.common.save}
           </button>
         </form>
         <Feedback state={nicknameState} />
       </section>
 
       <section className={CARD}>
-        <h2 className="m-0 text-[17px] font-bold text-ink">重置密码</h2>
+        <h2 className="m-0 text-[17px] font-bold text-ink">{t.passwordTitle}</h2>
         <p className="m-0 text-[14px] text-ink-3">
-          验证码会发到绑定的手机号 {maskPhone(phone)}，请先获取验证码再设置新密码
+          {formatMessage(t.passwordHint, { phone: maskPhone(phone) })}
         </p>
         <form action={resetPassword} className="mt-2 flex flex-col gap-3">
           <input type="hidden" name="phone" value={phone ?? ''} />
           <div className="flex flex-col gap-3 sm:flex-row">
             <label className="min-w-0 flex-1">
-              <span className="sr-only">验证码</span>
+              <span className="sr-only">{t.codeLabel}</span>
               <input
                 name="code"
                 inputMode="numeric"
                 maxLength={6}
                 autoComplete="one-time-code"
-                placeholder="6 位验证码"
+                placeholder={t.codePlaceholder}
                 className={`${INPUT} tracking-[2px] placeholder:tracking-normal`}
               />
             </label>
@@ -235,36 +249,40 @@ export default function ProfileSettings({
               disabled={sendingCode || countdown > 0 || !phone}
               className={`${BTN_GHOST} sm:w-[148px]`}
             >
-              {countdown > 0 ? `${countdown}s 后重发` : sendingCode ? '发送中…' : '获取验证码'}
+              {countdown > 0
+                ? formatMessage(t.codeResendIn, { count: countdown })
+                : sendingCode
+                  ? t.codeSending
+                  : t.codeSend}
             </button>
           </div>
           {codeError ? <p className="m-0 text-[14px] text-danger">{codeError}</p> : null}
           {codeHint ? <p className="m-0 text-[14px] text-ink-2">{codeHint}</p> : null}
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="min-w-0">
-              <span className="sr-only">新密码</span>
+              <span className="sr-only">{t.newPasswordLabel}</span>
               <input
                 type="password"
                 name="password"
                 autoComplete="new-password"
-                placeholder="新密码（8–32 位，字母 + 数字）"
+                placeholder={t.newPasswordPlaceholder}
                 className={INPUT}
               />
             </label>
             <label className="min-w-0">
-              <span className="sr-only">确认新密码</span>
+              <span className="sr-only">{t.confirmPasswordLabel}</span>
               <input
                 type="password"
                 name="confirm"
                 autoComplete="new-password"
-                placeholder="再输一次新密码"
+                placeholder={t.confirmPasswordPlaceholder}
                 className={INPUT}
               />
             </label>
           </div>
           <div>
             <button type="submit" disabled={resetting} className={BTN_PRIMARY}>
-              {resetting ? '提交中…' : '重置密码'}
+              {resetting ? m.common.submitting : t.resetSubmit}
             </button>
           </div>
         </form>

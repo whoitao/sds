@@ -2,12 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useMessages } from '@/components/LocaleProvider';
 
 const TABS = [
-  { href: '/profile', label: '个人信息', icon: 'user' },
-  { href: '/orders', label: '我的订单', icon: 'list' },
-  { href: '/addresses', label: '收货地址', icon: 'pin' },
-  { href: '/settings', label: '设置', icon: 'gear' }
+  { href: '/profile', labelKey: 'menuProfile', icon: 'user' },
+  { href: '/orders', labelKey: 'menuOrders', icon: 'list' },
+  { href: '/addresses', labelKey: 'menuAddresses', icon: 'pin' },
+  { href: '/settings', labelKey: 'menuSettings', icon: 'gear' }
 ] as const;
 
 function Icon({ name, className = 'h-[22px] w-[22px]' }: { name: string; className?: string }) {
@@ -57,6 +58,7 @@ function Icon({ name, className = 'h-[22px] w-[22px]' }: { name: string; classNa
 /** 账户中心骨架：左侧页签 + 右侧内容，窄屏页签转为横向条 */
 export default function AccountLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const labels = useMessages().account;
   const activeHref = TABS.find((tab) => pathname === tab.href || pathname.startsWith(`${tab.href}/`))?.href;
 
   return (
@@ -74,7 +76,7 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
               }`}
             >
               <Icon name={tab.icon} className="h-4 w-4 shrink-0" />
-              {tab.label}
+              {labels[tab.labelKey]}
             </Link>
           );
         })}
@@ -101,7 +103,7 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
                 />
               ) : null}
               <Icon name={tab.icon} className="h-[22px] w-[22px] shrink-0" />
-              {tab.label}
+              {labels[tab.labelKey]}
             </Link>
           );
         })}

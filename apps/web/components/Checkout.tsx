@@ -6,6 +6,7 @@ import { useEffect, useState, useTransition } from 'react';
 import { Price } from '@sds/ui';
 import { AddressForm } from '@/components/AddressBook';
 import { LoadingOverlay } from '@/components/LoadingOverlay';
+import { useMessages } from '@/components/LocaleProvider';
 import ProgressSteps from '@/components/ProgressSteps';
 import { setDefaultAddressAction } from '@/app/(site)/addresses/actions';
 import type { AddressItem } from '@/lib/api';
@@ -15,6 +16,7 @@ import {
   type CartGroup,
   type CartPayload
 } from '@/lib/cart-model';
+import { formatMessage } from '@/lib/i18n/config';
 import type { RegionTreeNode } from '@/lib/regions';
 import { placeOrderAction, type CheckoutOrder } from '@/lib/checkout-actions';
 
@@ -141,6 +143,10 @@ export default function Checkout({
   backShop: { id: string; name: string } | null;
 }) {
   const router = useRouter();
+  const m = useMessages();
+  const t = m.cart;
+  const c = m.checkout;
+  const steps = [m.common.stepShop, m.common.stepPick, m.common.stepCheckout, m.common.stepOrder];
   const [fulfillment, setFulfillment] = useState<'delivery' | 'pickup'>('delivery');
   const [payment, setPayment] = useState<'cash' | 'wechat'>('cash');
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(
@@ -252,10 +258,10 @@ export default function Checkout({
       const result = await setDefaultAddressAction(id);
       setBusyId(null);
       if (result.ok) {
-        setNotice(result.message ?? '已设为默认地址');
+        setNotice(result.message ?? c.setDefaultSuccess);
         router.refresh();
       } else {
-        setError(result.error ?? '设置默认地址失败，请稍后再试');
+        setError(result.error ?? c.setDefaultFailed);
       }
     });
   }
@@ -285,9 +291,9 @@ export default function Checkout({
         // 服务端已按门店实时状态拦截：把错误码翻成「怎么处理」，避免只看到一句「暂时不能购买」
         const hint =
           result.code === 'SKU_UNAVAILABLE'
-            ? '（已下架，请回到选菜页把它从购物车移除后再结算）'
+            ? c.errorSkuUnavailable
             : result.code === 'STOCK_INSUFFICIENT'
-              ? '（已售罄或库存不足，请移除或减少数量后再结算）'
+              ? c.errorStockInsufficient
               : '';
         setError(`${result.error}${hint}`);
         return;
@@ -310,7 +316,7 @@ export default function Checkout({
     const totalAmount = placed.orders.reduce((sum, order) => sum + Number(order.totalAmount), 0);
     return (
       <div className="flex w-full min-w-0 flex-col gap-3 lg:flex-auto">
-        <ProgressSteps current={4} />
+        <ProgressSteps current={4} steps={steps} />
         <section className="flex w-full min-w-0 flex-col rounded-[18px] border border-line bg-card shadow-perk lg:flex-auto lg:flex-row">
           {/* 成功状态 */}
           <div className="flex flex-col items-center justify-center gap-4 rounded-t-[18px] border-b border-line bg-brand-50/60 px-6 py-8 text-center lg:w-[38%] lg:shrink-0 lg:rounded-l-[18px] lg:rounded-tr-none lg:border-b-0 lg:border-r lg:py-10">
@@ -319,17 +325,15 @@ export default function Checkout({
             </span>
             <div className="flex flex-col gap-2">
               <h1 className="m-0 text-[24px] font-extrabold leading-[1.25] text-ink sm:text-[26px]">
-                {online ? '订单已提交，等待支付' : '订单已提交，等待门店接单'}
+                {online ? c.placedOnlineTitle : c.placedCashTitle}
               </h1>
               <p className="m-0 text-[15px] leading-[1.6] text-ink-2 sm:text-[16px]">
-                {online
-                  ? '线上支付尚未开通，本页没有扣款；订单已保留，请联系门店完成支付。'
-                  : '已通知门店备货，请留意门店来电。'}
+                {online ? c.placedOnlineNote : c.placedCashNote}
               </p>
             </div>
             <span className="flex max-w-full flex-wrap items-baseline justify-center gap-x-2 gap-y-0.5 rounded-full bg-card px-5 py-2.5 shadow-perk sm:px-6">
               <span className="text-[14px] font-bold leading-[1.4] text-ink-2 sm:text-[15px]">
-                共 {placed.orders.length} 单 · 合计
+                {formatMessage(c.placedSummary, { count: placed.orders.length })}
               </span>
               <Price
                 value={totalAmount}
@@ -344,8 +348,8 @@ export default function Checkout({
           {/* 订单摘要与操作 */}
           <div className="flex min-w-0 flex-1 flex-col gap-4 p-5 sm:p-6">
             <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-              <h2 className="m-0 text-[18px] font-extrabold text-ink">订单摘要</h2>
-              <span className="text-[13px] text-ink-3">请记下订单号，取货或收货时报给店员</span>
+              <h2 className="m-0 text-[18px] font-extrabold text-ink">{c.summaryTitle}</h2>
+              <span className="text-[13px] text-ink-3">{c.summaryNote}</span>
             </div>
 
           <ul className="m-0 flex list-none flex-col gap-3 p-0">
@@ -353,7 +357,9 @@ export default function Checkout({
               <li key={order.id} className="flex flex-col gap-2 rounded-xl bg-card-soft px-4 py-3">
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   <b className="text-[16px] text-ink">{order.shopName}</b>
-                  <span className="text-[13px] text-ink-3">订单号 {order.orderNo}</span>
+                  <span className="text-[13px] text-ink-3">
+                    {formatMessage(c.orderNo, { no: order.orderNo })}
+                  </span>
                   <span className="ml-auto text-[18px] font-extrabold text-ink">
                     <Price
                       value={order.totalAmount}
@@ -365,8 +371,9 @@ export default function Checkout({
                   </span>
                 </div>
                 <span className="text-[13px] text-ink-2">
-                  {order.fulfillmentType === 'pickup' ? '到店自提' : '送货上门'} ·{' '}
-                  {online ? '待支付' : '货到付款'} · 共 {order.itemCount} 件
+                  {order.fulfillmentType === 'pickup' ? c.pickup : c.delivery} ·{' '}
+                  {online ? c.pendingPayment : c.cashOnDelivery} ·{' '}
+                  {formatMessage(c.itemCount, { count: order.itemCount })}
                 </span>
               </li>
             ))}
@@ -377,16 +384,15 @@ export default function Checkout({
               online ? 'bg-amber-soft text-amber-ink' : 'bg-info-soft text-ink-2'
             }`}
           >
-            {online
-              ? '线上支付暂未开通：请保留订单号并联系门店付款，页面不会发起任何扣款。'
-              : '货到付款：到店自提在取货时付款，送货上门在收货时付款。'}
+            {online ? c.onlineNotice : c.cashNotice}
           </p>
 
           {placed.remaining.length > 0 ? (
             <p className="m-0 rounded-xl bg-card-soft px-4 py-3 text-[14px] text-ink-2">
-              还有 {placed.remaining.length} 家店没结：
-              {placed.remaining.map((shop) => shop.shopName).join('、')}
-              。不同店的菜不能合成一单，需要分开下单。
+              {formatMessage(c.remainingShops, {
+                count: placed.remaining.length,
+                shops: placed.remaining.map((shop) => shop.shopName).join(t.listSeparator)
+              })}
             </p>
           ) : null}
 
@@ -401,14 +407,14 @@ export default function Checkout({
                 }}
                 className="flex h-12 items-center rounded-xl bg-primary px-6 text-[17px] font-bold text-white transition-colors hover:bg-primary-hover"
               >
-                继续结算下一家
+                {c.nextShop}
               </button>
             ) : (
               <Link
                 href="/"
                 className="flex h-12 items-center rounded-xl bg-primary px-6 text-[17px] font-bold text-white transition-colors hover:bg-primary-hover"
               >
-                回附近的店
+                {c.goNearby}
               </Link>
             )}
             {backShop ? (
@@ -416,7 +422,7 @@ export default function Checkout({
                 href={`/shops/${backShop.id}`}
                 className="flex h-12 items-center rounded-xl border-[1.5px] border-brand-200 px-6 text-[17px] font-bold text-brand-700 transition-colors hover:bg-brand-50"
               >
-                继续选菜
+                {c.continueShopping}
               </Link>
             ) : null}
           </div>
@@ -429,26 +435,26 @@ export default function Checkout({
   if (!currentGroup) {
     return (
       <div className="flex w-full min-w-0 flex-col gap-3">
-        <ProgressSteps current={3} />
+        <ProgressSteps current={3} steps={steps} />
         <div className="flex w-full min-w-0 flex-col items-center gap-3 rounded-[20px] bg-card px-6 py-16 text-center shadow-perk">
           <span className="grid h-16 w-16 place-items-center rounded-full bg-brand-50 text-brand-700">
             <Icon name="bag" className="h-7 w-7" />
           </span>
-          <b className="text-[22px] text-ink">购物车是空的</b>
-          <p className="m-0 text-[16px] text-ink-2">先去店里挑点菜，再来结算。</p>
+          <b className="text-[22px] text-ink">{t.emptyTitle}</b>
+          <p className="m-0 text-[16px] text-ink-2">{t.emptyNote}</p>
           <div className="mt-2 flex flex-wrap items-center justify-center gap-3">
             <Link
               href="/"
               className="flex h-12 items-center rounded-xl bg-primary px-6 text-[17px] font-bold text-white transition-colors hover:bg-primary-hover"
             >
-              去附近的店
+              {t.goNearby}
             </Link>
             {backShop ? (
               <Link
                 href={`/shops/${backShop.id}`}
                 className="flex h-12 items-center rounded-xl border-[1.5px] border-brand-200 px-6 text-[17px] font-bold text-brand-700 transition-colors hover:bg-brand-50"
               >
-                回门店继续选菜
+                {t.backToShop}
               </Link>
             ) : null}
           </div>
@@ -459,9 +465,9 @@ export default function Checkout({
 
   return (
     <div className="flex w-full min-w-0 flex-col gap-3 lg:min-h-0 lg:flex-1 lg:overflow-hidden">
-      <LoadingOverlay show={pending} text="正在提交，请稍候…" />
-      <h1 className="sr-only">确认订单</h1>
-      <ProgressSteps current={3} />
+      <LoadingOverlay show={pending} text={c.submittingOverlay} />
+      <h1 className="sr-only">{c.title}</h1>
+      <ProgressSteps current={3} steps={steps} />
 
       <div className="grid w-full min-w-0 items-start gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_400px] lg:overflow-x-hidden lg:overflow-y-auto">
         <div className="flex min-w-0 flex-col gap-3">
@@ -485,7 +491,9 @@ export default function Checkout({
                     role="checkbox"
                     aria-checked={partial ? 'mixed' : allSelected}
                     aria-disabled={noAvailable || undefined}
-                    aria-label={`${group.shopName}：${allSelected ? '取消全选' : '全选'}可售商品`}
+                    aria-label={formatMessage(allSelected ? t.unselectAllAria : t.selectAllAria, {
+                      shop: group.shopName
+                    })}
                     disabled={noAvailable}
                     onClick={() => toggleGroup(group)}
                     className={`relative mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full border-[1.5px] transition-colors before:absolute before:-inset-2 before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:ring-offset-1 disabled:cursor-not-allowed ${
@@ -508,7 +516,7 @@ export default function Checkout({
                     <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                       <b className="text-[16px] text-ink sm:text-[17px]">{group.shopName}</b>
                       <span className="text-[13px] text-ink-3 sm:text-[14px]">
-                        已选 {selectedCount} 样
+                        {formatMessage(t.selectedCount, { count: selectedCount })}
                       </span>
                     </div>
                   </div>
@@ -517,7 +525,11 @@ export default function Checkout({
                       isCurrent && !noAvailable ? 'text-ink' : 'text-ink-3'
                     }`}
                   >
-                    {isCurrent ? (noAvailable ? '暂无可结算' : '本次结这家') : '下一单再结'}
+                    {isCurrent
+                      ? noAvailable
+                        ? t.nothingToCheckout
+                        : t.checkoutThisShop
+                      : t.nextOrder}
                   </span>
                 </div>
 
@@ -526,7 +538,7 @@ export default function Checkout({
                     const availability = cartItemAvailability(item);
                     const unavailable = availability !== 'available';
                     const isSelected = !unavailable && selectedIds.includes(item.id);
-                    const blockLabel = availability === 'off_shelf' ? '已下架' : '已售罄';
+                    const blockLabel = availability === 'off_shelf' ? t.offShelf : t.soldOut;
                     return (
                       <li
                         key={item.id}
@@ -537,8 +549,15 @@ export default function Checkout({
                           role="checkbox"
                           aria-checked={isSelected}
                           aria-disabled={unavailable || undefined}
-                          aria-label={`${unavailable ? `${blockLabel}，无法选择：` : '选择：'}${item.name}`}
-                          title={unavailable ? `${blockLabel}，无法选择` : undefined}
+                          aria-label={formatMessage(unavailable ? t.blockedAria : t.selectAria, {
+                            label: blockLabel,
+                            name: item.name
+                          })}
+                          title={
+                            unavailable
+                              ? formatMessage(t.blockedTitle, { label: blockLabel })
+                              : undefined
+                          }
                           disabled={unavailable}
                           onClick={() => toggleItem(group.id, item.id)}
                           className={`relative grid h-5 w-5 shrink-0 place-items-center rounded-full border-[1.5px] transition-colors before:absolute before:-inset-2 before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:ring-offset-1 disabled:cursor-not-allowed ${
@@ -627,11 +646,11 @@ export default function Checkout({
 
                 {!isCurrent ? (
                   <p className="m-0 mt-3 -mx-4 -mb-4 rounded-b-[18px] bg-amber-soft px-4 py-2.5 text-[13px] leading-[1.55] text-amber-ink sm:-mx-5 sm:-mb-5 sm:text-[14px]">
-                    不同店的菜不能合成一单，结完 {currentGroup.shopName} 再来结这家。
+                    {formatMessage(t.otherShopHint, { shop: currentGroup.shopName })}
                   </p>
                 ) : otherGroups.length === 0 ? (
                   <p className="m-0 mt-3 -mx-4 -mb-4 rounded-b-[18px] bg-amber-soft px-4 py-2.5 text-[13px] leading-[1.55] text-amber-ink sm:-mx-5 sm:-mb-5 sm:text-[14px]">
-                    不同店的菜不能合成一单，一单一店结算；同一家店的菜可以一起提交。
+                    {t.singleShopHint}
                   </p>
                 ) : null}
               </section>
@@ -641,18 +660,22 @@ export default function Checkout({
 
         <aside className={`${CARD} lg:sticky lg:top-0 lg:flex lg:max-h-full lg:flex-col lg:overflow-hidden lg:p-0`}>
           <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:p-5">
-          <h2 className="m-0 text-[19px] font-extrabold text-ink">怎么拿菜</h2>
+          <h2 className="m-0 text-[19px] font-extrabold text-ink">{c.fulfillmentTitle}</h2>
           <div className="mt-3 grid grid-cols-2 gap-2.5">
             <Choice
               active={fulfillment === 'delivery'}
-              title="送货到家"
-              sub={address ? `送到${address.district ?? '你选的地址'}` : '送到你选的地址'}
+              title={c.deliveryTitle}
+              sub={
+                address?.district
+                  ? formatMessage(c.deliverySubDistrict, { district: address.district })
+                  : c.deliverySub
+              }
               onClick={() => setFulfillment('delivery')}
             />
             <Choice
               active={fulfillment === 'pickup'}
-              title="我去店里拿"
-              sub="到店自提，做好通知你"
+              title={c.pickupTitle}
+              sub={c.pickupSub}
               onClick={() => setFulfillment('pickup')}
             />
           </div>
@@ -673,10 +696,8 @@ export default function Checkout({
                   </>
                 ) : (
                   <>
-                    <p className="m-0 text-[14px] font-bold text-ink">还没有收货地址</p>
-                    <p className="m-0 mt-0.5 text-[13px] text-ink-3">
-                      先添加一个地址才能送货到家
-                    </p>
+                    <p className="m-0 text-[14px] font-bold text-ink">{c.noAddressTitle}</p>
+                    <p className="m-0 mt-0.5 text-[13px] text-ink-3">{c.noAddressNote}</p>
                   </>
                 )}
               </div>
@@ -685,7 +706,7 @@ export default function Checkout({
                 onClick={() => setAddressOpen(true)}
                 className="shrink-0 text-[14px] font-bold text-brand-700 transition-colors hover:text-brand-800"
               >
-                {address ? '换地址' : '添加地址'}
+                {address ? c.changeAddress : c.addAddress}
               </button>
             </div>
           ) : (
@@ -704,56 +725,65 @@ export default function Checkout({
                       <p className="m-0 flex flex-wrap items-center gap-x-2 text-[14px] font-bold text-ink">
                         {group.shopName}
                         <span className="text-[12px] font-normal text-ink-3">
-                          {isCurrent ? '本次自提' : '下一单再结'}
+                          {isCurrent ? c.pickupCurrent : t.nextOrder}
                         </span>
                       </p>
                       <p className="m-0 mt-0.5 text-[13px] leading-[1.5] text-ink-2">
-                        {shops[group.shopId]?.address ?? '门店地址待补充'}
+                        {shops[group.shopId]?.address ?? c.shopAddressMissing}
                       </p>
                     </div>
                   </div>
                 );
               })}
               <p className="m-0 px-1 text-[13px] text-ink-3">
-                取货人：{customerName || '当前账号'} {maskPhone(customerPhone)}
+                {formatMessage(c.pickerLabel, { name: customerName || c.currentAccount })}{' '}
+                {maskPhone(customerPhone)}
               </p>
             </div>
           )}
 
-          <h2 className="mt-5 text-[19px] font-extrabold text-ink">怎么付钱</h2>
+          <h2 className="mt-5 text-[19px] font-extrabold text-ink">{c.paymentTitle}</h2>
           <div className="mt-3 grid grid-cols-2 gap-2.5">
             <Choice
               active={payment === 'wechat'}
-              title="现在微信付"
-              sub="线上支付暂未开通"
+              title={c.wechatTitle}
+              sub={c.wechatSub}
               onClick={() => setPayment('wechat')}
             />
             <Choice
               active={payment === 'cash'}
-              title="收到菜再付钱"
-              sub="收货/取货时付给店里"
+              title={c.cashTitle}
+              sub={c.cashSub}
               onClick={() => setPayment('cash')}
             />
           </div>
           {payment === 'wechat' ? (
             <p className="m-0 mt-2 rounded-lg bg-amber-soft px-3 py-2 text-[12px] leading-[1.5] text-amber-ink">
-              线上支付暂未开通：提交后订单会保留为待支付，本页不会扣款，请联系门店付款。
+              {c.wechatNotice}
             </p>
           ) : null}
 
           {unavailableItems.length > 0 ? (
             <p className="m-0 mt-3 rounded-xl bg-amber-soft px-3 py-2 text-[12px] leading-[1.55] text-amber-ink">
-              {unavailableItems
-                .map((item) => `「${item.name}」${item.offShelf ? '已下架' : '已售罄'}`)
-                .join('、')}
-              暂不能购买，已自动排除、不计入合计；如需清理请回选菜页移除。
+              {formatMessage(c.unavailableNote, {
+                items: unavailableItems
+                  .map((item) =>
+                    formatMessage(c.unavailableItem, {
+                      name: item.name,
+                      label: item.offShelf ? t.offShelf : t.soldOut
+                    })
+                  )
+                  .join(t.listSeparator)
+              })}
             </p>
           ) : null}
           </div>
 
           <div className="mt-4 shrink-0 border-t border-dashed border-line pt-4 lg:m-0 lg:border-solid lg:px-5 lg:pb-5">
             <div className="flex items-baseline justify-between gap-3">
-              <span className="text-[15px] text-ink-2">一共 {pickedCount} 样，合计</span>
+              <span className="text-[15px] text-ink-2">
+                {formatMessage(c.totalLine, { count: pickedCount })}
+              </span>
               <Price as="b" value={totalAmount} color="ink" size={28} weight={800} symbolSize="1em" />
             </div>
 
@@ -774,20 +804,16 @@ export default function Checkout({
               disabled={!canSubmit}
               className="mt-3 h-[52px] w-full rounded-full bg-primary text-[18px] font-bold text-white transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-segment disabled:text-ink-3"
             >
-              {pending
-                ? '提交中…'
-                : payment === 'wechat'
-                  ? '确认下单，待支付'
-                  : '确认下单，收货再付'}
+              {pending ? c.submitting : payment === 'wechat' ? c.submitWechat : c.submitCash}
             </button>
             <p className="m-0 mt-2 min-h-[18px] text-center text-[12px] leading-[1.5] text-ink-3">
               {allUnavailable
-                ? '这家店的菜都已下架或售罄，暂时无法下单。'
+                ? c.hintAllUnavailable
                 : needsAddress
-                  ? '请先选择一个收货地址'
+                  ? c.hintNeedsAddress
                   : nothingSelected
-                    ? '还没有勾选要结算的菜，勾选商品后再下单。'
-                    : '提交后门店会确认备货；不同门店的菜需分开结算。'}
+                    ? c.hintNothingSelected
+                    : c.hintReady}
             </p>
           </div>
         </aside>
@@ -798,7 +824,7 @@ export default function Checkout({
           className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-6"
           role="dialog"
           aria-modal="true"
-          aria-label="选择收货地址"
+          aria-label={c.addressDialogTitle}
           onClick={() => {
             setAddressOpen(false);
             setAddingAddress(false);
@@ -809,7 +835,7 @@ export default function Checkout({
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-center justify-between gap-3">
-              <h2 className="m-0 text-[20px] font-extrabold text-ink">选择收货地址</h2>
+              <h2 className="m-0 text-[20px] font-extrabold text-ink">{c.addressDialogTitle}</h2>
               <button
                 type="button"
                 onClick={() => {
@@ -818,7 +844,7 @@ export default function Checkout({
                 }}
                 className="h-9 rounded-lg px-3 text-[15px] font-bold text-ink-2 transition-colors hover:bg-card-soft"
               >
-                关闭
+                {c.close}
               </button>
             </div>
 
@@ -850,7 +876,7 @@ export default function Checkout({
                           </span>
                           {item.isDefault ? (
                             <em className="rounded-full bg-brand-50 px-2 py-0.5 text-[12px] font-bold not-italic text-brand-700">
-                              默认
+                              {c.defaultTag}
                             </em>
                           ) : null}
                         </span>
@@ -866,7 +892,7 @@ export default function Checkout({
                         disabled={busyId === item.id}
                         className="mt-1.5 h-8 rounded-lg px-2 text-[13px] font-bold text-brand-700 transition-colors hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        {busyId === item.id ? '设置中…' : '设为默认'}
+                        {busyId === item.id ? c.settingDefault : c.setDefault}
                       </button>
                     )}
                   </div>
@@ -894,7 +920,7 @@ export default function Checkout({
                 onClick={() => setAddingAddress(true)}
                 className="mt-3 h-11 w-full rounded-xl border-[1.5px] border-dashed border-brand-300 text-[15px] font-bold text-brand-700 transition-colors hover:bg-brand-50"
               >
-                + 新增收货地址
+                {c.addNewAddress}
               </button>
             )}
           </div>
