@@ -2,11 +2,14 @@
 
 # 捎点啥
 
-一个支持 Web 端和移动端的门店购物项目，为用户提供商品浏览、购物车、下单及门店自提等功能。
+一个支持 Web 端和移动端的多门店购物项目，包含电商和供应链系统。
+
+# 开始使用
+访问地址：[https://sds.whoitao.top](https://sds.whoitao.top)
 
 ## 多端支持
 
-- **Web 端**：通过浏览器访问，适配桌面端和移动端页面。访问地址：[https://sds.whoitao.top](https://sds.whoitao.top)。
+- **Web 端**：适配桌面端和移动端页面。
 - **Android**：提供 Android 应用。
 - **iOS**：提供 iOS 应用。
 
