@@ -1,26 +1,27 @@
-![捎点啥 Logo](./docs/design/readme-header.png)
+![Shao Dian Sha Logo](./docs/design/readme-header.png)
 
-# 捎点啥
+# SDS (Shao Dian Sha)
 
-一个支持 Web 端和移动端的多门店购物项目，包含电商和供应链系统。
+A multi-store shopping project for web and mobile, including e-commerce and supply chain systems.
 
-# 开始使用
-访问地址：[https://sds.whoitao.top](https://sds.whoitao.top)
+# Getting Started
 
-## 多端支持
+Visit: [https://sds.whoitao.top](https://sds.whoitao.top)
 
-- **Web 端**：适配桌面端和移动端页面。
-- **Android**：提供 Android 应用。
-- **iOS**：提供 iOS 应用。
+## Multi-Platform Support
 
-## 多主题
+- **Web**: Responsive layouts for desktop and mobile browsers.
+- **Android**: Native Android app.
+- **iOS**: Native iOS app.
 
-支持浅色和深色主题，可根据使用环境切换，为不同场景提供舒适的浏览体验。
+## Multiple Themes
 
-### 浅色主题
+Light and dark themes are supported. Switch between them to enjoy a comfortable browsing experience in different environments.
 
-![Web 与移动端浅色主题](docs/design/ads/sds-web-mobile-light.webp)
+### Light Theme
 
-### 深色主题
+![Web and mobile light theme](docs/design/ads/sds-web-mobile-light.webp)
 
-![Web 与移动端深色主题](docs/design/ads/sds-web-mobile-dark.webp)
+### Dark Theme
+
+![Web and mobile dark theme](docs/design/ads/sds-web-mobile-dark.webp)
