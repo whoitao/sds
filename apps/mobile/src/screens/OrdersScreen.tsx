@@ -243,15 +243,6 @@ export default function OrdersScreen({
                       </Pressable>
                     </View>
 
-                    <Text
-                      style={styles.orderNo}
-                      numberOfLines={1}
-                      ellipsizeMode="middle"
-                      selectable
-                    >
-                      订单号 {order.orderNo}
-                    </Text>
-
                     {order.canPay ? (
                       <View style={styles.actions}>
                         <PrimaryButton
@@ -300,8 +291,8 @@ const makeStyles = ({ colors, shadow }: Theme) =>
   tab: {
     minHeight: tap.min,
     justifyContent: 'center',
-    paddingHorizontal: spacing.lg,
-    borderRadius: tap.min / 2,
+    paddingHorizontal: 10,
+    borderRadius: 6,
     borderWidth: 1,
     borderColor: colors.line,
     backgroundColor: colors.card
@@ -375,8 +366,8 @@ const makeStyles = ({ colors, shadow }: Theme) =>
     color: colors.ink
   },
   statusPill: {
-    borderRadius: 999,
-    paddingHorizontal: 10,
+    borderRadius: 6,
+    paddingHorizontal: 8,
     paddingVertical: 4
   },
   statusText: {
@@ -417,12 +408,6 @@ const makeStyles = ({ colors, shadow }: Theme) =>
     alignItems: 'center',
     gap: 2,
     paddingLeft: spacing.sm
-  },
-  orderNo: {
-    fontSize: fontSize.body,
-    lineHeight: 24,
-    color: colors.ink3,
-    fontVariant: ['tabular-nums']
   },
   detailText: {
     fontSize: fontSize.body,

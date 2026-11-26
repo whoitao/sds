@@ -107,7 +107,7 @@ export default function ScreenHeader({
   );
 }
 
-const makeStyles = ({ colors, shadow }: Theme) =>
+const makeStyles = ({ colors }: Theme) =>
   StyleSheet.create({
   header: {
     flexDirection: 'row',
@@ -117,16 +117,12 @@ const makeStyles = ({ colors, shadow }: Theme) =>
     paddingTop: 4,
     paddingBottom: 10
   },
+  /** 图标按钮只保留点击热区与图标本身，不再套圆底/描边/投影 */
   roundButton: {
     width: tap.min,
     height: tap.min,
-    borderRadius: tap.min / 2,
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.line,
-    ...shadow
+    justifyContent: 'center'
   },
   roundPlaceholder: {
     width: tap.min,
@@ -175,11 +171,7 @@ const makeStyles = ({ colors, shadow }: Theme) =>
   helpRound: {
     width: tap.min,
     height: tap.min,
-    borderRadius: tap.min / 2,
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.greenSoft,
-    borderWidth: 1,
-    borderColor: colors.edgeGreen
+    justifyContent: 'center'
   }
 });

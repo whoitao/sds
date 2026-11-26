@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
 import { SpeedInsights } from '@vercel/speed-insights/next';
+import { Analytics } from '@vercel/analytics/next';
 import LocaleProvider from '@/components/LocaleProvider';
 import MaintenanceScreen from '@/components/MaintenanceScreen';
 import ThemeSync from '@/components/ThemeSync';
@@ -70,6 +71,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <ThemeSync />
         </LocaleProvider>
         <SpeedInsights />
+        <Analytics />
       </body>
     </html>
   );
